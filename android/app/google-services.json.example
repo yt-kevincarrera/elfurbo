@@ -1,0 +1,22 @@
+{
+  "_comment": "PLANTILLA. Bajá el archivo real desde Firebase Console > Configuración del proyecto > Tus apps (Android) y guardalo como android/app/google-services.json (está en .gitignore).",
+  "project_info": {
+    "project_number": "123456789000",
+    "project_id": "tu-proyecto-firebase",
+    "storage_bucket": "tu-proyecto-firebase.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789000:android:0000000000000000000000",
+        "android_client_info": { "package_name": "app.elfurbo" }
+      },
+      "oauth_client": [
+        { "client_id": "123456789000-xxxxxxxx.apps.googleusercontent.com", "client_type": 3 }
+      ],
+      "api_key": [ { "current_key": "AIzaSy_REEMPLAZAR_POR_LA_CLAVE_REAL_000000" } ],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}
