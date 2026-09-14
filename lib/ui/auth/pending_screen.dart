@@ -42,7 +42,7 @@ class PendingScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 blocked
-                    ? 'Hablá con el admin del grupo si creés que es un error.'
+                    ? 'Habla con el admin del grupo si crees que es un error.'
                     : 'Avisale al admin del grupo que ya entraste. Cuando te apruebe, esta pantalla se actualiza sola.',
                 textAlign: TextAlign.center,
                 style: text.bodyMedium?.copyWith(

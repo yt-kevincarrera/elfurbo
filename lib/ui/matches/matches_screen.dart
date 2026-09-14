@@ -42,8 +42,8 @@ class MatchesScreen extends ConsumerWidget {
               icon: Icons.sports_soccer,
               title: 'Todavía no hay partidos',
               subtitle: isAdmin
-                  ? 'Creá el primero con el botón de abajo.'
-                  : 'Cuando el admin cargue un partido, aparece acá.',
+                  ? 'Crea el primero con el botón de abajo.'
+                  : 'Cuando el admin cargue un partido, aparece aquí.',
             );
           }
           final upcoming = matches.where((m) => m.isUpcoming(now)).toList()
@@ -231,7 +231,7 @@ class _PlayedMatchCard extends ConsumerWidget {
                         ReportStatusChip(report: myReport, compact: true),
                       if (myReport == null && iPlayed)
                         _Hint(
-                          text: 'Cargá tus goles',
+                          text: 'Carga tus goles',
                           color: scheme.pending,
                           icon: Icons.edit,
                         ),

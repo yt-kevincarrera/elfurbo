@@ -1,7 +1,7 @@
 name: elfurbo
-description: "A new Flutter project."
+description: "El Furbo: estadísticas de fútbol entre amigos."
 publish_to: 'none'
-version: 0.1.0
+version: 0.1.0+1
 
 environment:
   sdk: ^3.9.2
@@ -22,11 +22,29 @@ dependencies:
   intl: any
   flutter_localizations:
     sdk: flutter
+  package_info_plus: ^9.0.1
+  device_info_plus: ^12.4.0
+  workmanager: ^0.10.10
+  flutter_local_notifications: ^22.3.1
+  shared_preferences: ^2.5.5
+  http: ^1.6.0
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+# Ícono de la app. Regenerar con: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#0A0A0A"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
+  min_sdk_android: 23

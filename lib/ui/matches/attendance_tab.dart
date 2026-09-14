@@ -46,7 +46,7 @@ class AttendanceTab extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   played
-                      ? 'Marcá "Jugué" para poder cargar tus goles, confirmar a otros y votar MVP.'
+                      ? 'Marca "Jugué" para poder cargar tus goles, confirmar a otros y votar MVP.'
                       : 'Con esto el grupo sabe si llegan a completar equipos.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -163,7 +163,7 @@ class _Group extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(left: 20),
             child: Text(
-              'Mantené apretado un jugador para cambiarle la asistencia.',
+              'Mantén presionado un jugador para cambiarle la asistencia.',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),

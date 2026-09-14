@@ -3,7 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 /// Opcional: "Web client ID" de OAuth de tu proyecto de Firebase. En Android
 /// normalmente no hace falta porque se toma de google-services.json, pero si
-/// el idToken llega null, compilá con:
+/// el idToken llega null, compila con:
 ///   flutter build apk --dart-define=GOOGLE_SERVER_CLIENT_ID=xxxx.apps.googleusercontent.com
 const String kGoogleServerClientId = String.fromEnvironment(
   'GOOGLE_SERVER_CLIENT_ID',
@@ -41,7 +41,7 @@ class AuthService {
     final idToken = account.authentication.idToken;
     if (idToken == null) {
       throw Exception(
-        'Google no devolvió un idToken. Revisá el SHA-1 en Firebase o definí GOOGLE_SERVER_CLIENT_ID.',
+        'Google no devolvió un idToken. Revisa el SHA-1 en Firebase o define GOOGLE_SERVER_CLIENT_ID.',
       );
     }
     final credential = GoogleAuthProvider.credential(idToken: idToken);

@@ -26,7 +26,7 @@ class ReportsTab extends ConsumerWidget {
         title: match.isCancelled ? 'Partido cancelado' : 'Todavía no se jugó',
         subtitle: match.isCancelled
             ? null
-            : 'Después del partido acá cargás tus goles y asistencias.',
+            : 'Después del partido aquí cargas tus goles y asistencias.',
       );
     }
 
@@ -126,7 +126,7 @@ class ReportsTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text(
-              'Para confirmar a otros tenés que marcar "Jugué" en Asistencia.',
+              'Para confirmar a otros tienes que marcar "Jugué" en Asistencia.',
               style: text.bodySmall?.copyWith(color: scheme.pending),
             ),
           ),
@@ -318,7 +318,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
   void _save() {
     final repo = ref.read(repoProvider);
     final uid = ref.read(myUidProvider);
-    // Si reportás, jugaste: marcamos asistencia para que puedas confirmar y votar.
+    // Si reportas, jugaste: marcamos asistencia para que puedas confirmar y votar.
     fireAndForget(
       repo.setAttendance(widget.match.id, uid, AttendanceStatus.yes),
     );
@@ -382,7 +382,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
           ),
           if (widget.existing != null && !widget.existing!.isPending)
             Text(
-              'Si editás, el reporte vuelve a pendiente y hay que confirmarlo de nuevo.',
+              'Si editas, el reporte vuelve a pendiente y hay que confirmarlo de nuevo.',
               style: text.bodySmall?.copyWith(color: scheme.pending),
             ),
           const SizedBox(height: 16),

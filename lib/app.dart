@@ -8,7 +8,9 @@ import 'data/providers.dart';
 import 'models/app_user.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/pending_screen.dart';
+import 'services/update_worker.dart';
 import 'ui/shell/home_shell.dart';
+import 'ui/widgets/update_dialog.dart';
 
 class ElFurboApp extends StatelessWidget {
   const ElFurboApp({super.key});
@@ -100,7 +102,29 @@ class _ActiveSessionState extends ConsumerState<_ActiveSession> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(pushServiceProvider).register(widget.user.uid);
+      _checkForUpdates();
     });
+  }
+
+  /// Busca una versión nueva al abrir (como mucho cada 12 h, o siempre si se
+  /// entró tocando la notificación de actualización) y deja programado el
+  /// chequeo en segundo plano.
+  Future<void> _checkForUpdates() async {
+    final fromNotification =
+        await UpdateNotifications.launchedFromNotification();
+    final release = await ref
+        .read(updateServiceProvider)
+        .checkForUpdate(force: fromNotification)
+        .catchError((_) => null);
+    if (fromNotification) await UpdateNotifications.cancel();
+    if (release != null && mounted) {
+      await showUpdateDialog(
+        context,
+        release: release,
+        service: ref.read(updateServiceProvider),
+      );
+    }
+    await UpdateWorker.schedule();
   }
 
   @override

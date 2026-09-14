@@ -89,7 +89,7 @@ class MvpTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              'Para votar tenés que marcar "Jugué" en la pestaña Asistencia.',
+              'Para votar tienes que marcar "Jugué" en la pestaña Asistencia.',
               style: text.bodyMedium?.copyWith(color: scheme.pending),
             ),
           )

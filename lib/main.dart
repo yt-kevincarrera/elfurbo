@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'services/update_worker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,5 +17,7 @@ Future<void> main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
   await initializeDateFormatting('es');
+  // Chequeo periódico de nuevas versiones (GitHub Releases) con la app cerrada.
+  await UpdateWorker.initialize();
   runApp(const ProviderScope(child: ElFurboApp()));
 }

@@ -22,7 +22,7 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 const REGION = "us-central1";
-const TIME_ZONE = "America/Argentina/Buenos_Aires";
+const TIME_ZONE = "America/Havana";
 
 setGlobalOptions({ region: REGION, maxInstances: 5 });
 
@@ -101,7 +101,7 @@ async function sendToUsers(uids, payload) {
     data: payload.data || {},
     android: {
       priority: "high",
-      notification: { channelId: "elfurbo_default", icon: "ic_notification", color: "#1B5E20" },
+      notification: { channelId: "elfurbo_default", icon: "ic_notification", color: "#D4AF37" },
     },
   });
 
@@ -172,7 +172,7 @@ exports.onUserCreated = onDocumentCreated("users/{uid}", async (event) => {
   const admins = await adminUserIds();
   await sendToUsers(admins, {
     title: "Nuevo jugador esperando",
-    body: `${playerName(user)} quiere entrar al grupo. Aprobalo desde Admin.`,
+    body: `${playerName(user)} quiere entrar al grupo. Apruébalo desde Admin.`,
     data: { type: "pending_user", uid },
   });
 });
@@ -215,7 +215,7 @@ exports.onReportUpdated = onDocumentUpdated("reports/{id}", async (event) => {
     )}. Ya cuentan en la tabla.`;
   } else if (next === "rejected") {
     title = "Reporte rechazado";
-    body = "El admin rechazó tu reporte. Revisalo y volvé a cargarlo si hace falta.";
+    body = "El admin rechazó tu reporte. Revísalo y vuelve a cargarlo si hace falta.";
   } else {
     return;
   }
@@ -241,7 +241,7 @@ exports.matchDayReminder = onSchedule(
       }).format(match.date.toDate());
       await sendToUsers(users, {
         title: "¡Hoy se juega!",
-        body: `Partido a las ${hour}${match.place ? ` en ${match.place}` : ""}. Marcá si vas.`,
+        body: `Partido a las ${hour}${match.place ? ` en ${match.place}` : ""}. Marca si vas.`,
         data: { type: "match_day", matchId: match.id },
       });
     }
@@ -257,7 +257,7 @@ exports.postMatchReminder = onSchedule(
       const attendees = await attendeesYes(match.id);
       await sendToUsers(attendees, {
         title: "¿Cuántos metiste hoy?",
-        body: "Cargá tus goles y asistencias, y votá al MVP del partido.",
+        body: "Carga tus goles y asistencias, y vota al MVP del partido.",
         data: { type: "post_match", matchId: match.id },
       });
     }
