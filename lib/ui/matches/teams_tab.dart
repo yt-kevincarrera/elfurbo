@@ -144,7 +144,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
               icon: Icons.groups_outlined,
               title: 'Todavía no hay equipos',
               subtitle:
-                  'Cuando el grupo confirme asistencia, armalos con un toque.',
+                  'Cuando el grupo confirme asistencia, ármalos con un toque.',
             ),
           )
         else ...[

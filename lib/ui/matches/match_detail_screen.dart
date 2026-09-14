@@ -180,7 +180,7 @@ class MatchDetailScreen extends ConsumerWidget {
           builder: (ctx) => AlertDialog(
             title: const Text('¿Eliminar partido?'),
             content: const Text(
-              'Se pierden los reportes, votos y asistencias de este partido. Si solo se suspendió, mejor cancelalo.',
+              'Se pierden los reportes, votos y asistencias de este partido. Si solo se suspendió, mejor cancélalo.',
             ),
             actions: [
               TextButton(
