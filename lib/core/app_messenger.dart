@@ -41,3 +41,11 @@ void fireAndForget(Future<void> future, {String? success}) {
         }),
   );
 }
+
+/// Navigator raíz de la app, para abrir pantallas desde fuera del árbol
+/// (por ejemplo al tocar una notificación).
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Pestaña del shell que alguien pidió mostrar (índice), o null. El shell la
+/// consume y la vuelve a null.
+final requestedHomeTab = ValueNotifier<int?>(null);

@@ -9,6 +9,7 @@ import '../../data/providers.dart';
 import '../../domain/achievements.dart';
 import '../../domain/stats_engine.dart';
 import '../../models/app_user.dart';
+import '../../services/session.dart';
 import '../matches/match_detail_screen.dart';
 import '../stats/leaderboard_screen.dart';
 import '../widgets/common.dart';
@@ -261,10 +262,7 @@ class PlayerProfileScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(pushServiceProvider).dispose();
-      await ref.read(authServiceProvider).signOut();
-    }
+    if (ok == true) await signOutCompletely(ref);
   }
 }
 

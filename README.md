@@ -84,7 +84,7 @@ Antes de desplegar, revisa en `functions/index.js`:
 - `REGION`: debe coincidir con la región de tu Firestore (o `us-central1` si elegiste una multi-región).
 - `TIME_ZONE`: zona horaria del grupo para los recordatorios de las 09:00 y las 22:00.
 
-> Si no quieres usar Functions, la app funciona igual. Lo único que pierdes son las notificaciones, y al primer admin lo tienes que marcar a mano (ver abajo).
+> Si no quieres usar Functions, la app funciona igual y al primer admin lo tienes que marcar a mano (ver abajo). Sin Blaze no hay push entre teléfonos, pero la app avisa **localmente**: un trabajo en segundo plano cada 12 h revisa si hay jugadores esperando aprobación (admin) o reportes ajenos que te falta confirmar, y al abrirla programa recordatorios para las próximas jornadas (09:00 "¡Hoy se juega!" y 22:00 "¿Cuántos metiste hoy?", salvo que hayas dicho "No voy"). Tocar cualquier notificación abre la jornada o la pestaña Admin. Al cerrar sesión se borra el token de push del teléfono, así otro usuario que entre después no recibe tus avisos.
 
 ### 6. Compilar e instalar
 

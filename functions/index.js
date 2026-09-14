@@ -77,6 +77,16 @@ async function attendeesPresent(matchId) {
   return snap.docs.map((d) => d.data().uid);
 }
 
+/** Jugadores que dijeron que no iban. */
+async function intendedNo(matchId) {
+  const snap = await db
+    .collection("attendance")
+    .where("matchId", "==", matchId)
+    .where("status", "==", "no")
+    .get();
+  return snap.docs.map((d) => d.data().uid);
+}
+
 /** Jugadores que dijeron que iban (intención previa). */
 async function intendedYes(matchId) {
   const snap = await db
@@ -100,8 +110,14 @@ async function sendToUsers(uids, payload) {
   const snaps = await db.getAll(...refs);
   const tokenOwner = new Map();
   for (const snap of snaps) {
-    const token = snap.exists ? snap.data().fcmToken : null;
-    if (token) tokenOwner.set(token, snap.id);
+    if (!snap.exists) continue;
+    const data = snap.data();
+    // Varios teléfonos por usuario (fcmTokens) más el campo viejo (fcmToken).
+    const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+    if (data.fcmToken) tokens.push(data.fcmToken);
+    for (const token of tokens) {
+      if (token) tokenOwner.set(token, snap.id);
+    }
   }
   const tokens = [...tokenOwner.keys()];
   if (tokens.length === 0) return;
@@ -125,7 +141,12 @@ async function sendToUsers(uids, payload) {
       code === "messaging/invalid-registration-token"
     ) {
       const uid = tokenOwner.get(tokens[i]);
-      cleanup.push(db.collection("users").doc(uid).update({ fcmToken: admin.firestore.FieldValue.delete() }));
+      cleanup.push(
+        db.collection("users").doc(uid).update({
+          fcmTokens: admin.firestore.FieldValue.arrayRemove(tokens[i]),
+          fcmToken: admin.firestore.FieldValue.delete(),
+        })
+      );
     } else {
       logger.warn("Fallo enviando push", { code, uid: tokenOwner.get(tokens[i]) });
     }
@@ -276,12 +297,15 @@ exports.matchDayReminder = onSchedule(
     if (matches.length === 0) return;
     const users = await activeUserIds();
     for (const match of matches) {
-      const hour = new Intl.DateTimeFormat("es-AR", {
+      // Quien ya dijo "No voy" no necesita el recordatorio.
+      const declined = new Set(await intendedNo(match.id));
+      const targets = users.filter((uid) => !declined.has(uid));
+      const hour = new Intl.DateTimeFormat("es", {
         timeZone: TIME_ZONE,
         hour: "2-digit",
         minute: "2-digit",
       }).format(match.date.toDate());
-      await sendToUsers(users, {
+      await sendToUsers(targets, {
         title: "¡Hoy se juega!",
         body: `Jornada a las ${hour}${match.place ? ` en ${match.place}` : ""}. Marca si vas.`,
         data: { type: "match_day", matchId: match.id },

@@ -8,6 +8,10 @@ import 'data/providers.dart';
 import 'models/app_user.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/pending_screen.dart';
+import 'domain/reminders.dart';
+import 'models/notification_payload.dart';
+import 'services/local_notifications.dart';
+import 'services/notification_router.dart';
 import 'services/update_worker.dart';
 import 'ui/shell/home_shell.dart';
 import 'ui/widgets/update_dialog.dart';
@@ -19,6 +23,7 @@ class ElFurboApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'El Furbo',
+      navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       theme: AppTheme.light(),
@@ -100,23 +105,42 @@ class _ActiveSessionState extends ConsumerState<_ActiveSession> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(pushServiceProvider).register(widget.user.uid);
-      _checkForUpdates();
-    });
+    NotificationRouter.onUpdateTapped = () => _checkForUpdates(force: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
-  /// Busca una versión nueva al abrir (como mucho cada 12 h, o siempre si se
-  /// entró tocando la notificación de actualización) y deja programado el
-  /// chequeo en segundo plano.
-  Future<void> _checkForUpdates() async {
-    final fromNotification =
-        await UpdateNotifications.launchedFromNotification();
+  @override
+  void dispose() {
+    NotificationRouter.onUpdateTapped = null;
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    ref.read(pushServiceProvider).register(widget.user.uid);
+    await LocalNotifications.ensureInitialized(
+      onTap: NotificationRouter.handle,
+    );
+    // Si la app se abrió tocando una notificación local, la atendemos ahora
+    // que ya hay sesión y navigator.
+    final launch = await LocalNotifications.consumeLaunchPayload();
+    if (launch != null && launch.kind != NotificationKind.update) {
+      NotificationRouter.handle(launch);
+    }
+    await _checkForUpdates(force: launch?.kind == NotificationKind.update);
+    await UpdateWorker.schedule();
+    _scheduleReminders();
+    // Reprogramar cuando cambian las jornadas o mi intención.
+    ref.listenManual(matchesProvider, (_, __) => _scheduleReminders());
+    ref.listenManual(attendanceProvider, (_, __) => _scheduleReminders());
+  }
+
+  /// Busca una versión nueva (como mucho cada 12 h, o siempre con [force]).
+  Future<void> _checkForUpdates({bool force = false}) async {
     final release = await ref
         .read(updateServiceProvider)
-        .checkForUpdate(force: fromNotification)
+        .checkForUpdate(force: force)
         .catchError((_) => null);
-    if (fromNotification) await UpdateNotifications.cancel();
+    if (force) await LocalNotifications.cancelUpdate();
     if (release != null && mounted) {
       await showUpdateDialog(
         context,
@@ -124,7 +148,23 @@ class _ActiveSessionState extends ConsumerState<_ActiveSession> {
         service: ref.read(updateServiceProvider),
       );
     }
-    await UpdateWorker.schedule();
+  }
+
+  /// Recordatorios locales de las próximas jornadas (09:00 y 22:00), según
+  /// mi intención actual.
+  void _scheduleReminders() {
+    final matches = ref.read(matchesProvider).value;
+    if (matches == null) return;
+    final attendance = ref.read(attendanceProvider).value ?? const [];
+    final mine = {
+      for (final a in attendance)
+        if (a.uid == widget.user.uid) a.matchId: a.status,
+    };
+    fireAndForget(
+      LocalNotifications.scheduleReminders(
+        plannedReminders(matches, mine, DateTime.now()),
+      ),
+    );
   }
 
   @override
