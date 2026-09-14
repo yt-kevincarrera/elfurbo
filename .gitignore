@@ -46,7 +46,7 @@ app.*.map.json
 
 # Firebase: credenciales locales del proyecto (cada uno baja la suya desde la consola)
 /android/app/google-services.json
-/.firebaserc
+firebase-debug.log
 /functions/node_modules/
 /android/key.properties
 /android/app/upload-keystore.jks
