@@ -114,7 +114,10 @@ service cloud.firestore {
       // Edición propia: solo campos de perfil, nunca rol ni estado.
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'photoUrl', 'nickname', 'fcmToken', 'updatedAt']);
+             .hasOnly(['displayName', 'photoUrl', 'nickname', 'fcmToken', 'fcmTokens', 'updatedAt']);
+
+      // Eliminar la propia cuenta.
+      allow delete: if signedIn() && request.auth.uid == uid;
 
       allow update, delete: if isAdmin();
     }

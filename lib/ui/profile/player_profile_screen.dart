@@ -9,6 +9,7 @@ import '../../data/providers.dart';
 import '../../domain/achievements.dart';
 import '../../domain/stats_engine.dart';
 import '../../models/app_user.dart';
+import '../../services/session.dart';
 import '../matches/match_detail_screen.dart';
 import '../stats/leaderboard_screen.dart';
 import '../widgets/common.dart';
@@ -261,10 +262,7 @@ class PlayerProfileScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(pushServiceProvider).dispose();
-      await ref.read(authServiceProvider).signOut();
-    }
+    if (ok == true) await signOutCompletely(ref);
   }
 }
 
@@ -593,6 +591,39 @@ class _ProfileMenu extends ConsumerWidget {
 
   final VoidCallback onSignOut;
 
+  Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Eliminar tu cuenta?'),
+        content: const Text(
+          'Se borra tu perfil y tu acceso. Tus goles, asistencias y votos quedan en el historial del grupo a nombre de "Jugador". Puede que Google te pida volver a entrar para confirmar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar cuenta'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await deleteAccountCompletely(ref);
+      showMessage('Cuenta eliminada');
+    } catch (e) {
+      showError(e);
+    }
+  }
+
   Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
     final service = ref.read(updateServiceProvider);
     showMessage('Buscando actualizaciones…');
@@ -620,6 +651,8 @@ class _ProfileMenu extends ConsumerWidget {
             _checkForUpdates(context, ref);
           case 'logout':
             onSignOut();
+          case 'delete':
+            _deleteAccount(context, ref);
         }
       },
       itemBuilder: (_) => [
@@ -641,6 +674,21 @@ class _ProfileMenu extends ConsumerWidget {
           child: ListTile(
             leading: Icon(Icons.logout),
             title: Text('Cerrar sesión'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(
+              Icons.delete_forever_outlined,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'Eliminar mi cuenta',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
             contentPadding: EdgeInsets.zero,
           ),
         ),

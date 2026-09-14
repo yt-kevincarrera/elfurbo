@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/providers.dart';
 import '../../models/app_user.dart';
+import '../../services/session.dart';
 import '../widgets/player_avatar.dart';
 
 /// Pantalla de espera: el usuario entró pero el admin todavía no lo aprobó
@@ -51,7 +51,7 @@ class PendingScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
               OutlinedButton.icon(
-                onPressed: () => ref.read(authServiceProvider).signOut(),
+                onPressed: () => signOutCompletely(ref),
                 icon: const Icon(Icons.logout),
                 label: const Text('Cerrar sesión'),
               ),

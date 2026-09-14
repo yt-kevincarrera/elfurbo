@@ -15,7 +15,7 @@ cuando vuelve la conexión.
 | **Confirmación** | Un reporte cuenta cuando lo confirman **2 compañeros que jugaron ese día** o **el admin**. El admin también puede rechazarlo. Si el autor edita el reporte, vuelve a pendiente. |
 | **MVP** | Los que jugaron votan al mejor de la jornada. Si hay empate, todos los empatados suman MVP. |
 | **Tabla** | Ranking por goles, asistencias, MVP y G+A. Filtrable por temporada o histórico total. |
-| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. |
+| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. Desde el menú: buscar actualizaciones, cerrar sesión y **eliminar mi cuenta** (borra perfil y acceso; el historial queda a nombre de "Jugador"). |
 | **Logros y rachas** | Hat-trick, Póker, Goleador (10/50/100), Fiel (5/10/25 seguidos), MVP, Imparable, etc. Se recalculan siempre a partir de los datos. |
 | **Equipos parejos** | Con los que marcaron que van, la app propone dos equipos balanceados por rendimiento histórico. "Mezclar de nuevo" da otra combinación igual de pareja. El admin los guarda. |
 | **Compartir** | Tarjeta con goleadores, MVP y top 3 de la temporada, lista para mandar al grupo de WhatsApp. |
@@ -84,7 +84,7 @@ Antes de desplegar, revisa en `functions/index.js`:
 - `REGION`: debe coincidir con la región de tu Firestore (o `us-central1` si elegiste una multi-región).
 - `TIME_ZONE`: zona horaria del grupo para los recordatorios de las 09:00 y las 22:00.
 
-> Si no quieres usar Functions, la app funciona igual. Lo único que pierdes son las notificaciones, y al primer admin lo tienes que marcar a mano (ver abajo).
+> Si no quieres usar Functions, la app funciona igual y al primer admin lo tienes que marcar a mano (ver abajo). Sin Blaze no hay push entre teléfonos, pero la app avisa **localmente**: un trabajo en segundo plano cada 12 h revisa si hay jugadores esperando aprobación (admin) o reportes ajenos que te falta confirmar, y al abrirla programa recordatorios para las próximas jornadas (09:00 "¡Hoy se juega!" y 22:00 "¿Cuántos metiste hoy?", salvo que hayas dicho "No voy"). Tocar cualquier notificación abre la jornada o la pestaña Admin. Al cerrar sesión se borra el token de push del teléfono, así otro usuario que entre después no recibe tus avisos.
 
 ### 6. Compilar e instalar
 

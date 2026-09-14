@@ -60,8 +60,21 @@ class FirestoreRepo {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-  Future<void> saveFcmToken(String uid, String token) =>
-      users.doc(uid).update({'fcmToken': token});
+  /// Tokens de push de todos los teléfonos del usuario (`fcmTokens`).
+  Future<void> addFcmToken(String uid, String token) => users.doc(uid).update({
+    'fcmTokens': FieldValue.arrayUnion([token]),
+  });
+
+  Future<void> removeFcmToken(String uid, String token) =>
+      users.doc(uid).update({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+        // Compatibilidad con el campo viejo de un solo token.
+        'fcmToken': FieldValue.delete(),
+      });
+
+  /// El propio usuario borra su perfil (eliminar cuenta). Sus asistencias,
+  /// reportes y votos quedan; la app los muestra como "Jugador".
+  Future<void> deleteUserDoc(String uid) => users.doc(uid).delete();
 
   Future<void> setUserStatus(String uid, UserStatus status) =>
       users.doc(uid).update({'status': status.name});
