@@ -1,0 +1,136 @@
+rules_version = '2';
+
+// Reglas de seguridad de El Furbo.
+//
+// Colecciones (todas de primer nivel):
+//   users/{uid}                    perfil, rol (admin|player) y estado (pending|active|blocked)
+//   config/app                     configuración global (temporada activa, etc.)
+//   seasons/{id}                   temporadas
+//   matches/{id}                   partidos
+//   attendance/{matchId_uid}       asistencia de un jugador a un partido (yes|no|maybe)
+//   reports/{matchId_uid}          goles/asistencias reportados por un jugador en un partido
+//   mvpVotes/{matchId_voterUid}    voto de MVP de un jugador en un partido
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myDoc() {
+      return get(/databases/$(db)/documents/users/$(request.auth.uid));
+    }
+
+    function isActive() {
+      return signedIn()
+        && exists(/databases/$(db)/documents/users/$(request.auth.uid))
+        && myDoc().data.status == 'active';
+    }
+
+    function isAdmin() {
+      return isActive() && myDoc().data.role == 'admin';
+    }
+
+    // El usuario marcó que fue ("yes") al partido.
+    function attendedYes(matchId, uid) {
+      return exists(/databases/$(db)/documents/attendance/$(matchId + '_' + uid))
+        && get(/databases/$(db)/documents/attendance/$(matchId + '_' + uid)).data.status == 'yes';
+    }
+
+    function validReportNumbers(d) {
+      return d.goals is int && d.goals >= 0 && d.goals <= 30
+        && d.assists is int && d.assists >= 0 && d.assists <= 30;
+    }
+
+    // Un reporte recién creado o editado por su autor vuelve a "pendiente".
+    function freshStatus(d) {
+      return d.confirmations is list && d.confirmations.size() == 0
+        && d.get('adminStatus', null) == null;
+    }
+
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isActive() || (signedIn() && request.auth.uid == uid);
+
+      // Alta propia: siempre como jugador pendiente. El admin (o la Cloud Function
+      // para el primer usuario) lo activa después.
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'player'
+        && request.resource.data.status == 'pending';
+
+      // Edición propia: solo campos de perfil, nunca rol ni estado.
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'photoUrl', 'nickname', 'fcmToken', 'updatedAt']);
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /seasons/{id} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /matches/{id} {
+      allow read: if isActive();
+      allow create: if isAdmin() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /attendance/{id} {
+      allow read: if isActive();
+      allow create, update: if isActive()
+        && request.resource.data.uid == request.auth.uid
+        && id == request.resource.data.matchId + '_' + request.auth.uid
+        && request.resource.data.status in ['yes', 'no', 'maybe'];
+      allow delete: if isActive() && resource.data.uid == request.auth.uid;
+      allow write: if isAdmin();
+    }
+
+    match /reports/{id} {
+      allow read: if isActive();
+
+      allow create: if isActive()
+        && request.resource.data.uid == request.auth.uid
+        && id == request.resource.data.matchId + '_' + request.auth.uid
+        && validReportNumbers(request.resource.data)
+        && freshStatus(request.resource.data);
+
+      // El autor edita su reporte: se resetean las confirmaciones.
+      allow update: if isActive()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.matchId == resource.data.matchId
+        && validReportNumbers(request.resource.data)
+        && freshStatus(request.resource.data);
+
+      // Un compañero que jugó ese día confirma: solo puede agregar su propio uid.
+      allow update: if isActive()
+        && resource.data.uid != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmations'])
+        && !(request.auth.uid in resource.data.confirmations)
+        && request.resource.data.confirmations.size() == resource.data.confirmations.size() + 1
+        && request.resource.data.confirmations.hasAll(resource.data.confirmations)
+        && request.auth.uid in request.resource.data.confirmations
+        && attendedYes(resource.data.matchId, request.auth.uid);
+
+      allow delete: if isActive() && resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /mvpVotes/{id} {
+      allow read: if isActive();
+      allow create, update: if isActive()
+        && request.resource.data.voterUid == request.auth.uid
+        && id == request.resource.data.matchId + '_' + request.auth.uid
+        && request.resource.data.votedFor != request.auth.uid
+        && attendedYes(request.resource.data.matchId, request.auth.uid);
+      allow delete: if isActive() && resource.data.voterUid == request.auth.uid;
+      allow write: if isAdmin();
+    }
+  }
+}
