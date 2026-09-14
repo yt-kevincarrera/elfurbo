@@ -72,6 +72,10 @@ class FirestoreRepo {
         'fcmToken': FieldValue.delete(),
       });
 
+  /// El propio usuario borra su perfil (eliminar cuenta). Sus asistencias,
+  /// reportes y votos quedan; la app los muestra como "Jugador".
+  Future<void> deleteUserDoc(String uid) => users.doc(uid).delete();
+
   Future<void> setUserStatus(String uid, UserStatus status) =>
       users.doc(uid).update({'status': status.name});
 

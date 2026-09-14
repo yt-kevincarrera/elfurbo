@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,7 +80,10 @@ class _AuthGateState extends ConsumerState<AuthGate> {
           onRetry: () => ref.invalidate(currentUserProvider),
         );
       }
-      return const _Splash(message: 'Preparando tu perfil…');
+      return _ProfileWait(
+        onRetry: () =>
+            fireAndForget(ref.read(repoProvider).ensureUserDoc(firebaseUser)),
+      );
     }
 
     switch (user.status) {
@@ -171,10 +176,35 @@ class _ActiveSessionState extends ConsumerState<_ActiveSession> {
   Widget build(BuildContext context) => const HomeShell();
 }
 
-class _Splash extends StatelessWidget {
-  const _Splash({this.message});
+/// Espera mientras se crea el perfil. Si tarda (sin red, reglas, etc.),
+/// ofrece reintentar en vez de quedarse colgada.
+class _ProfileWait extends StatefulWidget {
+  const _ProfileWait({required this.onRetry});
 
-  final String? message;
+  final VoidCallback onRetry;
+
+  @override
+  State<_ProfileWait> createState() => _ProfileWaitState();
+}
+
+class _ProfileWaitState extends State<_ProfileWait> {
+  static const _patience = Duration(seconds: 8);
+  bool _slow = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(_patience, () {
+      if (mounted) setState(() => _slow = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,10 +220,45 @@ class _Splash extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const CircularProgressIndicator(),
-            if (message != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _slow
+                  ? 'Esto está tardando más de lo normal. Revisa tu conexión.'
+                  : 'Preparando tu perfil…',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (_slow) ...[
               const SizedBox(height: 16),
-              Text(message!, style: Theme.of(context).textTheme.bodyMedium),
+              FilledButton.tonal(
+                onPressed: widget.onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.sports_soccer,
+              size: 72,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(),
           ],
         ),
       ),

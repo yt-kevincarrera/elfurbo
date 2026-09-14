@@ -15,7 +15,7 @@ cuando vuelve la conexión.
 | **Confirmación** | Un reporte cuenta cuando lo confirman **2 compañeros que jugaron ese día** o **el admin**. El admin también puede rechazarlo. Si el autor edita el reporte, vuelve a pendiente. |
 | **MVP** | Los que jugaron votan al mejor de la jornada. Si hay empate, todos los empatados suman MVP. |
 | **Tabla** | Ranking por goles, asistencias, MVP y G+A. Filtrable por temporada o histórico total. |
-| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. |
+| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. Desde el menú: buscar actualizaciones, cerrar sesión y **eliminar mi cuenta** (borra perfil y acceso; el historial queda a nombre de "Jugador"). |
 | **Logros y rachas** | Hat-trick, Póker, Goleador (10/50/100), Fiel (5/10/25 seguidos), MVP, Imparable, etc. Se recalculan siempre a partir de los datos. |
 | **Equipos parejos** | Con los que marcaron que van, la app propone dos equipos balanceados por rendimiento histórico. "Mezclar de nuevo" da otra combinación igual de pareja. El admin los guarda. |
 | **Compartir** | Tarjeta con goleadores, MVP y top 3 de la temporada, lista para mandar al grupo de WhatsApp. |

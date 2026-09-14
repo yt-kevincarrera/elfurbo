@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,18 +8,48 @@ import '../../data/providers.dart';
 import '../../models/match_report.dart';
 
 /// Barra fina arriba de todo que avisa si estamos offline o con cambios sin subir.
-class SyncBanner extends ConsumerWidget {
+///
+/// El primer snapshot de Firestore siempre viene de caché, así que "sin
+/// conexión" solo se muestra cuando ya llegó algo del servidor alguna vez o
+/// pasó un período de gracia; si no, parpadea en cada apertura.
+class SyncBanner extends ConsumerStatefulWidget {
   const SyncBanner({super.key});
 
+  static const grace = Duration(seconds: 3);
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SyncBanner> createState() => _SyncBannerState();
+}
+
+class _SyncBannerState extends ConsumerState<SyncBanner> {
+  bool _graceOver = false;
+  bool _everOnline = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(SyncBanner.grace, () {
+      if (mounted) setState(() => _graceOver = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final status = ref.watch(syncStatusProvider).value;
     if (status == null) return const SizedBox.shrink();
+    if (status.isOnline) _everOnline = true;
     final scheme = Theme.of(context).colorScheme;
     String? text;
     IconData icon = Icons.cloud_off;
     Color bg = scheme.surfaceContainerHighest;
-    if (!status.isOnline) {
+    if (!status.isOnline && (_graceOver || _everOnline)) {
       text = status.pendingWrites
           ? 'Sin conexión · tus cambios se suben cuando vuelva internet'
           : 'Sin conexión · mostrando datos guardados';

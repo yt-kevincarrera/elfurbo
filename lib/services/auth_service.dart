@@ -48,6 +48,41 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+  /// Borra la cuenta de Firebase Auth. Si la sesión es vieja, Firebase exige
+  /// reautenticación: se vuelve a pedir la cuenta de Google y se reintenta.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await _ensureInitialized();
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'requires-recent-login') rethrow;
+      final GoogleSignInAccount account;
+      try {
+        account = await GoogleSignIn.instance.authenticate();
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) {
+          throw Exception(
+            'Hace falta volver a entrar con Google para borrar la cuenta.',
+          );
+        }
+        throw Exception('No se pudo reautenticar con Google (${e.code.name}).');
+      }
+      final idToken = account.authentication.idToken;
+      if (idToken == null) {
+        throw Exception('Google no devolvió un idToken al reautenticar.');
+      }
+      await user.reauthenticateWithCredential(
+        GoogleAuthProvider.credential(idToken: idToken),
+      );
+      await user.delete();
+    }
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
+  }
+
   Future<void> signOut() async {
     await _ensureInitialized();
     try {

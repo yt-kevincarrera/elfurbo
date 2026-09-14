@@ -116,6 +116,9 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['displayName', 'photoUrl', 'nickname', 'fcmToken', 'fcmTokens', 'updatedAt']);
 
+      // Eliminar la propia cuenta.
+      allow delete: if signedIn() && request.auth.uid == uid;
+
       allow update, delete: if isAdmin();
     }
 
