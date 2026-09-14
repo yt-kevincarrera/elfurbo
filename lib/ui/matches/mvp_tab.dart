@@ -5,7 +5,6 @@ import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
-import '../../models/attendance.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
 import '../widgets/player_avatar.dart';
@@ -25,20 +24,20 @@ class MvpTab extends ConsumerWidget {
             : 'La votación abre cuando termine la jornada',
       );
     }
-    final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final votes = ref.watch(votesForMatchProvider(match.id));
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
-    final iPlayed = attendance[myUid]?.status == AttendanceStatus.yes;
+    final iPlayed = ref.watch(iAmPresentProvider(match.id));
+    final present = ref.watch(presentUidsProvider(match.id));
     final myVote = votes.where((v) => v.voterUid == myUid).firstOrNull;
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
     final candidates =
-        attendance.values
-            .where((a) => a.status == AttendanceStatus.yes && a.uid != myUid)
-            .map((a) => users[a.uid])
+        present
+            .where((uid) => uid != myUid)
+            .map((uid) => users[uid])
             .nonNulls
             .toList()
           ..sort(
@@ -98,7 +97,7 @@ class MvpTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              'Nadie más marcó que jugó todavía.',
+              'Nadie más confirmó que jugó todavía.',
               style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
           )

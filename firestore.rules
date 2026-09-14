@@ -36,10 +36,21 @@ service cloud.firestore {
       return isActive() && myDoc().data.role == 'admin';
     }
 
-    // El usuario marcó que fue ("yes") a la jornada.
-    function attendedYes(matchId, uid) {
+    // El usuario tiene presencia real confirmada en la jornada (played == true).
+    function isPresent(matchId, uid) {
       return exists(/databases/$(db)/documents/attendance/$(matchId + '_' + uid))
-        && get(/databases/$(db)/documents/attendance/$(matchId + '_' + uid)).data.status == 'yes';
+        && get(/databases/$(db)/documents/attendance/$(matchId + '_' + uid)).data.get('played', false) == true;
+    }
+
+    // Escritura propia de asistencia: la intención (status) solo antes de
+    // jugarse; la presencia (played) solo después, firmada por el propio uid.
+    function validOwnAttendance(d) {
+      return d.get('status', 'maybe') in ['yes', 'no', 'maybe']
+        && (
+          (d.get('played', null) == null && !matchPlayed(d.matchId))
+          || (d.get('played', null) is bool && matchPlayed(d.matchId)
+              && d.get('playedSetBy', '') == request.auth.uid)
+        );
     }
 
     function matchData(matchId) {
@@ -127,7 +138,7 @@ service cloud.firestore {
       allow create, update: if isActive()
         && request.resource.data.uid == request.auth.uid
         && id == request.resource.data.matchId + '_' + request.auth.uid
-        && request.resource.data.status in ['yes', 'no', 'maybe']
+        && validOwnAttendance(request.resource.data)
         && matchOpen(request.resource.data.matchId);
       allow delete: if isActive()
         && resource.data.uid == request.auth.uid
@@ -163,7 +174,7 @@ service cloud.firestore {
         && request.resource.data.confirmations.size() == resource.data.confirmations.size() + 1
         && request.resource.data.confirmations.hasAll(resource.data.confirmations)
         && request.auth.uid in request.resource.data.confirmations
-        && attendedYes(resource.data.matchId, request.auth.uid)
+        && isPresent(resource.data.matchId, request.auth.uid)
         && matchOpen(resource.data.matchId);
 
       allow delete: if isActive()
@@ -178,7 +189,8 @@ service cloud.firestore {
         && request.resource.data.voterUid == request.auth.uid
         && id == request.resource.data.matchId + '_' + request.auth.uid
         && request.resource.data.votedFor != request.auth.uid
-        && attendedYes(request.resource.data.matchId, request.auth.uid)
+        && isPresent(request.resource.data.matchId, request.auth.uid)
+        && isPresent(request.resource.data.matchId, request.resource.data.votedFor)
         && matchOpen(request.resource.data.matchId)
         && matchPlayed(request.resource.data.matchId);
       allow delete: if isActive()

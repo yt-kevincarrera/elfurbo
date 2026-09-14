@@ -67,7 +67,18 @@ async function adminUserIds() {
   return snap.docs.map((d) => d.id);
 }
 
-async function attendeesYes(matchId) {
+/** Jugadores con presencia real confirmada en la jornada. */
+async function attendeesPresent(matchId) {
+  const snap = await db
+    .collection("attendance")
+    .where("matchId", "==", matchId)
+    .where("played", "==", true)
+    .get();
+  return snap.docs.map((d) => d.data().uid);
+}
+
+/** Jugadores que dijeron que iban (intención previa). */
+async function intendedYes(matchId) {
   const snap = await db
     .collection("attendance")
     .where("matchId", "==", matchId)
@@ -182,7 +193,7 @@ exports.onReportCreated = onDocumentCreated("reports/{id}", async (event) => {
   if (!snap) return;
   const report = snap.data();
 
-  const [author, attendees] = await Promise.all([getUser(report.uid), attendeesYes(report.matchId)]);
+  const [author, attendees] = await Promise.all([getUser(report.uid), attendeesPresent(report.matchId)]);
   const targets = attendees.filter((uid) => uid !== report.uid);
 
   await sendToUsers(targets, {
@@ -254,7 +265,10 @@ exports.postMatchReminder = onSchedule(
     const matches = await matchesToday();
     for (const match of matches) {
       if (match.date.toDate() > new Date()) continue;
-      const attendees = await attendeesYes(match.id);
+      // A las 22:00 casi nadie confirmó presencia todavía: avisamos a los que
+      // dijeron que iban y a los que ya se marcaron presentes.
+      const [intended, present] = await Promise.all([intendedYes(match.id), attendeesPresent(match.id)]);
+      const attendees = [...intended, ...present];
       await sendToUsers(attendees, {
         title: "¿Cuántos metiste hoy?",
         body: "Carga tus goles y asistencias, y vota al MVP de la jornada.",

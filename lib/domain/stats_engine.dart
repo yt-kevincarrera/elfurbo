@@ -64,8 +64,10 @@ enum RankingKind { goals, assists, mvps, contributions }
 /// Firestore) y calcula tablas, perfiles y rachas para una temporada dada o
 /// para el histórico total (`seasonId == null`).
 ///
-/// Solo cuentan los reportes confirmados. Un jugador "jugó" un partido si
-/// marcó asistencia "sí" o tiene un reporte confirmado en él.
+/// Solo cuentan los reportes confirmados. Un jugador "jugó" una jornada si
+/// tiene presencia real confirmada (`Attendance.isPresent`: la marcó él, el
+/// admin al pasar lista, o cargó goles) o un reporte confirmado en ella. La
+/// intención previa ("Voy") no cuenta.
 class StatsEngine {
   StatsEngine({
     required List<MatchDay> matches,
@@ -115,7 +117,7 @@ class StatsEngine {
     attendeesByMatch = {};
     for (final a in attendance) {
       if (!matchIds.contains(a.matchId)) continue;
-      if (a.status != AttendanceStatus.yes) continue;
+      if (!a.isPresent) continue;
       attendeesByMatch.putIfAbsent(a.matchId, () => {}).add(a.uid);
     }
 
@@ -179,7 +181,7 @@ class StatsEngine {
     }
   }
 
-  /// Jugadores que participaron de un partido: asistencia "sí" o reporte confirmado.
+  /// Jugadores que participaron de una jornada: presencia real o reporte confirmado.
   Set<String> playersInMatch(String matchId) {
     final set = <String>{...(attendeesByMatch[matchId] ?? const {})};
     for (final r in reportsByMatch[matchId] ?? const <MatchReport>[]) {

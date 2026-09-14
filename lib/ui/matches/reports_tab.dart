@@ -6,7 +6,6 @@ import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../models/app_user.dart';
-import '../../models/attendance.dart';
 import '../../models/match_day.dart';
 import '../../models/match_report.dart';
 import '../widgets/common.dart';
@@ -31,12 +30,11 @@ class ReportsTab extends ConsumerWidget {
     }
 
     final reports = ref.watch(reportsForMatchProvider(match.id));
-    final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
     final isAdmin = ref.watch(isAdminProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
-    final iPlayed = attendance[myUid]?.status == AttendanceStatus.yes;
+    final iPlayed = ref.watch(iAmPresentProvider(match.id));
     final myReport = reports.where((r) => r.uid == myUid).firstOrNull;
     final others = reports.where((r) => r.uid != myUid).toList();
     final scheme = Theme.of(context).colorScheme;
@@ -322,10 +320,8 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
   void _save() {
     final repo = ref.read(repoProvider);
     final uid = ref.read(myUidProvider);
-    // Si reportas, jugaste: marcamos asistencia para que puedas confirmar y votar.
-    fireAndForget(
-      repo.setAttendance(widget.match.id, uid, AttendanceStatus.yes),
-    );
+    // Si reportas, jugaste: marcamos presencia para que puedas confirmar y votar.
+    fireAndForget(repo.setPresence(widget.match.id, uid, true, setBy: uid));
     fireAndForget(
       repo.submitReport(
         matchId: widget.match.id,

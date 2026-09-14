@@ -18,10 +18,24 @@ MatchDay match(
   createdBy: 'admin',
 );
 
-Attendance yes(String matchId, String uid) =>
-    Attendance(matchId: matchId, uid: uid, status: AttendanceStatus.yes);
+/// Presencia real confirmada (lo que cuenta como "jugó").
+Attendance yes(String matchId, String uid) => Attendance(
+  matchId: matchId,
+  uid: uid,
+  status: AttendanceStatus.yes,
+  played: true,
+);
+
+/// Solo intención de ir, sin presencia confirmada.
+Attendance intended(String matchId, String uid, {bool? played}) => Attendance(
+  matchId: matchId,
+  uid: uid,
+  status: AttendanceStatus.yes,
+  played: played,
+);
 
 void main() {
+  presenceTests();
   final now = DateTime(2026, 9, 13);
   final m1 = match('m1', DateTime(2026, 8, 30));
   final m2 = match('m2', DateTime(2026, 9, 6));
@@ -221,4 +235,41 @@ void main() {
       expect(engine.summary('m1').totalGoals, 1);
     },
   );
+}
+
+void presenceTests() {
+  final now = DateTime(2026, 9, 13);
+  final m1 = match('m1', DateTime(2026, 8, 30));
+
+  test('la intención de ir no cuenta como jornada jugada', () {
+    final engine = StatsEngine(
+      matches: [m1],
+      reports: const [],
+      votes: const [],
+      attendance: [intended('m1', 'a'), intended('m1', 'b', played: false)],
+      now: now,
+    );
+    expect(engine.playersInMatch('m1'), isEmpty);
+    expect(engine.statsOf('a').matchesPlayed, 0);
+    expect(engine.statsOf('b').matchesPlayed, 0);
+  });
+
+  test('la presencia real cuenta aunque la intención fuera no ir', () {
+    final engine = StatsEngine(
+      matches: [m1],
+      reports: const [],
+      votes: const [],
+      attendance: const [
+        Attendance(
+          matchId: 'm1',
+          uid: 'c',
+          status: AttendanceStatus.no,
+          played: true,
+        ),
+      ],
+      now: now,
+    );
+    expect(engine.playersInMatch('m1'), {'c'});
+    expect(engine.statsOf('c').matchesPlayed, 1);
+  });
 }

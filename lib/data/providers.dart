@@ -164,6 +164,24 @@ final attendanceForMatchProvider =
       return {for (final a in all.where((a) => a.matchId == matchId)) a.uid: a};
     });
 
+/// Uids con presencia real confirmada en la jornada.
+final presentUidsProvider = Provider.family<Set<String>, String>((
+  ref,
+  matchId,
+) {
+  final all = ref.watch(attendanceForMatchProvider(matchId));
+  return {
+    for (final a in all.values)
+      if (a.isPresent) a.uid,
+  };
+});
+
+/// true si el usuario logueado tiene presencia real en la jornada.
+final iAmPresentProvider = Provider.family<bool, String>((ref, matchId) {
+  final myUid = ref.watch(myUidProvider);
+  return ref.watch(presentUidsProvider(matchId)).contains(myUid);
+});
+
 final reportsForMatchProvider = Provider.family<List<MatchReport>, String>((
   ref,
   matchId,
