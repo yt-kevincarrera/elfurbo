@@ -30,9 +30,17 @@ if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "Hay cambios sin commitear. Commiteá o descartá antes de publicar." >&2
+  echo "Hay cambios sin commitear. Commitea o descarta antes de publicar." >&2
   exit 1
 fi
+
+# El repo es de la cuenta personal; gh (y el push, que usa su credencial)
+# pueden tener otra cuenta activa. Se cambia ahora y se restaura al salir.
+ORIGINAL_ACCOUNT="$(gh api user -q .login 2>/dev/null || true)"
+if [[ "$ORIGINAL_ACCOUNT" != "yt-kevincarrera" ]]; then
+  gh auth switch --user yt-kevincarrera
+fi
+trap '[[ -n "$ORIGINAL_ACCOUNT" && "$ORIGINAL_ACCOUNT" != "yt-kevincarrera" ]] && gh auth switch --user "$ORIGINAL_ACCOUNT" >/dev/null 2>&1 || true' EXIT
 
 CURRENT_LINE="$(grep -E '^version:' pubspec.yaml)"
 CURRENT_BUILD="$(echo "$CURRENT_LINE" | sed -nE 's/.*\+([0-9]+).*/\1/p')"
@@ -51,18 +59,14 @@ git commit -m "Versión ${NEW_VERSION} (build ${NEW_BUILD})"
 git tag "v${NEW_VERSION}"
 git push origin HEAD "v${NEW_VERSION}"
 
-# El repo es de la cuenta personal; el CLI puede tener otra activa.
-ORIGINAL_ACCOUNT="$(gh api user -q .login 2>/dev/null || true)"
-if [[ "$ORIGINAL_ACCOUNT" != "yt-kevincarrera" ]]; then
-  gh auth switch --user yt-kevincarrera
+NOTES_ARGS=(--generate-notes)
+if [[ -n "$NOTES" ]]; then
+  NOTES_ARGS=(--notes "$NOTES")
 fi
-trap '[[ -n "$ORIGINAL_ACCOUNT" && "$ORIGINAL_ACCOUNT" != "yt-kevincarrera" ]] && gh auth switch --user "$ORIGINAL_ACCOUNT" >/dev/null 2>&1 || true' EXIT
-
 gh release create "v${NEW_VERSION}" \
   --repo yt-kevincarrera/elfurbo \
   --title "El Furbo ${NEW_VERSION}" \
-  ${NOTES:+--notes "$NOTES"} \
-  ${NOTES:---generate-notes} \
+  "${NOTES_ARGS[@]}" \
   "$OUT"/app-*-release.apk
 
 echo "Listo: https://github.com/yt-kevincarrera/elfurbo/releases/tag/v${NEW_VERSION}"
