@@ -64,8 +64,10 @@ enum RankingKind { goals, assists, mvps, contributions }
 /// Firestore) y calcula tablas, perfiles y rachas para una temporada dada o
 /// para el histórico total (`seasonId == null`).
 ///
-/// Solo cuentan los reportes confirmados. Un jugador "jugó" un partido si
-/// marcó asistencia "sí" o tiene un reporte confirmado en él.
+/// Solo cuentan los reportes confirmados. Un jugador "jugó" una jornada si
+/// tiene presencia real confirmada (`Attendance.isPresent`: la marcó él, el
+/// admin al pasar lista, o cargó goles) o un reporte confirmado en ella. La
+/// intención previa ("Voy") no cuenta.
 class StatsEngine {
   StatsEngine({
     required List<MatchDay> matches,
@@ -115,13 +117,19 @@ class StatsEngine {
     attendeesByMatch = {};
     for (final a in attendance) {
       if (!matchIds.contains(a.matchId)) continue;
-      if (a.status != AttendanceStatus.yes) continue;
+      if (!a.isPresent) continue;
       attendeesByMatch.putIfAbsent(a.matchId, () => {}).add(a.uid);
     }
 
     mvpsByMatch = {
       for (final m in playedMatches)
-        m.id: mvpWinners(votesByMatch[m.id] ?? const []),
+        m.id: mvpWinners(
+          votesByMatch[m.id] ?? const [],
+          confirmedReports: {
+            for (final r in reportsByMatch[m.id] ?? const <MatchReport>[])
+              if (r.isConfirmed) r.uid: r,
+          },
+        ),
     };
 
     stats = {};
@@ -179,7 +187,7 @@ class StatsEngine {
     }
   }
 
-  /// Jugadores que participaron de un partido: asistencia "sí" o reporte confirmado.
+  /// Jugadores que participaron de una jornada: presencia real o reporte confirmado.
   Set<String> playersInMatch(String matchId) {
     final set = <String>{...(attendeesByMatch[matchId] ?? const {})};
     for (final r in reportsByMatch[matchId] ?? const <MatchReport>[]) {
@@ -188,22 +196,36 @@ class StatsEngine {
     return set;
   }
 
-  /// Ganador(es) de MVP de un partido. Si hay empate, todos los empatados.
-  static List<String> mvpWinners(List<MvpVote> votes) {
+  /// Ganador(es) de MVP de una jornada: el más votado. Si hay empate se
+  /// desempata por goles confirmados del día y luego por asistencias
+  /// ([confirmedReports], por uid); si sigue igual, todos los empatados.
+  static List<String> mvpWinners(
+    List<MvpVote> votes, {
+    Map<String, MatchReport> confirmedReports = const {},
+  }) {
     if (votes.isEmpty) return const [];
     final counts = <String, int>{};
     for (final v in votes) {
       counts[v.votedFor] = (counts[v.votedFor] ?? 0) + 1;
     }
     final max = counts.values.reduce((a, b) => a > b ? a : b);
-    return counts.entries
+    final tied = counts.entries
         .where((e) => e.value == max)
         .map((e) => e.key)
-        .toList()
-      ..sort();
+        .toList();
+    if (tied.length == 1) return tied;
+    int goalsOf(String uid) => confirmedReports[uid]?.goals ?? 0;
+    int assistsOf(String uid) => confirmedReports[uid]?.assists ?? 0;
+    final bestGoals = tied.map(goalsOf).reduce((a, b) => a > b ? a : b);
+    var best = tied.where((u) => goalsOf(u) == bestGoals).toList();
+    if (best.length > 1) {
+      final bestAssists = best.map(assistsOf).reduce((a, b) => a > b ? a : b);
+      best = best.where((u) => assistsOf(u) == bestAssists).toList();
+    }
+    return best..sort();
   }
 
-  /// Conteo de votos por candidato en un partido, ordenado de mayor a menor.
+  /// Conteo de votos por candidato en una jornada, ordenado de mayor a menor.
   List<MapEntry<String, int>> voteCounts(String matchId) {
     final counts = <String, int>{};
     for (final v in votesByMatch[matchId] ?? const <MvpVote>[]) {

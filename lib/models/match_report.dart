@@ -6,8 +6,8 @@ enum ReportStatus { pending, confirmed, rejected }
 /// El id del documento es `{matchId}_{uid}`.
 ///
 /// Reglas de confirmación: queda confirmado si el admin lo confirma, o si dos
-/// compañeros distintos que jugaron ese día lo confirman. El admin puede
-/// rechazarlo en cualquier momento.
+/// compañeros con presencia real lo confirman. El admin puede rechazarlo
+/// (definitivo para el autor) o corregir los números (queda confirmado).
 class MatchReport {
   const MatchReport({
     required this.matchId,
@@ -17,6 +17,7 @@ class MatchReport {
     this.note,
     this.confirmations = const [],
     this.adminStatus,
+    this.correctedBy,
     this.updatedAt,
   });
 
@@ -29,6 +30,9 @@ class MatchReport {
   final String? note;
   final List<String> confirmations;
   final ReportStatus? adminStatus;
+
+  /// Uid del admin que corrigió los números (queda confirmado por él).
+  final String? correctedBy;
   final DateTime? updatedAt;
 
   String get id => docId(matchId, uid);
@@ -45,6 +49,11 @@ class MatchReport {
   bool get isPending => status == ReportStatus.pending;
   bool get isRejected => status == ReportStatus.rejected;
   bool get confirmedByAdmin => adminStatus == ReportStatus.confirmed;
+  bool get correctedByAdmin => correctedBy != null;
+
+  /// El autor puede editar o borrar salvo que el admin lo haya rechazado: el
+  /// rechazo es definitivo hasta que el admin quite su decisión.
+  bool get authorCanEdit => !isRejected;
 
   factory MatchReport.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? const <String, dynamic>{};
@@ -58,6 +67,7 @@ class MatchReport {
       confirmations: List<String>.from(
         (d['confirmations'] as List?) ?? const [],
       ),
+      correctedBy: d['correctedBy'] as String?,
       adminStatus: adminRaw == null
           ? null
           : ReportStatus.values.firstWhere(

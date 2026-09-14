@@ -137,7 +137,11 @@ class ReportStatusChip extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final (label, color, icon) = switch (report.status) {
       ReportStatus.confirmed => (
-        report.confirmedByAdmin ? 'Confirmado (admin)' : 'Confirmado',
+        report.correctedByAdmin
+            ? 'Corregido (admin)'
+            : report.confirmedByAdmin
+            ? 'Confirmado (admin)'
+            : 'Confirmado',
         scheme.confirmed,
         Icons.verified,
       ),

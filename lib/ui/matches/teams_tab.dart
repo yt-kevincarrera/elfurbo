@@ -28,19 +28,27 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
   TeamSplit? _proposal;
   int _seed = 0;
 
-  void _generate() {
+  /// Antes de la jornada se reparten los que dijeron que van; una vez jugada,
+  /// los que confirmaron presencia.
+  Iterable<String> _participants() {
     final attendance = ref.read(attendanceForMatchProvider(widget.match.id));
-    final stats = ref.read(allTimeStatsProvider);
-    final players = attendance.values
+    if (widget.match.isPlayed(DateTime.now())) {
+      return attendance.values.where((a) => a.isPresent).map((a) => a.uid);
+    }
+    return attendance.values
         .where((a) => a.status == AttendanceStatus.yes)
+        .map((a) => a.uid);
+  }
+
+  void _generate() {
+    final stats = ref.read(allTimeStatsProvider);
+    final players = _participants()
         .map(
-          (a) => TeamCandidate(uid: a.uid, rating: stats.statsOf(a.uid).rating),
+          (uid) => TeamCandidate(uid: uid, rating: stats.statsOf(uid).rating),
         )
         .toList();
     if (players.length < 2) {
-      showMessage(
-        'Hacen falta al menos 2 jugadores con asistencia confirmada.',
-      );
+      showMessage('Hacen falta al menos 2 jugadores confirmados.');
       return;
     }
     setState(() {
@@ -57,10 +65,8 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
     final users = ref.watch(usersByIdProvider);
     final isAdmin = ref.watch(isAdminProvider);
     final stats = ref.watch(allTimeStatsProvider);
-    final attendance = ref.watch(attendanceForMatchProvider(widget.match.id));
-    final going = attendance.values
-        .where((a) => a.status == AttendanceStatus.yes)
-        .length;
+    ref.watch(attendanceForMatchProvider(widget.match.id));
+    final going = _participants().length;
     final saved = widget.match.hasTeams;
     final closed = ref.watch(matchClosedProvider(widget.match.id));
     final scheme = Theme.of(context).colorScheme;
@@ -86,7 +92,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
           child: Text(
             saved && _proposal == null
                 ? 'Equipos guardados por el admin.'
-                : 'Se reparten los $going que marcaron que van, usando goles, asistencias y MVP históricos para que queden parejos.',
+                : 'Se reparten los $going confirmados, usando goles, asistencias y MVP históricos para que queden parejos.',
             style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ),

@@ -219,6 +219,8 @@ class FirestoreRepo {
 
   // -------------------------------------------------------------- asistencia
 
+  /// Intención previa (Voy / Quizás / No voy). Conserva la presencia si ya
+  /// estaba marcada.
   Future<void> setAttendance(
     String matchId,
     String uid,
@@ -228,7 +230,45 @@ class FirestoreRepo {
     'uid': uid,
     'status': status.name,
     'updatedAt': FieldValue.serverTimestamp(),
-  });
+  }, SetOptions(merge: true));
+
+  /// Presencia real de un jugador en una jornada ya jugada. [setBy] es quien
+  /// la marca: el propio jugador o un admin.
+  Future<void> setPresence(
+    String matchId,
+    String uid,
+    bool played, {
+    required String setBy,
+  }) => attendance.doc(Attendance.docId(matchId, uid)).set({
+    'matchId': matchId,
+    'uid': uid,
+    Attendance.fieldPlayed: played,
+    Attendance.fieldPlayedSetBy: setBy,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  /// El admin pasa lista: presencia de todos los jugadores en un lote.
+  Future<void> setPresenceBulk(
+    String matchId,
+    Map<String, bool> presenceByUid, {
+    required String setBy,
+  }) async {
+    final batch = _db.batch();
+    for (final entry in presenceByUid.entries) {
+      batch.set(
+        attendance.doc(Attendance.docId(matchId, entry.key)),
+        {
+          'matchId': matchId,
+          'uid': entry.key,
+          Attendance.fieldPlayed: entry.value,
+          Attendance.fieldPlayedSetBy: setBy,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+    await batch.commit();
+  }
 
   // ---------------------------------------------------------------- reportes
 
@@ -259,9 +299,27 @@ class FirestoreRepo {
         'confirmations': FieldValue.arrayUnion([confirmerUid]),
       });
 
-  /// Decisión del admin. `null` vuelve a dejar que decidan las confirmaciones.
+  /// Decisión del admin. `null` vuelve a dejar que decidan las confirmaciones
+  /// (y borra una corrección previa).
   Future<void> adminSetReportStatus(String reportId, ReportStatus? status) =>
-      reports.doc(reportId).update({'adminStatus': status?.name});
+      reports.doc(reportId).update({
+        'adminStatus': status?.name,
+        if (status == null) 'correctedBy': FieldValue.delete(),
+      });
+
+  /// El admin corrige los números de un reporte: queda confirmado por él.
+  Future<void> adminCorrectReport(
+    String reportId, {
+    required int goals,
+    required int assists,
+    required String correctedBy,
+  }) => reports.doc(reportId).update({
+    'goals': goals,
+    'assists': assists,
+    'adminStatus': ReportStatus.confirmed.name,
+    'correctedBy': correctedBy,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
 
   // --------------------------------------------------------------------- MVP
 

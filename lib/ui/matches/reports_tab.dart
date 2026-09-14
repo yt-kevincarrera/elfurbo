@@ -6,7 +6,6 @@ import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../models/app_user.dart';
-import '../../models/attendance.dart';
 import '../../models/match_day.dart';
 import '../../models/match_report.dart';
 import '../widgets/common.dart';
@@ -31,12 +30,11 @@ class ReportsTab extends ConsumerWidget {
     }
 
     final reports = ref.watch(reportsForMatchProvider(match.id));
-    final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
     final isAdmin = ref.watch(isAdminProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
-    final iPlayed = attendance[myUid]?.status == AttendanceStatus.yes;
+    final iPlayed = ref.watch(iAmPresentProvider(match.id));
     final myReport = reports.where((r) => r.uid == myUid).firstOrNull;
     final others = reports.where((r) => r.uid != myUid).toList();
     final scheme = Theme.of(context).colorScheme;
@@ -73,6 +71,14 @@ class ReportsTab extends ConsumerWidget {
                     '${myReport.note != null ? '\n“${myReport.note}”' : ''}',
                     style: text.bodyLarge,
                   ),
+                if (myReport != null && myReport.isRejected)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'El admin rechazó este reporte. Solo el admin puede reabrirlo.',
+                      style: text.bodySmall?.copyWith(color: scheme.error),
+                    ),
+                  ),
                 if (myReport != null && myReport.isPending)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
@@ -87,18 +93,23 @@ class ReportsTab extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    FilledButton.icon(
-                      onPressed: closed
-                          ? null
-                          : () => showReportFormSheet(
-                              context,
-                              match: match,
-                              existing: myReport,
-                            ),
-                      icon: Icon(myReport == null ? Icons.add : Icons.edit),
-                      label: Text(myReport == null ? 'Cargar goles' : 'Editar'),
-                    ),
-                    if (myReport != null && !closed) ...[
+                    if (myReport == null || myReport.authorCanEdit)
+                      FilledButton.icon(
+                        onPressed: closed
+                            ? null
+                            : () => showReportFormSheet(
+                                context,
+                                match: match,
+                                existing: myReport,
+                              ),
+                        icon: Icon(myReport == null ? Icons.add : Icons.edit),
+                        label: Text(
+                          myReport == null ? 'Cargar goles' : 'Editar',
+                        ),
+                      ),
+                    if (myReport != null &&
+                        myReport.authorCanEdit &&
+                        !closed) ...[
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: () => fireAndForget(
@@ -240,6 +251,20 @@ class _ReportTile extends ConsumerWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                 if (isAdmin) ...[
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final match = ref.read(matchByIdProvider(report.matchId));
+                      if (match == null) return;
+                      showReportFormSheet(
+                        context,
+                        match: match,
+                        existing: report,
+                        correctFor: name,
+                      );
+                    },
+                    icon: const Icon(Icons.edit_note, size: 18),
+                    label: const Text('Corregir'),
+                  ),
                   if (report.adminStatus != ReportStatus.confirmed)
                     OutlinedButton.icon(
                       onPressed: () => fireAndForget(
@@ -282,25 +307,33 @@ class _ReportTile extends ConsumerWidget {
   }
 }
 
-/// Formulario para cargar/editar goles y asistencias propios.
+/// Formulario para cargar/editar goles y asistencias propios, o para que el
+/// admin corrija los de otro ([correctFor] = nombre del autor).
 Future<void> showReportFormSheet(
   BuildContext context, {
   required MatchDay match,
   MatchReport? existing,
+  String? correctFor,
 }) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _ReportForm(match: match, existing: existing),
+    builder: (_) =>
+        _ReportForm(match: match, existing: existing, correctFor: correctFor),
   );
 }
 
 class _ReportForm extends ConsumerStatefulWidget {
-  const _ReportForm({required this.match, this.existing});
+  const _ReportForm({required this.match, this.existing, this.correctFor});
 
   final MatchDay match;
   final MatchReport? existing;
+
+  /// Si no es null, el admin está corrigiendo el reporte de este jugador.
+  final String? correctFor;
+
+  bool get isCorrection => correctFor != null;
 
   @override
   ConsumerState<_ReportForm> createState() => _ReportFormState();
@@ -322,10 +355,21 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
   void _save() {
     final repo = ref.read(repoProvider);
     final uid = ref.read(myUidProvider);
-    // Si reportas, jugaste: marcamos asistencia para que puedas confirmar y votar.
-    fireAndForget(
-      repo.setAttendance(widget.match.id, uid, AttendanceStatus.yes),
-    );
+    if (widget.isCorrection) {
+      fireAndForget(
+        repo.adminCorrectReport(
+          widget.existing!.id,
+          goals: _goals,
+          assists: _assists,
+          correctedBy: uid,
+        ),
+        success: 'Reporte de ${widget.correctFor} corregido y confirmado',
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+    // Si reportas, jugaste: marcamos presencia para que puedas confirmar y votar.
+    fireAndForget(repo.setPresence(widget.match.id, uid, true, setBy: uid));
     fireAndForget(
       repo.submitReport(
         matchId: widget.match.id,
@@ -357,7 +401,9 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '¿Cómo te fue el ${Fmt.short(widget.match.date)}?',
+            widget.isCorrection
+                ? 'Corregir reporte de ${widget.correctFor}'
+                : '¿Cómo te fue el ${Fmt.short(widget.match.date)}?',
             style: text.titleLarge,
           ),
           const SizedBox(height: 16),
@@ -384,7 +430,12 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
             textCapitalization: TextCapitalization.sentences,
             maxLength: 120,
           ),
-          if (widget.existing != null && !widget.existing!.isPending)
+          if (widget.isCorrection)
+            Text(
+              'Queda confirmado por el admin con estos números.',
+              style: text.bodySmall?.copyWith(color: scheme.primary),
+            )
+          else if (widget.existing != null && !widget.existing!.isPending)
             Text(
               'Si editas, el reporte vuelve a pendiente y hay que confirmarlo de nuevo.',
               style: text.bodySmall?.copyWith(color: scheme.pending),
@@ -393,7 +444,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
           FilledButton.icon(
             onPressed: _save,
             icon: const Icon(Icons.send),
-            label: const Text('Enviar'),
+            label: Text(widget.isCorrection ? 'Corregir' : 'Enviar'),
           ),
         ],
       ),
