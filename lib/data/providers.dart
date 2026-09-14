@@ -11,6 +11,7 @@ import '../models/mvp_vote.dart';
 import '../models/season.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../services/update_service.dart';
 import 'firestore_repo.dart';
 
 // ------------------------------------------------------------ infraestructura
@@ -27,6 +28,16 @@ final pushServiceProvider = Provider<PushService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+final updateServiceProvider = Provider<UpdateService>((ref) {
+  final service = UpdateService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+/// Versión instalada ("0.1.0"), para mostrarla en el perfil.
+final appVersionProvider = FutureProvider<String>(
+  (ref) => UpdateService.installedVersion(),
+);
 
 // -------------------------------------------------------------------- sesión
 

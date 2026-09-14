@@ -91,12 +91,35 @@ Antes de desplegar, revisá en `functions/index.js`:
 ```bash
 flutter pub get
 flutter run                  # con un teléfono conectado o un emulador
-flutter build apk --release  # genera build/app/outputs/flutter-apk/app-release.apk
+flutter build apk --release --split-per-abi  # un APK por arquitectura en build/app/outputs/flutter-apk/
 ```
 
-Para repartir el APK a los amigos, firmalo con una clave propia siguiendo la
-[guía oficial](https://docs.flutter.dev/deployment/android#signing-the-app) y acordate de
-cargar el SHA-1 de esa clave en Firebase.
+El release se firma con la clave de debug de tu PC (la del SHA-1 que registraste), así que
+compilá siempre desde la misma máquina: Android solo instala una actualización si viene
+firmada con la misma clave. Si preferís una clave propia, seguí la
+[guía oficial](https://docs.flutter.dev/deployment/android#signing-the-app) y cargá también su SHA-1 en Firebase.
+
+### 6b. Publicar actualizaciones (GitHub Releases)
+
+La app se actualiza sola desde las releases de este repo (`/releases/latest`):
+
+- Al abrirla con sesión activa consulta GitHub como mucho cada 12 h y, si hay una versión
+  más nueva que la instalada, muestra un diálogo con las notas y un botón **Actualizar** que
+  descarga el APK de la arquitectura del teléfono y abre el instalador de Android.
+- Con la app cerrada, un `WorkManager` periódico (cada 12 h, con red) hace el mismo chequeo y
+  avisa con una notificación local en el canal "Actualizaciones". Tocarla abre la app y el diálogo.
+- En **Perfil → ⋮ → Buscar actualizaciones** se fuerza el chequeo a mano (ahí se ve la versión).
+
+Para publicar una versión:
+
+```bash
+tool/release.sh 0.2.0 --notes "Qué cambió"
+```
+
+El script sube `version:` en `pubspec.yaml` (nombre X.Y.Z y `versionCode` +1, necesario para que
+Android acepte la actualización), compila con `--split-per-abi`, commitea, crea el tag `vX.Y.Z` y
+la release en GitHub con los tres APK adjuntos. Necesita `gh` logueado con la cuenta dueña del repo.
+La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Furbo.
 
 ### 7. Primer uso
 

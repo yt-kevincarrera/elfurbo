@@ -13,6 +13,7 @@ import '../matches/match_detail_screen.dart';
 import '../stats/leaderboard_screen.dart';
 import '../widgets/common.dart';
 import '../widgets/player_avatar.dart';
+import '../widgets/update_dialog.dart';
 
 class PlayerProfileScreen extends ConsumerWidget {
   const PlayerProfileScreen({
@@ -52,11 +53,7 @@ class PlayerProfileScreen extends ConsumerWidget {
         actions: [
           const SeasonSelector(),
           if (isMe)
-            IconButton(
-              tooltip: 'Cerrar sesión',
-              onPressed: () => _confirmSignOut(context, ref),
-              icon: const Icon(Icons.logout),
-            ),
+            _ProfileMenu(onSignOut: () => _confirmSignOut(context, ref)),
         ],
       ),
       body: ListView(
@@ -585,6 +582,68 @@ class _History extends ConsumerWidget {
               );
             },
           ),
+      ],
+    );
+  }
+}
+
+/// Menú de "Mi perfil": versión instalada, buscar actualizaciones y salir.
+class _ProfileMenu extends ConsumerWidget {
+  const _ProfileMenu({required this.onSignOut});
+
+  final VoidCallback onSignOut;
+
+  Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
+    final service = ref.read(updateServiceProvider);
+    showMessage('Buscando actualizaciones…');
+    try {
+      final release = await service.checkForUpdate(force: true);
+      if (!context.mounted) return;
+      if (release == null) {
+        showMessage('Ya tenés la última versión');
+        return;
+      }
+      await showUpdateDialog(context, release: release, service: service);
+    } catch (e) {
+      showError('No se pudo consultar GitHub: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final version = ref.watch(appVersionProvider).value;
+    return PopupMenuButton<String>(
+      tooltip: 'Más opciones',
+      onSelected: (value) {
+        switch (value) {
+          case 'update':
+            _checkForUpdates(context, ref);
+          case 'logout':
+            onSignOut();
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          enabled: false,
+          child: Text('El Furbo ${version ?? ''}'.trim()),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'update',
+          child: ListTile(
+            leading: Icon(Icons.system_update),
+            title: Text('Buscar actualizaciones'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'logout',
+          child: ListTile(
+            leading: Icon(Icons.logout),
+            title: Text('Cerrar sesión'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
       ],
     );
   }
