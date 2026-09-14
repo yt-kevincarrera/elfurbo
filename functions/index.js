@@ -5,7 +5,7 @@
  *                        para los siguientes, avisa a los admins que hay alguien pendiente.
  * - onReportCreated:     avisa a los que jugaron ese día que hay un reporte para confirmar.
  * - onReportUpdated:     avisa al autor cuando su reporte queda confirmado o rechazado.
- * - matchDayReminder:    todos los días a las 09:00 avisa si hoy hay partido (marcar asistencia).
+ * - matchDayReminder:    todos los días a las 09:00 avisa si hoy hay jornada (marcar asistencia).
  * - postMatchReminder:   todos los días a las 22:00 recuerda cargar goles y votar MVP.
  *
  * IMPORTANTE: REGION debe coincidir con la región de tu base de Firestore
@@ -241,7 +241,7 @@ exports.matchDayReminder = onSchedule(
       }).format(match.date.toDate());
       await sendToUsers(users, {
         title: "¡Hoy se juega!",
-        body: `Partido a las ${hour}${match.place ? ` en ${match.place}` : ""}. Marca si vas.`,
+        body: `Jornada a las ${hour}${match.place ? ` en ${match.place}` : ""}. Marca si vas.`,
         data: { type: "match_day", matchId: match.id },
       });
     }
@@ -257,7 +257,7 @@ exports.postMatchReminder = onSchedule(
       const attendees = await attendeesYes(match.id);
       await sendToUsers(attendees, {
         title: "¿Cuántos metiste hoy?",
-        body: "Carga tus goles y asistencias, y vota al MVP del partido.",
+        body: "Carga tus goles y asistencias, y vota al MVP de la jornada.",
         data: { type: "post_match", matchId: match.id },
       });
     }

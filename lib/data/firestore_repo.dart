@@ -108,31 +108,75 @@ class FirestoreRepo {
   Future<void> renameSeason(String id, String name) =>
       seasons.doc(id).update({'name': name.trim()});
 
+  Future<void> updateSeason(
+    String id, {
+    required String name,
+    required DateTime startDate,
+  }) => seasons.doc(id).update({
+    'name': name.trim(),
+    'startDate': Timestamp.fromDate(startDate),
+  });
+
+  /// Cerrar una temporada congela todas sus jornadas. Si estaba activa, deja
+  /// de estarlo.
+  Future<void> setSeasonClosed(String id, bool closed) => seasons
+      .doc(id)
+      .update({'isClosed': closed, if (closed) 'isActive': false});
+
+  /// Solo debe llamarse si la temporada no tiene jornadas (ver
+  /// `canDeleteSeason`).
+  Future<void> deleteSeason(String id) => seasons.doc(id).delete();
+
+  Future<void> moveMatchesToSeason(
+    Iterable<String> matchIds,
+    String seasonId,
+  ) async {
+    final batch = _db.batch();
+    for (final id in matchIds) {
+      batch.update(matches.doc(id), {'seasonId': seasonId});
+    }
+    await batch.commit();
+  }
+
   // ---------------------------------------------------------------- partidos
 
-  Future<void> createMatch({
-    required DateTime date,
+  /// Crea una jornada por cada fecha (una sola, o varias si se repite cada
+  /// semana) en un mismo lote.
+  Future<void> createMatches({
+    required List<DateTime> dates,
     required String seasonId,
     required String createdBy,
+    required int durationMinutes,
     String? place,
     String? notes,
-  }) => matches.doc().set({
-    'date': Timestamp.fromDate(date),
-    'seasonId': seasonId,
-    'status': MatchStatus.scheduled.name,
-    'createdBy': createdBy,
-    'place': _nullIfBlank(place),
-    'notes': _nullIfBlank(notes),
-    'createdAt': FieldValue.serverTimestamp(),
-  });
+  }) async {
+    final batch = _db.batch();
+    for (final date in dates) {
+      batch.set(matches.doc(), {
+        'date': Timestamp.fromDate(date),
+        'durationMinutes': durationMinutes,
+        'seasonId': seasonId,
+        'status': MatchStatus.scheduled.name,
+        'createdBy': createdBy,
+        'place': _nullIfBlank(place),
+        'notes': _nullIfBlank(notes),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
 
   Future<void> updateMatch(
     String id, {
     required DateTime date,
+    required int durationMinutes,
+    required String seasonId,
     String? place,
     String? notes,
   }) => matches.doc(id).update({
     'date': Timestamp.fromDate(date),
+    'durationMinutes': durationMinutes,
+    'seasonId': seasonId,
     'place': _nullIfBlank(place),
     'notes': _nullIfBlank(notes),
   });
@@ -140,7 +184,27 @@ class FirestoreRepo {
   Future<void> setMatchStatus(String id, MatchStatus status) =>
       matches.doc(id).update({'status': status.name});
 
-  Future<void> deleteMatch(String id) => matches.doc(id).delete();
+  /// Borra la jornada y todo lo que cuelga de ella (asistencias, reportes y
+  /// votos, cuyos ids se toman de las colecciones ya cargadas) en un lote.
+  Future<void> deleteMatchCascade(
+    String matchId, {
+    required Iterable<String> attendanceIds,
+    required Iterable<String> reportIds,
+    required Iterable<String> voteIds,
+  }) async {
+    final batch = _db.batch();
+    for (final id in attendanceIds) {
+      batch.delete(attendance.doc(id));
+    }
+    for (final id in reportIds) {
+      batch.delete(reports.doc(id));
+    }
+    for (final id in voteIds) {
+      batch.delete(mvpVotes.doc(id));
+    }
+    batch.delete(matches.doc(matchId));
+    await batch.commit();
+  }
 
   Future<void> saveTeams(
     String matchId,

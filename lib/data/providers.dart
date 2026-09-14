@@ -129,9 +129,28 @@ final pendingUsersProvider = Provider<List<AppUser>>((ref) {
   return users.where((u) => u.isPending).toList();
 });
 
+/// Temporada activa. Si ninguna está marcada, la más reciente que no esté
+/// cerrada; si todas están cerradas, null (habrá que crear una).
 final activeSeasonProvider = Provider<Season?>((ref) {
   final seasons = ref.watch(seasonsProvider).value ?? const [];
-  return seasons.where((s) => s.isActive).firstOrNull ?? seasons.firstOrNull;
+  return seasons.where((s) => s.isActive && !s.isClosed).firstOrNull ??
+      seasons.where((s) => !s.isClosed).firstOrNull;
+});
+
+final seasonByIdProvider = Provider.family<Season?, String>((ref, id) {
+  final seasons = ref.watch(seasonsProvider).value ?? const [];
+  return seasons.where((s) => s.id == id).firstOrNull;
+});
+
+/// true si la jornada ya no acepta cambios (ver `MatchDay.isClosed`).
+final matchClosedProvider = Provider.family<bool, String>((ref, matchId) {
+  final match = ref.watch(matchByIdProvider(matchId));
+  if (match == null) return true;
+  final season = ref.watch(seasonByIdProvider(match.seasonId));
+  return match.isClosed(
+    DateTime.now(),
+    seasonClosed: season?.isClosed ?? false,
+  );
 });
 
 final matchByIdProvider = Provider.family<MatchDay?, String>((ref, id) {
@@ -211,8 +230,9 @@ final effectiveSeasonIdProvider = Provider<String?>((ref) {
 final seasonFilterLabelProvider = Provider<String>((ref) {
   final id = ref.watch(effectiveSeasonIdProvider);
   if (id == null) return 'Histórico';
-  final seasons = ref.watch(seasonsProvider).value ?? const [];
-  return seasons.where((s) => s.id == id).firstOrNull?.name ?? 'Temporada';
+  final season = ref.watch(seasonByIdProvider(id));
+  if (season == null) return 'Temporada';
+  return season.isClosed ? '${season.name} (cerrada)' : season.name;
 });
 
 // ------------------------------------------------------------- estadísticas

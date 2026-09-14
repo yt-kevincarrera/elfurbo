@@ -62,6 +62,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
         .where((a) => a.status == AttendanceStatus.yes)
         .length;
     final saved = widget.match.hasTeams;
+    final closed = ref.watch(matchClosedProvider(widget.match.id));
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 
@@ -85,7 +86,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
           child: Text(
             saved && _proposal == null
                 ? 'Equipos guardados por el admin.'
-                : 'Se reparten los $going que marcaron que van, usando goles, asistencias y MVPs históricos para que queden parejos.',
+                : 'Se reparten los $going que marcaron que van, usando goles, asistencias y MVP históricos para que queden parejos.',
             style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ),
@@ -96,13 +97,13 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
             runSpacing: 8,
             children: [
               FilledButton.tonalIcon(
-                onPressed: widget.match.isCancelled ? null : _generate,
+                onPressed: closed ? null : _generate,
                 icon: const Icon(Icons.shuffle),
                 label: Text(
                   _proposal == null ? 'Armar equipos' : 'Mezclar de nuevo',
                 ),
               ),
-              if (isAdmin && _proposal != null)
+              if (isAdmin && _proposal != null && !closed)
                 FilledButton.icon(
                   onPressed: () {
                     fireAndForget(
@@ -120,7 +121,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar'),
                 ),
-              if (isAdmin && saved && _proposal == null)
+              if (isAdmin && saved && _proposal == null && !closed)
                 OutlinedButton.icon(
                   onPressed: () => fireAndForget(
                     ref.read(repoProvider).clearTeams(widget.match.id),
@@ -144,7 +145,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
               icon: Icons.groups_outlined,
               title: 'Todavía no hay equipos',
               subtitle:
-                  'Cuando el grupo confirme asistencia, armalos con un toque.',
+                  'Cuando el grupo confirme asistencia, ármalos con un toque.',
             ),
           )
         else ...[
@@ -166,7 +167,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Text(
               'Diferencia de valoración: ${Fmt.decimal(shown.difference)}. '
-              'La valoración es (goles + 0,7·asistencias + 1,5·MVP) por partido jugado; los nuevos arrancan en el promedio.',
+              'La valoración es (goles + 0,7·asistencias + 1,5·MVP) por jornada jugada; los nuevos arrancan en el promedio.',
               style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),

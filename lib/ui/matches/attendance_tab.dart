@@ -22,6 +22,7 @@ class AttendanceTab extends ConsumerWidget {
     final isAdmin = ref.watch(isAdminProvider);
     final mine = attendance[myUid]?.status;
     final played = match.isPlayed(DateTime.now());
+    final closed = ref.watch(matchClosedProvider(match.id));
 
     List<AppUser> withStatus(AttendanceStatus? s) =>
         users.where((u) => attendance[u.uid]?.status == s).toList();
@@ -40,7 +41,7 @@ class AttendanceTab extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  played ? '¿Jugaste este partido?' : '¿Vas a ir?',
+                  played ? '¿Jugaste esta jornada?' : '¿Vas a ir?',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
@@ -57,7 +58,7 @@ class AttendanceTab extends ConsumerWidget {
                     emptySelectionAllowed: true,
                     showSelectedIcon: false,
                     selected: {if (mine != null) mine},
-                    onSelectionChanged: match.isCancelled
+                    onSelectionChanged: closed
                         ? null
                         : (sel) {
                             if (sel.isEmpty) return;
@@ -96,7 +97,7 @@ class AttendanceTab extends ConsumerWidget {
           icon: Icons.check_circle,
           color: Colors.green,
           match: match,
-          canEdit: isAdmin,
+          canEdit: isAdmin && !closed,
         ),
         _Group(
           title: 'Quizás',
@@ -104,7 +105,7 @@ class AttendanceTab extends ConsumerWidget {
           icon: Icons.help,
           color: Colors.amber.shade700,
           match: match,
-          canEdit: isAdmin,
+          canEdit: isAdmin && !closed,
         ),
         _Group(
           title: played ? 'No fueron' : 'No van',
@@ -112,7 +113,7 @@ class AttendanceTab extends ConsumerWidget {
           icon: Icons.cancel,
           color: Colors.red,
           match: match,
-          canEdit: isAdmin,
+          canEdit: isAdmin && !closed,
         ),
         _Group(
           title: 'Sin responder',
@@ -120,7 +121,7 @@ class AttendanceTab extends ConsumerWidget {
           icon: Icons.radio_button_unchecked,
           color: Colors.grey,
           match: match,
-          canEdit: isAdmin,
+          canEdit: isAdmin && !closed,
         ),
       ],
     );

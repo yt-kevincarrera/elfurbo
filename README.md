@@ -1,26 +1,26 @@
 # El Furbo ⚽
 
 App Android para el grupo de amigos que juega al fútbol: cada uno carga sus goles y
-asistencias después del partido, los compañeros (o el admin) confirman que es verdad, y
-las estadísticas se acumulan partido a partido. Funciona **sin internet** y sincroniza sola
+asistencias después de cada jornada, los compañeros (o el admin) confirman que es verdad, y
+las estadísticas se acumulan jornada a jornada. Se juegan muchos partidos cortos con equipos que rotan, así que la unidad es la jornada, no el partido, y no se registran marcadores. Funciona **sin internet** y sincroniza sola
 cuando vuelve la conexión.
 
 ## Qué hace
 
 | Feature | Cómo funciona |
 | --- | --- |
-| **Partidos** | El admin crea partidos con fecha, hora y cancha. Se pueden editar, cancelar o eliminar. |
-| **Asistencia** | Antes del partido cada uno marca *Voy / Quizás / No voy*. Después del partido, *Jugué*. |
+| **Jornadas** | El admin crea jornadas con fecha, hora, duración (2 h por defecto), cancha y temporada, de a una o repetidas cada semana. Se pueden editar, cancelar, cerrar, reabrir o eliminar (con sus asistencias, reportes y votos). Una jornada está "en curso" entre su hora y hora + duración, y se cierra sola 72 h después de empezar: desde ahí no se aceptan goles, confirmaciones ni votos. |
+| **Asistencia** | Antes de la jornada cada uno marca *Voy / Quizás / No voy*. Después, *Jugué*. |
 | **Reportes** | Cada jugador carga sus goles y asistencias (y un comentario opcional). |
 | **Confirmación** | Un reporte cuenta cuando lo confirman **2 compañeros que jugaron ese día** o **el admin**. El admin también puede rechazarlo. Si el autor edita el reporte, vuelve a pendiente. |
-| **MVP** | Los que jugaron votan al mejor del partido. Si hay empate, todos los empatados suman MVP. |
+| **MVP** | Los que jugaron votan al mejor de la jornada. Si hay empate, todos los empatados suman MVP. |
 | **Tabla** | Ranking por goles, asistencias, MVP y G+A. Filtrable por temporada o histórico total. |
-| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución partido a partido, historial. |
+| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. |
 | **Logros y rachas** | Hat-trick, Póker, Goleador (10/50/100), Fiel (5/10/25 seguidos), MVP, Imparable, etc. Se recalculan siempre a partir de los datos. |
 | **Equipos parejos** | Con los que marcaron que van, la app propone dos equipos balanceados por rendimiento histórico. "Mezclar de nuevo" da otra combinación igual de pareja. El admin los guarda. |
 | **Compartir** | Tarjeta con goleadores, MVP y top 3 de la temporada, lista para mandar al grupo de WhatsApp. |
 | **Temporadas** | El admin cierra el año y abre una temporada nueva. La tabla arranca de cero; el histórico se conserva. |
-| **Notificaciones** | Hoy hay partido → marca asistencia. Alguien reportó → confírmalo. Te confirmaron. Nuevo jugador esperando aprobación. |
+| **Notificaciones** | Hoy hay jornada → marca asistencia. Alguien reportó → confírmalo. Te confirmaron. Nuevo jugador esperando aprobación. |
 | **Offline** | Firestore guarda todo en el teléfono. Puedes cargar goles en la cancha sin señal y se sube después. Una barra arriba avisa si estás offline o con cambios sin subir. |
 | **Acceso** | Login con Google. El primer usuario que entra queda como admin; los siguientes esperan aprobación del admin. |
 
@@ -126,7 +126,7 @@ La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Fur
 1. Entra con tu Google. Si las Functions están desplegadas, **el primer usuario queda como admin activo automáticamente**.
    Si no, en Firebase Console → Firestore → colección `users` → tu documento, pon `role: "admin"` y `status: "active"`.
 2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Apruébalo con un toque.
-3. Crea el primer partido. Se genera sola una temporada (`Temporada 2026`); puedes renombrarla en Admin.
+3. Crea la primera jornada. Se genera sola una temporada (`Temporada 2026`). En Admin puedes crear, renombrar, editar, activar, cerrar (congela sus jornadas) y eliminar temporadas. No se puede quitar el rol al único admin.
 
 ## Modelo de datos (Firestore)
 

@@ -43,7 +43,7 @@ class PendingScreen extends ConsumerWidget {
               Text(
                 blocked
                     ? 'Habla con el admin del grupo si crees que es un error.'
-                    : 'Avisale al admin del grupo que ya entraste. Cuando te apruebe, esta pantalla se actualiza sola.',
+                    : 'Avísale al admin del grupo que ya entraste. Cuando te apruebe, esta pantalla se actualiza sola.',
                 textAlign: TextAlign.center,
                 style: text.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,

@@ -21,14 +21,15 @@ class MvpTab extends ConsumerWidget {
       return EmptyState(
         icon: Icons.emoji_events_outlined,
         title: match.isCancelled
-            ? 'Partido cancelado'
-            : 'La votación abre después del partido',
+            ? 'Jornada cancelada'
+            : 'La votación abre cuando termine la jornada',
       );
     }
     final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final votes = ref.watch(votesForMatchProvider(match.id));
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
+    final closed = ref.watch(matchClosedProvider(match.id));
     final iPlayed = attendance[myUid]?.status == AttendanceStatus.yes;
     final myVote = votes.where((v) => v.voterUid == myUid).firstOrNull;
     final scheme = Theme.of(context).colorScheme;
@@ -105,7 +106,7 @@ class MvpTab extends ConsumerWidget {
           RadioGroup<String>(
             groupValue: myVote?.votedFor,
             onChanged: (uid) {
-              if (match.isCancelled || uid == null) return;
+              if (closed || uid == null) return;
               final name = users[uid]?.name ?? 'Jugador';
               fireAndForget(
                 ref
@@ -125,7 +126,7 @@ class MvpTab extends ConsumerWidget {
               ],
             ),
           ),
-          if (myVote != null)
+          if (myVote != null && !closed)
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
