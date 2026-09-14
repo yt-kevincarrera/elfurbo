@@ -128,6 +128,17 @@ La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Fur
 2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Apruébalo con un toque.
 3. Crea la primera jornada. Se genera sola una temporada (`Temporada 2026`). En Admin puedes crear, renombrar, editar, activar, cerrar (congela sus jornadas) y eliminar temporadas. No se puede quitar el rol al único admin.
 
+## Tests y CI
+
+- **Dart**: `flutter test` cubre el motor de estadísticas, logros, balanceo de equipos, jornadas (duración, en curso, cierre), presencia real, desempate de MVP, recurrencia semanal, payload de notificaciones y recordatorios.
+- **Reglas de Firestore**: `firestore-tests/` prueba las reglas contra el emulador (cierre, presencia, rechazo definitivo, votos, altas, borrado de cuenta). Requiere Java 11+:
+
+```bash
+cd firestore-tests && npm ci && npm run test:emulator
+```
+
+- **GitHub Actions** (`.github/workflows/ci.yml`): en cada PR y en `main` corre formato, análisis y tests de Flutter, los tests de reglas con el emulador y la sintaxis de las Functions.
+
 ## Modelo de datos (Firestore)
 
 Todas las colecciones son de primer nivel para que las reglas sean simples y todo se cachee offline:
