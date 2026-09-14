@@ -82,7 +82,7 @@ class UpdateNotifications {
     await _plugin.show(
       id: notificationId,
       title: 'Nueva versión de El Furbo',
-      body: 'Ya está la ${release.version}. Tocá para actualizar.',
+      body: 'Ya está la ${release.version}. Toca para actualizar.',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
@@ -90,7 +90,7 @@ class UpdateNotifications {
           channelDescription: 'Avisos de nuevas versiones de la app',
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
-          color: Color(0xFF1B5E20),
+          color: Color(0xFFD4AF37),
         ),
       ),
       payload: release.tag,

@@ -104,7 +104,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     icon: Icons.leaderboard_outlined,
                     title: 'Todavía no hay estadísticas',
                     subtitle:
-                        'Cuando se jueguen partidos y se confirmen los goles, acá aparece la tabla.',
+                        'Cuando se jueguen partidos y se confirmen los goles, aquí aparece la tabla.',
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.only(bottom: 24),

@@ -247,7 +247,7 @@ class PlayerProfileScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('¿Cerrar sesión?'),
         content: const Text(
-          'Si tenés cambios sin sincronizar, esperá a tener internet antes de salir.',
+          'Si tienes cambios sin sincronizar, espera a tener internet antes de salir.',
         ),
         actions: [
           TextButton(
@@ -600,7 +600,7 @@ class _ProfileMenu extends ConsumerWidget {
       final release = await service.checkForUpdate(force: true);
       if (!context.mounted) return;
       if (release == null) {
-        showMessage('Ya tenés la última versión');
+        showMessage('Ya tienes la última versión');
         return;
       }
       await showUpdateDialog(context, release: release, service: service);

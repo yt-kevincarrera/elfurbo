@@ -35,7 +35,7 @@ class AdminScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text(
-                'Nadie esperando. Cuando alguien entre con Google aparece acá.',
+                'Nadie esperando. Cuando alguien entre con Google aparece aquí.',
                 style: text.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -141,7 +141,7 @@ class AdminScreen extends ConsumerWidget {
               ),
               trailing: u.uid == myUid
                   ? const Chip(
-                      label: Text('Vos'),
+                      label: Text('Tú'),
                       visualDensity: VisualDensity.compact,
                     )
                   : PopupMenuButton<String>(

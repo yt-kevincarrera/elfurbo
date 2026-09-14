@@ -20,8 +20,8 @@ cuando vuelve la conexión.
 | **Equipos parejos** | Con los que marcaron que van, la app propone dos equipos balanceados por rendimiento histórico. "Mezclar de nuevo" da otra combinación igual de pareja. El admin los guarda. |
 | **Compartir** | Tarjeta con goleadores, MVP y top 3 de la temporada, lista para mandar al grupo de WhatsApp. |
 | **Temporadas** | El admin cierra el año y abre una temporada nueva. La tabla arranca de cero; el histórico se conserva. |
-| **Notificaciones** | Hoy hay partido → marcá asistencia. Alguien reportó → confirmalo. Te confirmaron. Nuevo jugador esperando aprobación. |
-| **Offline** | Firestore guarda todo en el teléfono. Podés cargar goles en la cancha sin señal y se sube después. Una barra arriba avisa si estás offline o con cambios sin subir. |
+| **Notificaciones** | Hoy hay partido → marca asistencia. Alguien reportó → confírmalo. Te confirmaron. Nuevo jugador esperando aprobación. |
+| **Offline** | Firestore guarda todo en el teléfono. Puedes cargar goles en la cancha sin señal y se sube después. Una barra arriba avisa si estás offline o con cambios sin subir. |
 | **Acceso** | Login con Google. El primer usuario que entra queda como admin; los siguientes esperan aprobación del admin. |
 
 ## Stack
@@ -40,28 +40,28 @@ cuando vuelve la conexión.
 
 ### 2. Crear el proyecto de Firebase
 
-1. Entrá a [console.firebase.google.com](https://console.firebase.google.com) y creá un proyecto (por ejemplo `elfurbo`).
+1. Entra a [console.firebase.google.com](https://console.firebase.google.com) y crea un proyecto (por ejemplo `elfurbo`).
 2. **Agregar app → Android**. Nombre del paquete: `app.elfurbo` (tiene que coincidir con `applicationId` en `android/app/build.gradle.kts`).
-3. Cargá la **huella SHA-1** de tu clave de firma. Para la clave de debug:
+3. Carga la **huella SHA-1** de tu clave de firma. Para la clave de debug:
 
    ```bash
    keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android -keypass android
    ```
 
-   Sin el SHA-1 correcto, el login con Google falla. Cuando firmes el APK de release con otra clave, agregá también ese SHA-1.
-4. Descargá **`google-services.json`** y guardalo en `android/app/google-services.json` (está en `.gitignore`; hay una plantilla en `google-services.json.example`).
+   Sin el SHA-1 correcto, el login con Google falla. Cuando firmes el APK de release con otra clave, agrega también ese SHA-1.
+4. Descarga **`google-services.json`** y guárdalo en `android/app/google-services.json` (está en `.gitignore`; hay una plantilla en `google-services.json.example`).
 
 ### 3. Authentication
 
-Firebase Console → **Authentication → Sign-in method → Google → Habilitar**. Poné un correo de soporte y guardá.
+Firebase Console → **Authentication → Sign-in method → Google → Habilitar**. Pon un correo de soporte y guarda.
 
 ### 4. Firestore
 
-1. **Firestore Database → Crear base de datos**, modo producción. Elegí la región más cercana (por ejemplo `southamerica-east1`).
-2. Vinculá el repo al proyecto y subí las reglas de seguridad:
+1. **Firestore Database → Crear base de datos**, modo producción. Elige la región más cercana (este proyecto usa `nam5`).
+2. Vincula el repo al proyecto y sube las reglas de seguridad:
 
    ```bash
-   cp .firebaserc.example .firebaserc      # editá el project id
+   cp .firebaserc.example .firebaserc      # edita el project id
    firebase login
    firebase deploy --only firestore
    ```
@@ -79,12 +79,12 @@ cd ..
 firebase deploy --only functions
 ```
 
-Antes de desplegar, revisá en `functions/index.js`:
+Antes de desplegar, revisa en `functions/index.js`:
 
 - `REGION`: debe coincidir con la región de tu Firestore (o `us-central1` si elegiste una multi-región).
 - `TIME_ZONE`: zona horaria del grupo para los recordatorios de las 09:00 y las 22:00.
 
-> Si no querés usar Functions, la app funciona igual. Lo único que perdés son las notificaciones, y al primer admin lo tenés que marcar a mano (ver abajo).
+> Si no quieres usar Functions, la app funciona igual. Lo único que pierdes son las notificaciones, y al primer admin lo tienes que marcar a mano (ver abajo).
 
 ### 6. Compilar e instalar
 
@@ -95,9 +95,9 @@ flutter build apk --release --split-per-abi  # un APK por arquitectura en build/
 ```
 
 El release se firma con la clave de debug de tu PC (la del SHA-1 que registraste), así que
-compilá siempre desde la misma máquina: Android solo instala una actualización si viene
-firmada con la misma clave. Si preferís una clave propia, seguí la
-[guía oficial](https://docs.flutter.dev/deployment/android#signing-the-app) y cargá también su SHA-1 en Firebase.
+compila siempre desde la misma máquina: Android solo instala una actualización si viene
+firmada con la misma clave. Si prefieres una clave propia, sigue la
+[guía oficial](https://docs.flutter.dev/deployment/android#signing-the-app) y carga también su SHA-1 en Firebase.
 
 ### 6b. Publicar actualizaciones (GitHub Releases)
 
@@ -123,10 +123,10 @@ La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Fur
 
 ### 7. Primer uso
 
-1. Entrá con tu Google. Si las Functions están desplegadas, **el primer usuario queda como admin activo automáticamente**.
-   Si no, en Firebase Console → Firestore → colección `users` → tu documento, poné `role: "admin"` y `status: "active"`.
-2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Aprobalo con un toque.
-3. Creá el primer partido. Se genera sola una temporada (`Temporada 2026`); podés renombrarla en Admin.
+1. Entra con tu Google. Si las Functions están desplegadas, **el primer usuario queda como admin activo automáticamente**.
+   Si no, en Firebase Console → Firestore → colección `users` → tu documento, pon `role: "admin"` y `status: "active"`.
+2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Apruébalo con un toque.
+3. Crea el primer partido. Se genera sola una temporada (`Temporada 2026`); puedes renombrarla en Admin.
 
 ## Modelo de datos (Firestore)
 

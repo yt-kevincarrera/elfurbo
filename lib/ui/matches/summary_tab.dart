@@ -134,9 +134,9 @@ class MatchSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFF0E2A12);
-    const accent = Color(0xFF7CD67C);
-    const gold = Color(0xFFFFC94D);
+    const bg = Color(0xFF0A0A0A);
+    const accent = Color(0xFFE0B84A);
+    const gold = Color(0xFFFFD86A);
     final scorers = summary.confirmedReports.where((r) => r.goals > 0).toList();
     final assisters =
         summary.confirmedReports.where((r) => r.assists > 0).toList()
@@ -149,7 +149,7 @@ class MatchSummaryCard extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0E2A12), Color(0xFF16421C)],
+          colors: [Color(0xFF050505), Color(0xFF1F1A0E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
