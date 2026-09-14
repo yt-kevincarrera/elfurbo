@@ -213,7 +213,38 @@ exports.onReportUpdated = onDocumentUpdated("reports/{id}", async (event) => {
   const after = event.data.after.data();
   const prev = derivedStatus(before);
   const next = derivedStatus(after);
+
+  // El admin corrigió los números: avisamos al autor.
+  if (after.correctedBy && after.correctedBy !== before.correctedBy) {
+    await sendToUsers([after.uid], {
+      title: "Reporte corregido",
+      body: `El admin corrigió tu reporte: ${plural(after.goals, "gol", "goles")} y ${plural(
+        after.assists,
+        "asistencia",
+        "asistencias"
+      )}. Ya cuentan en la tabla.`,
+      data: { type: "report_status", matchId: after.matchId, reportId: event.params.id },
+    });
+    return;
+  }
+
   if (prev === next) return;
+
+  // Un reporte confirmado volvió a pendiente (el autor lo editó): hay que
+  // confirmarlo de nuevo.
+  if (prev === "confirmed" && next === "pending") {
+    const [author, present] = await Promise.all([getUser(after.uid), attendeesPresent(after.matchId)]);
+    await sendToUsers(present.filter((uid) => uid !== after.uid), {
+      title: "Reporte editado",
+      body: `${playerName(author)} cambió su reporte a ${plural(after.goals, "gol", "goles")} y ${plural(
+        after.assists,
+        "asistencia",
+        "asistencias"
+      )}. Vuelve a confirmarlo.`,
+      data: { type: "report", matchId: after.matchId, reportId: event.params.id },
+    });
+    return;
+  }
 
   let title;
   let body;

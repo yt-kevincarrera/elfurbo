@@ -299,9 +299,27 @@ class FirestoreRepo {
         'confirmations': FieldValue.arrayUnion([confirmerUid]),
       });
 
-  /// Decisión del admin. `null` vuelve a dejar que decidan las confirmaciones.
+  /// Decisión del admin. `null` vuelve a dejar que decidan las confirmaciones
+  /// (y borra una corrección previa).
   Future<void> adminSetReportStatus(String reportId, ReportStatus? status) =>
-      reports.doc(reportId).update({'adminStatus': status?.name});
+      reports.doc(reportId).update({
+        'adminStatus': status?.name,
+        if (status == null) 'correctedBy': FieldValue.delete(),
+      });
+
+  /// El admin corrige los números de un reporte: queda confirmado por él.
+  Future<void> adminCorrectReport(
+    String reportId, {
+    required int goals,
+    required int assists,
+    required String correctedBy,
+  }) => reports.doc(reportId).update({
+    'goals': goals,
+    'assists': assists,
+    'adminStatus': ReportStatus.confirmed.name,
+    'correctedBy': correctedBy,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
 
   // --------------------------------------------------------------------- MVP
 

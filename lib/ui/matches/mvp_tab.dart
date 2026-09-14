@@ -50,7 +50,14 @@ class MvpTab extends ConsumerWidget {
     }
     final tally = counts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final winners = StatsEngine.mvpWinners(votes).toSet();
+    final reports = ref.watch(reportsForMatchProvider(match.id));
+    final winners = StatsEngine.mvpWinners(
+      votes,
+      confirmedReports: {
+        for (final r in reports)
+          if (r.isConfirmed) r.uid: r,
+      },
+    ).toSet();
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -79,7 +86,7 @@ class MvpTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
-              '${votes.length} ${votes.length == 1 ? 'voto' : 'votos'} · si hay empate, todos los empatados suman MVP.',
+              '${votes.length} ${votes.length == 1 ? 'voto' : 'votos'} · si hay empate, desempata por goles y asistencias confirmados del día; si sigue igual, comparten.',
               style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),

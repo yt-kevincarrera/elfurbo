@@ -157,9 +157,11 @@ service cloud.firestore {
         && matchOpen(request.resource.data.matchId)
         && matchPlayed(request.resource.data.matchId);
 
-      // El autor edita su reporte: se resetean las confirmaciones.
+      // El autor edita su reporte: se resetean las confirmaciones. Un reporte
+      // rechazado por el admin no se puede editar ni borrar (rechazo definitivo).
       allow update: if isActive()
         && resource.data.uid == request.auth.uid
+        && resource.data.get('adminStatus', null) != 'rejected'
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.matchId == resource.data.matchId
         && validReportNumbers(request.resource.data)
@@ -179,6 +181,7 @@ service cloud.firestore {
 
       allow delete: if isActive()
         && resource.data.uid == request.auth.uid
+        && resource.data.get('adminStatus', null) != 'rejected'
         && matchOpen(resource.data.matchId);
       allow update, delete: if isAdmin();
     }
