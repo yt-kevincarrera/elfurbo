@@ -33,15 +33,17 @@ class MatchDetailScreen extends ConsumerWidget {
         appBar: AppBar(),
         body: const EmptyState(
           icon: Icons.event_busy,
-          title: 'Este partido ya no existe',
+          title: 'Esta jornada ya no existe',
         ),
       );
     }
     final now = DateTime.now();
     final played = match.isPlayed(now);
+    final closed = ref.watch(matchClosedProvider(matchId));
+    final season = ref.watch(seasonByIdProvider(match.seasonId));
     final scheme = Theme.of(context).colorScheme;
-    // Antes del partido lo importante es la asistencia y los equipos; después,
-    // cargar goles y votar.
+    // Antes de la jornada lo importante es la asistencia y los equipos;
+    // después, cargar goles y votar.
     final initialTab = played ? 1 : 0;
 
     return DefaultTabController(
@@ -53,7 +55,9 @@ class MatchDetailScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                Fmt.relative(match.date, now: now),
+                match.isInProgress(now)
+                    ? 'En curso'
+                    : Fmt.relative(match.date, now: now),
                 style: const TextStyle(fontSize: 18),
               ),
               Text(
@@ -78,6 +82,22 @@ class MatchDetailScreen extends ConsumerWidget {
                       title: Text('Editar'),
                     ),
                   ),
+                  if (!match.isCancelled)
+                    PopupMenuItem(
+                      value: _AdminAction.toggleClose,
+                      child: ListTile(
+                        leading: Icon(
+                          closed ? Icons.lock_open : Icons.lock_outline,
+                        ),
+                        title: Text(
+                          closed ? 'Reabrir jornada' : 'Cerrar jornada',
+                        ),
+                        subtitle: closed && (season?.isClosed ?? false)
+                            ? const Text('La temporada está cerrada')
+                            : null,
+                        enabled: !(closed && (season?.isClosed ?? false)),
+                      ),
+                    ),
                   PopupMenuItem(
                     value: _AdminAction.toggleCancel,
                     child: ListTile(
@@ -87,7 +107,7 @@ class MatchDetailScreen extends ConsumerWidget {
                             : Icons.event_busy,
                       ),
                       title: Text(
-                        match.isCancelled ? 'Reactivar' : 'Cancelar partido',
+                        match.isCancelled ? 'Reactivar' : 'Cancelar jornada',
                       ),
                     ),
                   ),
@@ -117,8 +137,18 @@ class MatchDetailScreen extends ConsumerWidget {
           children: [
             if (match.isCancelled)
               MaterialBanner(
-                content: const Text('Este partido está cancelado.'),
+                content: const Text('Esta jornada está cancelada.'),
                 leading: const Icon(Icons.event_busy),
+                actions: const [SizedBox.shrink()],
+              )
+            else if (closed)
+              MaterialBanner(
+                content: Text(
+                  (season?.isClosed ?? false)
+                      ? 'Temporada cerrada: esta jornada ya no acepta cambios.'
+                      : 'Jornada cerrada: ya no se pueden cargar goles, confirmar ni votar.',
+                ),
+                leading: const Icon(Icons.lock_outline),
                 actions: const [SizedBox.shrink()],
               ),
             if (match.notes != null)
@@ -164,6 +194,17 @@ class MatchDetailScreen extends ConsumerWidget {
     switch (action) {
       case _AdminAction.edit:
         await showMatchFormSheet(context, existing: match);
+      case _AdminAction.toggleClose:
+        final closed = ref.read(matchClosedProvider(match.id));
+        fireAndForget(
+          repo.setMatchStatus(
+            match.id,
+            closed ? MatchStatus.reopened : MatchStatus.closed,
+          ),
+          success: closed
+              ? 'Jornada reabierta: se cierra cuando la vuelvas a cerrar'
+              : 'Jornada cerrada',
+        );
       case _AdminAction.toggleCancel:
         fireAndForget(
           repo.setMatchStatus(
@@ -171,16 +212,16 @@ class MatchDetailScreen extends ConsumerWidget {
             match.isCancelled ? MatchStatus.scheduled : MatchStatus.cancelled,
           ),
           success: match.isCancelled
-              ? 'Partido reactivado'
-              : 'Partido cancelado',
+              ? 'Jornada reactivada'
+              : 'Jornada cancelada',
         );
       case _AdminAction.delete:
         final ok = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('¿Eliminar partido?'),
+            title: const Text('¿Eliminar jornada?'),
             content: const Text(
-              'Se pierden los reportes, votos y asistencias de este partido. Si solo se suspendió, mejor cancélalo.',
+              'Se borran también sus asistencias, reportes y votos. Si solo se suspendió, mejor cancélala.',
             ),
             actions: [
               TextButton(
@@ -195,9 +236,19 @@ class MatchDetailScreen extends ConsumerWidget {
           ),
         );
         if (ok == true && context.mounted) {
+          final attendance = ref.read(attendanceForMatchProvider(match.id));
+          final reports = ref.read(reportsForMatchProvider(match.id));
+          final votes = ref.read(votesForMatchProvider(match.id));
           fireAndForget(
-            repo.deleteMatch(match.id),
-            success: 'Partido eliminado',
+            repo.deleteMatchCascade(
+              match.id,
+              attendanceIds: attendance.values.map(
+                (a) => '${a.matchId}_${a.uid}',
+              ),
+              reportIds: reports.map((r) => r.id),
+              voteIds: votes.map((v) => '${v.matchId}_${v.voterUid}'),
+            ),
+            success: 'Jornada eliminada',
           );
           Navigator.of(context).pop();
         }
@@ -205,4 +256,4 @@ class MatchDetailScreen extends ConsumerWidget {
   }
 }
 
-enum _AdminAction { edit, toggleCancel, delete }
+enum _AdminAction { edit, toggleClose, toggleCancel, delete }

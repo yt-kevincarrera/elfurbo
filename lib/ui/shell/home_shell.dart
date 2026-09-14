@@ -48,7 +48,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           const NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
             selectedIcon: Icon(Icons.calendar_month),
-            label: 'Partidos',
+            label: 'Jornadas',
           ),
           const NavigationDestination(
             icon: Icon(Icons.leaderboard_outlined),

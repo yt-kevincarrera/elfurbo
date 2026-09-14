@@ -119,7 +119,7 @@ class PlayerProfileScreen extends ConsumerWidget {
               childAspectRatio: 1.15,
               children: [
                 StatTile(
-                  label: 'Partidos',
+                  label: 'Jornadas',
                   value: '${s.matchesPlayed}',
                   icon: Icons.sports_soccer,
                 ),
@@ -141,7 +141,7 @@ class PlayerProfileScreen extends ConsumerWidget {
                   color: scheme.mvpGold,
                 ),
                 StatTile(
-                  label: 'Goles / partido',
+                  label: 'Goles / jornada',
                   value: Fmt.decimal(s.goalsPerMatch),
                   icon: Icons.speed,
                 ),
@@ -302,7 +302,7 @@ class _EvolutionChart extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
         child: Text(
-          'Con al menos dos partidos jugados aparece la curva de goles y asistencias.',
+          'Con al menos dos jornadas jugadas aparece la curva de goles y asistencias.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -547,7 +547,7 @@ class _History extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.all(20),
         child: Text(
-          'Sin partidos jugados en este período.',
+          'Sin jornadas jugadas en este período.',
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),

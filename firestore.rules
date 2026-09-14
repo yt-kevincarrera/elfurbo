@@ -4,12 +4,17 @@ rules_version = '2';
 //
 // Colecciones (todas de primer nivel):
 //   users/{uid}                    perfil, rol (admin|player) y estado (pending|active|blocked)
-//   config/app                     configuración global (temporada activa, etc.)
-//   seasons/{id}                   temporadas
-//   matches/{id}                   partidos
-//   attendance/{matchId_uid}       asistencia de un jugador a un partido (yes|no|maybe)
-//   reports/{matchId_uid}          goles/asistencias reportados por un jugador en un partido
-//   mvpVotes/{matchId_voterUid}    voto de MVP de un jugador en un partido
+//   config/app                     configuración global
+//   seasons/{id}                   temporadas (isActive, isClosed)
+//   matches/{id}                   jornadas (status, date, durationMinutes, seasonId)
+//   attendance/{matchId_uid}       asistencia de un jugador a una jornada (yes|no|maybe)
+//   reports/{matchId_uid}          goles/asistencias reportados por un jugador en una jornada
+//   mvpVotes/{matchId_voterUid}    voto de MVP de un jugador en una jornada
+//
+// Cierre: una jornada deja de aceptar cambios de jugadores cuando está
+// cancelada, cerrada por el admin, pasaron 72 h desde su inicio (salvo que
+// el admin la haya reabierto) o su temporada está cerrada. El admin puede
+// escribir siempre (la app lo frena salvo que reabra).
 service cloud.firestore {
   match /databases/{db}/documents {
 
@@ -31,10 +36,43 @@ service cloud.firestore {
       return isActive() && myDoc().data.role == 'admin';
     }
 
-    // El usuario marcó que fue ("yes") al partido.
+    // El usuario marcó que fue ("yes") a la jornada.
     function attendedYes(matchId, uid) {
       return exists(/databases/$(db)/documents/attendance/$(matchId + '_' + uid))
         && get(/databases/$(db)/documents/attendance/$(matchId + '_' + uid)).data.status == 'yes';
+    }
+
+    function matchData(matchId) {
+      return get(/databases/$(db)/documents/matches/$(matchId)).data;
+    }
+
+    function seasonClosed(seasonId) {
+      return seasonId != ''
+        && exists(/databases/$(db)/documents/seasons/$(seasonId))
+        && get(/databases/$(db)/documents/seasons/$(seasonId)).data.get('isClosed', false) == true;
+    }
+
+    // Jornada abierta a cambios de jugadores (ver comentario de cabecera).
+    function matchOpen(matchId) {
+      let m = matchData(matchId);
+      return m.status != 'cancelled'
+        && m.status != 'closed'
+        && (m.status == 'reopened' || request.time < m.date + duration.value(72, 'h'))
+        && !seasonClosed(m.seasonId);
+    }
+
+    // La jornada ya terminó (hora + duración): se pueden cargar goles y votar.
+    function matchPlayed(matchId) {
+      let m = matchData(matchId);
+      return request.time >= m.date + duration.value(m.get('durationMinutes', 120), 'm');
+    }
+
+    function validMatch(d) {
+      return d.status in ['scheduled', 'cancelled', 'closed', 'reopened']
+        && d.date is timestamp
+        && d.get('durationMinutes', 120) is int
+        && d.get('durationMinutes', 120) >= 30
+        && d.get('durationMinutes', 120) <= 600;
     }
 
     function validReportNumbers(d) {
@@ -77,8 +115,11 @@ service cloud.firestore {
 
     match /matches/{id} {
       allow read: if isActive();
-      allow create: if isAdmin() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.createdBy == request.auth.uid
+        && validMatch(request.resource.data);
+      allow update: if isAdmin() && validMatch(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /attendance/{id} {
@@ -86,8 +127,11 @@ service cloud.firestore {
       allow create, update: if isActive()
         && request.resource.data.uid == request.auth.uid
         && id == request.resource.data.matchId + '_' + request.auth.uid
-        && request.resource.data.status in ['yes', 'no', 'maybe'];
-      allow delete: if isActive() && resource.data.uid == request.auth.uid;
+        && request.resource.data.status in ['yes', 'no', 'maybe']
+        && matchOpen(request.resource.data.matchId);
+      allow delete: if isActive()
+        && resource.data.uid == request.auth.uid
+        && matchOpen(resource.data.matchId);
       allow write: if isAdmin();
     }
 
@@ -98,7 +142,9 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && id == request.resource.data.matchId + '_' + request.auth.uid
         && validReportNumbers(request.resource.data)
-        && freshStatus(request.resource.data);
+        && freshStatus(request.resource.data)
+        && matchOpen(request.resource.data.matchId)
+        && matchPlayed(request.resource.data.matchId);
 
       // El autor edita su reporte: se resetean las confirmaciones.
       allow update: if isActive()
@@ -106,9 +152,10 @@ service cloud.firestore {
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.matchId == resource.data.matchId
         && validReportNumbers(request.resource.data)
-        && freshStatus(request.resource.data);
+        && freshStatus(request.resource.data)
+        && matchOpen(resource.data.matchId);
 
-      // Un compañero que jugó ese día confirma: solo puede agregar su propio uid.
+      // Un compañero que jugó confirma: solo puede agregar su propio uid.
       allow update: if isActive()
         && resource.data.uid != request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmations'])
@@ -116,9 +163,12 @@ service cloud.firestore {
         && request.resource.data.confirmations.size() == resource.data.confirmations.size() + 1
         && request.resource.data.confirmations.hasAll(resource.data.confirmations)
         && request.auth.uid in request.resource.data.confirmations
-        && attendedYes(resource.data.matchId, request.auth.uid);
+        && attendedYes(resource.data.matchId, request.auth.uid)
+        && matchOpen(resource.data.matchId);
 
-      allow delete: if isActive() && resource.data.uid == request.auth.uid;
+      allow delete: if isActive()
+        && resource.data.uid == request.auth.uid
+        && matchOpen(resource.data.matchId);
       allow update, delete: if isAdmin();
     }
 
@@ -128,8 +178,12 @@ service cloud.firestore {
         && request.resource.data.voterUid == request.auth.uid
         && id == request.resource.data.matchId + '_' + request.auth.uid
         && request.resource.data.votedFor != request.auth.uid
-        && attendedYes(request.resource.data.matchId, request.auth.uid);
-      allow delete: if isActive() && resource.data.voterUid == request.auth.uid;
+        && attendedYes(request.resource.data.matchId, request.auth.uid)
+        && matchOpen(request.resource.data.matchId)
+        && matchPlayed(request.resource.data.matchId);
+      allow delete: if isActive()
+        && resource.data.voterUid == request.auth.uid
+        && matchOpen(resource.data.matchId);
       allow write: if isAdmin();
     }
   }

@@ -68,7 +68,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    '${ref.watch(seasonFilterLabelProvider)} · ${Fmt.plural(stats.playedMatches.length, 'partido jugado', 'partidos jugados')}',
+                    '${ref.watch(seasonFilterLabelProvider)} · ${Fmt.plural(stats.playedMatches.length, 'jornada jugada', 'jornadas jugadas')}',
                     style: text.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -104,7 +104,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     icon: Icons.leaderboard_outlined,
                     title: 'Todavía no hay estadísticas',
                     subtitle:
-                        'Cuando se jueguen partidos y se confirmen los goles, aquí aparece la tabla.',
+                        'Cuando se jueguen jornadas y se confirmen los goles, aquí aparece la tabla.',
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.only(bottom: 24),
@@ -155,7 +155,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          '${Fmt.plural(s.matchesPlayed, 'partido', 'partidos')} · ${Fmt.decimal(perMatch)} por partido'
+                          '${Fmt.plural(s.matchesPlayed, 'jornada', 'jornadas')} · ${Fmt.decimal(perMatch)} por jornada'
                           '${s.currentStreak >= 3 ? ' · 🔥 ${s.currentStreak} seguidos' : ''}',
                         ),
                         trailing: Text(

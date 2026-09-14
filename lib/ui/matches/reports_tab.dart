@@ -23,10 +23,10 @@ class ReportsTab extends ConsumerWidget {
     if (!match.isPlayed(now)) {
       return EmptyState(
         icon: Icons.schedule,
-        title: match.isCancelled ? 'Partido cancelado' : 'Todavía no se jugó',
+        title: match.isCancelled ? 'Jornada cancelada' : 'Todavía no terminó',
         subtitle: match.isCancelled
             ? null
-            : 'Después del partido aquí cargas tus goles y asistencias.',
+            : 'Cuando termine la jornada, aquí cargas tus goles y asistencias.',
       );
     }
 
@@ -35,6 +35,7 @@ class ReportsTab extends ConsumerWidget {
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
     final isAdmin = ref.watch(isAdminProvider);
+    final closed = ref.watch(matchClosedProvider(match.id));
     final iPlayed = attendance[myUid]?.status == AttendanceStatus.yes;
     final myReport = reports.where((r) => r.uid == myUid).firstOrNull;
     final others = reports.where((r) => r.uid != myUid).toList();
@@ -61,7 +62,7 @@ class ReportsTab extends ConsumerWidget {
                 const SizedBox(height: 8),
                 if (myReport == null)
                   Text(
-                    'Todavía no cargaste nada de este partido.',
+                    'Todavía no cargaste nada de esta jornada.',
                     style: text.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -87,7 +88,7 @@ class ReportsTab extends ConsumerWidget {
                 Row(
                   children: [
                     FilledButton.icon(
-                      onPressed: match.isCancelled
+                      onPressed: closed
                           ? null
                           : () => showReportFormSheet(
                               context,
@@ -97,7 +98,7 @@ class ReportsTab extends ConsumerWidget {
                       icon: Icon(myReport == null ? Icons.add : Icons.edit),
                       label: Text(myReport == null ? 'Cargar goles' : 'Editar'),
                     ),
-                    if (myReport != null) ...[
+                    if (myReport != null && !closed) ...[
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: () => fireAndForget(
@@ -122,7 +123,7 @@ class ReportsTab extends ConsumerWidget {
               style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
-        if (!iPlayed && others.isNotEmpty)
+        if (!iPlayed && others.isNotEmpty && !closed)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text(
@@ -136,9 +137,12 @@ class ReportsTab extends ConsumerWidget {
             name: users[r.uid]?.name ?? 'Jugador',
             user: users[r.uid],
             canConfirm:
-                iPlayed && r.isPending && !r.confirmations.contains(myUid),
+                !closed &&
+                iPlayed &&
+                r.isPending &&
+                !r.confirmations.contains(myUid),
             alreadyConfirmed: r.confirmations.contains(myUid),
-            isAdmin: isAdmin,
+            isAdmin: isAdmin && !closed,
             confirmerNames: r.confirmations
                 .map((u) => users[u]?.name ?? '?')
                 .toList(),

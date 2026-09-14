@@ -32,7 +32,7 @@ class _SummaryTabState extends ConsumerState<SummaryTab> {
         _cardKey,
         fileName:
             'elfurbo_${Fmt.dateOnly(widget.match.date).replaceAll('/', '-')}.png',
-        text: 'Resumen del ${Fmt.short(widget.match.date)} ⚽',
+        text: 'Resumen de la jornada del ${Fmt.short(widget.match.date)} ⚽',
       );
     } catch (e) {
       showError(e);
@@ -46,7 +46,7 @@ class _SummaryTabState extends ConsumerState<SummaryTab> {
     if (!widget.match.isPlayed(DateTime.now())) {
       return const EmptyState(
         icon: Icons.image_outlined,
-        title: 'El resumen se arma después del partido',
+        title: 'El resumen se arma cuando termina la jornada',
       );
     }
     final users = ref.watch(usersByIdProvider);
