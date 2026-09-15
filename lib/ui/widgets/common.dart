@@ -50,9 +50,11 @@ class _SyncBannerState extends ConsumerState<SyncBanner> {
     IconData icon = Icons.cloud_off;
     Color bg = scheme.surfaceContainerHighest;
     if (!status.isOnline && (_graceOver || _everOnline)) {
+      // Sin internet, o con internet pero sin llegar a Google (Cuba sin VPN):
+      // Firestore no distingue, así que damos las dos pistas.
       text = status.pendingWrites
-          ? 'Sin conexión · tus cambios se suben cuando vuelva internet'
-          : 'Sin conexión · mostrando datos guardados';
+          ? 'Sin conexión con el servidor · tus cambios se suben al sincronizar. En Cuba, activa la VPN.'
+          : 'Sin conexión con el servidor · datos guardados. En Cuba, activa la VPN para sincronizar.';
     } else if (status.pendingWrites) {
       text = 'Sincronizando…';
       icon = Icons.cloud_sync;

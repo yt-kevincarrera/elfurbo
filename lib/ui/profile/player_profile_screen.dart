@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../core/formatters.dart';
+import '../../core/network_hints.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/achievements.dart';
@@ -636,7 +637,11 @@ class _ProfileMenu extends ConsumerWidget {
       }
       await showUpdateDialog(context, release: release, service: service);
     } catch (e) {
-      showError('No se pudo consultar GitHub: $e');
+      showError(
+        looksLikeBlockedNetwork(e)
+            ? 'No se pudo consultar GitHub. $vpnHint'
+            : 'No se pudo consultar GitHub: $e',
+      );
     }
   }
 

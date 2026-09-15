@@ -128,6 +128,14 @@ La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Fur
 2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Apruébalo con un toque.
 3. Crea la primera jornada. Se genera sola una temporada (`Temporada 2026`). En Admin puedes crear, renombrar, editar, activar, cerrar (congela sus jornadas) y eliminar temporadas. No se puede quitar el rol al único admin.
 
+## Si el grupo está en Cuba
+
+Desde IPs cubanas GitHub muestra "acceso restringido" y las API de Firebase (Auth, Firestore) responden 403, por las sanciones de EE. UU. La app está preparada para ese escenario:
+
+- **VPN solo para entrar y sincronizar.** El login y la subida/bajada de datos necesitan VPN. Marcar asistencia, cargar goles, confirmar y votar funcionan sin internet y se suben cuando la app vuelve a conectar (con la VPN activa). Los recordatorios locales no dependen de nada externo.
+- **Mensajes claros.** Si Firebase o GitHub no responden, la app lo dice y recuerda activar la VPN en vez de mostrar el error crudo.
+- **Repartir la app.** El enlace de GitHub Releases no abre desde Cuba: pásales el APK como archivo por WhatsApp o Telegram (`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`). El aviso de nueva versión dentro de la app sí funciona con VPN.
+
 ## Tests y CI
 
 - **Dart**: `flutter test` cubre el motor de estadísticas, logros, balanceo de equipos, jornadas (duración, en curso, cierre), presencia real, desempate de MVP, recurrencia semanal, payload de notificaciones y recordatorios.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_messenger.dart';
+import '../../core/network_hints.dart';
 import '../../domain/app_update.dart';
 import '../../services/update_service.dart';
 
@@ -52,7 +53,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       await widget.service.install(file);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      showError(e);
+      showError(
+        looksLikeBlockedNetwork(e)
+            ? 'No se pudo descargar la actualización. $vpnHint'
+            : e,
+      );
       if (mounted) {
         setState(() {
           _busy = false;
@@ -88,6 +93,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 'Hay una versión nueva de El Furbo lista para instalar.',
                 style: text.bodyMedium,
               ),
+            const SizedBox(height: 12),
+            Text(
+              'La descarga viene de GitHub. $vpnHint',
+              style: text.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             if (progress != null) ...[
               const SizedBox(height: 20),
               LinearProgressIndicator(value: progress < 0 ? null : progress),

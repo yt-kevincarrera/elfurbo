@@ -81,7 +81,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
               const SizedBox(height: 24),
               Text(
-                'Después de entrar, el admin del grupo tiene que aprobarte.',
+                'Después de entrar, el admin del grupo tiene que aprobarte.
+'
+                'En Cuba, activa la VPN para entrar y sincronizar; el resto funciona sin ella.',
                 textAlign: TextAlign.center,
                 style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),

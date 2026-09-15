@@ -117,7 +117,8 @@ class LocalNotifications {
     await _plugin.show(
       id: idUpdate,
       title: 'Nueva versión de El Furbo',
-      body: 'Ya está la ${release.version}. Toca para actualizar.',
+      body:
+          'Ya está la ${release.version}. Toca para actualizar (en Cuba, con VPN).',
       notificationDetails: _details(
         channelUpdates,
         'Actualizaciones',

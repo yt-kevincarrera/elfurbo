@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../core/network_hints.dart';
+
 /// Opcional: "Web client ID" de OAuth de tu proyecto de Firebase. En Android
 /// normalmente no hace falta porque se toma de google-services.json, pero si
 /// el idToken llega null, compila con:
@@ -45,7 +47,18 @@ class AuthService {
       );
     }
     final credential = GoogleAuthProvider.credential(idToken: idToken);
-    return _auth.signInWithCredential(credential);
+    try {
+      return await _auth.signInWithCredential(credential);
+    } on FirebaseException catch (e) {
+      // Desde Cuba la API de Firebase Auth responde 403 aunque la cuenta de
+      // Google esté bien: lo decimos claro en vez de mostrar el error crudo.
+      if (looksLikeBlockedNetwork(e)) {
+        throw Exception(
+          'Google no está disponible desde tu red (${e.code}). $vpnHint',
+        );
+      }
+      throw Exception('No se pudo iniciar sesión: ${e.message ?? e.code}');
+    }
   }
 
   /// Borra la cuenta de Firebase Auth. Si la sesión es vieja, Firebase exige
