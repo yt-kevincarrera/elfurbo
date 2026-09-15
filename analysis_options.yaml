@@ -1,1 +1,6 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Tests de reglas de Firestore (Node): sus node_modules traen plantillas Dart.
+    - firestore-tests/**
