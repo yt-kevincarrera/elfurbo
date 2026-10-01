@@ -174,6 +174,16 @@ npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrang
     `POST /clubs/:id/members/:memberId/recovery-code` y se lo pasa por WhatsApp.
 - Panel del superadmin: todo lo de `/admin/*` (servidores, usuarios, métricas). Primero hay que marcarse
   como superadmin con el comando de arriba.
+- Sincronización (PR3a): la app manda sus cambios como comandos con `POST /sync/push` y trae lo nuevo con
+  `POST /sync/pull`.
+  - Comandos: `{ id, clubId, type, payload, clientAt }`, hasta 200 por envío y 256 KB.
+  - Un reintento del mismo comando devuelve `duplicate`, sin aplicarlo otra vez.
+  - Cada respuesta dura como mucho unos 8 s y gasta como mucho 900 consultas a D1 (el límite medido es 1000).
+    Lo que no entra vuelve `deferred`, en orden, y la app lo reenvía. Un tipo de comando que el
+    servidor aún no conoce también vuelve `deferred`, para reintentarlo después del despliegue.
+  - El pull recibe `{ cursors: { clubId: número } }`. Con 0 devuelve una foto completa; si no, solo lo
+    cambiado, de 500 en 500.
+  - Toda escritura sobre una entidad sincronizada añade su fila en `changes` en el mismo `batch`.
 
 ## Tests y CI
 

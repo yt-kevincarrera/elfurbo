@@ -67,6 +67,12 @@ meRoutes.delete("/", async (c) => {
 
   const at = now.toISOString();
   await db.batch([
+    // Avisa al pull de cada servidor antes de desvincular los perfiles.
+    db
+      .prepare(
+        "INSERT INTO changes (club_id, entity, entity_key, op, at) SELECT club_id, 'member', id, 'upsert', ? FROM members WHERE user_id = ?",
+      )
+      .bind(at, userId),
     // Sus estadísticas se quedan en cada servidor, a nombre de "Jugador eliminado".
     db
       .prepare(

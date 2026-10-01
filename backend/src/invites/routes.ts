@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { requireAuth } from "../auth/middleware";
 import { findMember, findMemberByUser } from "../clubs/model";
 import { errors } from "../http/errors";
+import { changeStatement, upsert } from "../sync/changes";
 import type { AppEnv } from "../types";
 import { findInvite, isUsable, type InviteRecord } from "./model";
 import { invitePage } from "./page";
@@ -98,6 +99,7 @@ async function joinClub(
         )
         .bind(user.id, at, at, invite.targetMemberId, invite.clubId),
       acceptAudit(db, invite, user.id, invite.targetMemberId, now),
+      changeStatement(db, invite.clubId, upsert("member", invite.targetMemberId), now),
     ]);
     return joined(claim!.results[0]);
   }
@@ -113,6 +115,7 @@ async function joinClub(
         )
         .bind(invite.role, at, leftMemberId, invite.clubId),
       acceptAudit(db, invite, user.id, leftMemberId, now),
+      changeStatement(db, invite.clubId, upsert("member", leftMemberId), now),
     ]);
     return joined(back!.results[0]);
   }
@@ -127,6 +130,7 @@ async function joinClub(
         )
         .bind(id, invite.clubId, user.id, invite.role, user.displayName, user.id, at, at),
       acceptAudit(db, invite, user.id, id, now),
+      changeStatement(db, invite.clubId, upsert("member", id), now),
     ]);
   } catch (e) {
     // Dos aceptaciones simultáneas del mismo usuario: gana la primera.
