@@ -136,6 +136,36 @@ Desde IPs cubanas GitHub muestra "acceso restringido" y las API de Firebase (Aut
 - **Mensajes claros.** Si Firebase o GitHub no responden, la app lo dice y recuerda activar la VPN en vez de mostrar el error crudo.
 - **Repartir la app.** El enlace de GitHub Releases no abre desde Cuba: pásales el APK como archivo por WhatsApp o Telegram (`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`). El aviso de nueva versión dentro de la app sí funciona con VPN.
 
+## Backend propio (Cloudflare Workers + D1)
+
+La versión 1.0 deja Firebase Auth y Firestore (bloqueados en Cuba sin VPN) por un backend
+propio en `backend/`: un Cloudflare Worker con base D1, en el plan gratuito. Se probó desde
+ETECSA sin VPN el 2026-10-01. Diseño completo:
+`docs/superpowers/specs/2026-10-01-servidores-backend-propio-design.md`.
+
+Requisitos: Node 22 y **npm 11** (con npm 10 falla la instalación: `npm install -g npm@11`).
+
+```bash
+cd backend
+npm ci
+npm test               # tests dentro del runtime de Workers, con D1 local
+npm run typecheck
+npm run dev            # API local en http://localhost:8787 (antes: npm run db:migrate:local)
+npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrangler login`)
+```
+
+- Staging: `https://furbo-api-staging.furbo-probe.workers.dev`. El CI despliega solo en cada push a
+  `main` si existen los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.
+- Marcar a alguien como superadmin (no se puede desde la API, a propósito):
+
+  ```bash
+  cd backend && npx wrangler d1 execute DB --remote --env staging --command "UPDATE users SET is_superadmin = 1 WHERE username = 'kevin'"
+  ```
+
+- Copias de seguridad: D1 Time Travel permite volver a cualquier minuto de los últimos 7 días
+  (`npx wrangler d1 time-travel restore DB --env staging --timestamp=<ISO>`). Export manual:
+  `npx wrangler d1 export DB --remote --env staging --output=backup.sql`.
+
 ## Tests y CI
 
 - **Dart**: `flutter test` cubre el motor de estadísticas, logros, balanceo de equipos, jornadas (duración, en curso, cierre), presencia real, desempate de MVP, recurrencia semanal, payload de notificaciones y recordatorios.

@@ -52,3 +52,52 @@ jobs:
           node-version: 22
       - run: npm run check
         working-directory: functions
+
+  backend:
+    name: Backend · tipos y tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      # npm 10 falla al resolver las dependencias peer de vitest 4.
+      - run: npm install -g npm@11
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy-staging:
+    name: Backend · desplegar a staging
+    needs: backend
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm install -g npm@11
+      - run: npm ci
+      - name: ¿Hay credenciales de Cloudflare?
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::Falta el secreto CLOUDFLARE_API_TOKEN: no se despliega a staging."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.creds.outputs.skip != 'true'
+        run: npm run deploy:staging
