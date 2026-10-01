@@ -8,11 +8,11 @@ import { assertActiveMembers, assertOpen, assertPlayed, childChanges, findMatchd
 
 const note = z.string().trim().max(200).nullable();
 
-type ReportRow = { member_id: string; decision: "confirmed" | "rejected" | null };
+type ReportRow = { member_id: string; decision: "confirmed" | "rejected" | null; corrected_by: string | null };
 
 async function findReport(ctx: CommandContext, matchday: string, member: string) {
   return ctx.db
-    .prepare("SELECT member_id, decision FROM reports WHERE id = ?")
+    .prepare("SELECT member_id, decision, corrected_by FROM reports WHERE id = ?")
     .bind(key(matchday, member))
     .first<ReportRow>();
 }
@@ -83,6 +83,11 @@ export const loadReportFor = command(
     assertOpen(ctx, md);
     assertPlayed(ctx, md);
     await assertActiveMembers(ctx, [p.memberId], "memberId");
+    // Cargar por otro no sirve para saltarse una decisión: un rechazo es definitivo (también para el
+    // staff: primero hay que quitar la decisión), y una corrección solo la rehace owner o admin.
+    const existing = await findReport(ctx, md.id, p.memberId);
+    if (existing?.decision === "rejected") throw errors.reportRejected();
+    if (existing?.corrected_by && !canDecideReports(ctx.member.role)) throw errors.forbidden();
     const id = key(md.id, p.memberId);
     return {
       statements: [

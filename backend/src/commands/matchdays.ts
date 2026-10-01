@@ -90,6 +90,11 @@ export const updateMatchday = command(
   async (ctx, p) => {
     const md = await findMatchday(ctx, p.matchdayId);
     if (!canEditMatchday(ctx.member.role, { isCreator: md.createdBy === ctx.member.id })) throw errors.forbidden();
+    // Cerrada no se toca (el staff la reabre); si no, mover la fecha la "reabriría".
+    assertOpen(ctx, md);
+    // El player que la creó no mueve cuándo ni en qué temporada fue si ya hay datos de otros.
+    const movesIt = p.startsAt !== undefined || p.durationMinutes !== undefined || p.seasonId !== undefined;
+    if (ctx.member.role === "player" && movesIt && (await hasOthersData(ctx, md))) throw errors.forbidden();
     const season = p.seasonId === undefined ? md.seasonId : await resolveSeason(ctx, p.seasonId);
     return {
       statements: [
@@ -221,9 +226,24 @@ export const mergeMatchdays = command(
       mvp_votes: "vote",
     };
 
-    // Ganador por persona en asistencia, reportes y votos: el más reciente.
+    // Asistencia: campo a campo. La intención y la presencia las escriben personas distintas en
+    // momentos distintos (un "Voy" tardío no puede borrar el "jugó" de pasar lista).
+    const attendance = new Map<string, { from?: ChildRow; into?: ChildRow }>();
+    for (const r of results.filter((x) => x.t === "attendance")) {
+      const slot = attendance.get(r.member_id) ?? {};
+      slot[isFrom(r) ? "from" : "into"] = r;
+      attendance.set(r.member_id, slot);
+    }
+    for (const [member, { from: f, into: i }] of attendance) {
+      if (!f) continue;
+      statements.push(mergeAttendance(ctx, into.id, member, f, i));
+      touched.push(upsert("attendance", key(into.id, member)));
+    }
+
+    // Reportes y votos: gana el más reciente; pero un reporte rechazado nunca pierde (es definitivo).
     const reportFromWins = new Set<string>();
-    for (const table of ["attendance", "reports", "mvp_votes"]) {
+    const rejected = (r: ChildRow) => (JSON.parse(r.data) as { decision?: string }).decision === "rejected";
+    for (const table of ["reports", "mvp_votes"]) {
       const byMember = new Map<string, { from?: ChildRow; into?: ChildRow }>();
       for (const r of results.filter((x) => x.t === table)) {
         const slot = byMember.get(r.member_id) ?? {};
@@ -232,7 +252,10 @@ export const mergeMatchdays = command(
       }
       for (const [member, { from: f, into: i }] of byMember) {
         if (!f) continue;
-        if (!i || f.updated_at > i.updated_at) {
+        const fromWins =
+          !i ||
+          (table === "reports" && rejected(f) !== rejected(i) ? rejected(f) : f.updated_at > i.updated_at);
+        if (fromWins) {
           if (table === "reports") reportFromWins.add(member);
           statements.push(copyInto(ctx, table, f, into.id, member));
           touched.push(upsert(entityOf[table]!, key(into.id, member)));
@@ -275,18 +298,25 @@ export const mergeMatchdays = command(
   },
 );
 
-/** Copia la fila ganadora de `fromId` a `intoId` (reemplazando la que hubiera). */
+/** Asistencia unida: la intención más reciente que haya, y la presencia más reciente que haya. */
+function mergeAttendance(ctx: CommandContext, intoId: string, member: string, f: ChildRow, i: ChildRow | undefined) {
+  type A = { intent: string | null; played: number | null; played_set_by: string | null };
+  const rows = [f, i].filter((r): r is ChildRow => r !== undefined).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const data = rows.map((r) => JSON.parse(r.data) as A);
+  const intent = data.find((d) => d.intent !== null)?.intent ?? null;
+  const presence = data.find((d) => d.played !== null);
+  return ctx.db
+    .prepare(
+      `INSERT OR REPLACE INTO attendance (id, club_id, matchday_id, member_id, intent, played, played_set_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(key(intoId, member), ctx.club.id, intoId, member, intent, presence?.played ?? null, presence?.played_set_by ?? null, rows[0]!.updated_at);
+}
+
+/** Copia el reporte o el voto ganador de `fromId` a `intoId` (reemplazando el que hubiera). */
 function copyInto(ctx: CommandContext, table: string, row: ChildRow, intoId: string, member: string) {
   const d = JSON.parse(row.data) as Record<string, unknown>;
   const id = key(intoId, member);
-  if (table === "attendance") {
-    return ctx.db
-      .prepare(
-        `INSERT OR REPLACE INTO attendance (id, club_id, matchday_id, member_id, intent, played, played_set_by, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(id, ctx.club.id, intoId, member, d.intent ?? null, d.played ?? null, d.played_set_by ?? null, row.updated_at);
-  }
   if (table === "reports") {
     return ctx.db
       .prepare(
