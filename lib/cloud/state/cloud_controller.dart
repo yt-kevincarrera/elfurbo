@@ -79,11 +79,13 @@ class Me {
 /// Vista previa de una invitación antes de aceptarla.
 class InvitePreview {
   const InvitePreview({
+    required this.clubId,
     required this.clubName,
     required this.role,
     this.claimName,
   });
 
+  final String clubId;
   final String clubName;
   final String role;
 
@@ -124,7 +126,6 @@ class CloudController {
   Stream<Me?> get meChanges => _meChanges.stream;
 
   void _openStore(String userId) {
-    _engine?.dispose();
     _store = LocalStore(
       Directory('${dataRoot.path}${Platform.pathSeparator}u-$userId'),
     );
@@ -158,6 +159,7 @@ class CloudController {
 
   Future<void> _start(Future<Session> call) async {
     final s = await call;
+    await _engine?.close();
     await sessions.write(s);
     _session = s;
     api.token = s.token;
@@ -168,56 +170,111 @@ class CloudController {
   }
 
   /// Sale y borra lo de esta cuenta en el teléfono. Si no hay señal, sale igual
-  /// (la sesión del servidor caduca sola).
-  Future<void> logout() async {
+  /// (la sesión del servidor caduca sola). Llamarla dos veces a la vez no falla.
+  Future<void> logout() =>
+      _logout ??= _doLogout().whenComplete(() => _logout = null);
+  Future<void>? _logout;
+
+  Future<void> _doLogout() async {
+    _debounce?.cancel();
+    final store = _store;
+    // Primero se para el sync en marcha: si no, volvería a escribir archivos tras borrarlos.
+    await _closeSession();
     try {
       await _auth.logout();
-    } on OfflineException {
-      // Sin señal: se sale igual.
-    } on ApiException {
-      // Sesión ya caducada: se sale igual.
+    } catch (_) {
+      // Sin señal o sesión ya caducada: se sale igual.
     }
-    await _store?.wipe();
-    await sessions.clear();
-    _engine?.dispose();
+    api.token = null;
+    await store?.wipe();
+  }
+
+  /// La sesión caducó (401): fuera, pero sin borrar nada. Si vuelve a entrar la misma
+  /// persona, su carpeta sigue ahí y la cola se envía.
+  Future<void> _expire() async {
+    _debounce?.cancel();
+    await _closeSession();
+    api.token = null;
+  }
+
+  /// Fuera de la sesión: el estado cambia al instante (nadie ve ya la sesión vieja)
+  /// y después se espera a que el sync en marcha termine sin escribir nada más.
+  Future<void> _closeSession() => _closing ??= () async {
+    final engine = _engine;
     _engine = null;
     _store = null;
     _session = null;
     _me = null;
-    api.token = null;
     _sessionChanges.add(null);
     _meChanges.add(null);
-  }
+    await sessions.clear();
+    await engine?.close();
+  }().whenComplete(() => _closing = null);
+  Future<void>? _closing;
 
-  /// Lee `/me` del servidor; sin señal, usa la última copia guardada.
+  /// Lee `/me` del servidor; si no se puede (sin señal, 5xx, portal…), usa la última copia.
   Future<Me?> loadMe() async {
     final store = _store;
     if (store == null) return null;
     try {
       final j = (await api.get('/me'))!;
+      if (_store != store) return _me; // Cambió la cuenta mientras tanto.
       await store.writeMe(j);
       _me = Me.fromJson(j);
-    } on OfflineException {
-      final cached = await store.readMe();
-      _me = cached == null ? _me : Me.fromJson(cached);
+    } on ApiException catch (e) {
+      if (e.status == 401) {
+        await _expire();
+        return null;
+      }
+      _me ??= await _cachedMe(store);
+    } catch (_) {
+      _me ??= await _cachedMe(store);
     }
     _meChanges.add(_me);
     return _me;
+  }
+
+  Future<Me?> _cachedMe(LocalStore store) async {
+    final cached = await store.readMe();
+    return cached == null ? null : Me.fromJson(cached);
+  }
+
+  /// `/me` para la interfaz: primero la copia guardada (al instante, también sin
+  /// señal), después lo que diga el servidor y cada cambio posterior.
+  Stream<Me?> watchMe() async* {
+    final store = _store;
+    if (_me == null && store != null) _me = await _cachedMe(store);
+    yield _me;
+    unawaited(loadMe());
+    yield* meChanges;
   }
 
   Future<InvitePreview> previewInvite(String code) async {
     final j = (await api.get('/invites/${Uri.encodeComponent(code.trim())}'))!;
     final claim = j['claim'] as Map?;
     return InvitePreview(
+      clubId: (j['club'] as Map)['id'] as String,
       clubName: (j['club'] as Map)['name'] as String,
       role: j['role'] as String,
       claimName: claim?['displayName'] as String?,
     );
   }
 
-  /// Entra en el servidor de la invitación y lo trae completo.
-  Future<void> acceptInvite(String code) async {
-    await api.post('/invites/${Uri.encodeComponent(code.trim())}/accept');
+  /// Entra en el servidor de la invitación y lo trae completo. Si la respuesta se
+  /// perdió y al reintentar dice "ya se usó" o "ya eres miembro", se comprueba en
+  /// `/me`: si ya estoy dentro de `clubId`, cuenta como éxito.
+  Future<void> acceptInvite(String code, {String? clubId}) async {
+    try {
+      await api.post('/invites/${Uri.encodeComponent(code.trim())}/accept');
+    } on Object catch (e) {
+      final maybeJoined =
+          e is OfflineException ||
+          (e is ApiException &&
+              (e.code == 'invite_invalid' || e.code == 'already_member'));
+      if (clubId == null || !maybeJoined) rethrow;
+      final me = await loadMe();
+      if (!(me?.clubs.any((c) => c.id == clubId) ?? false)) rethrow;
+    }
     await loadMe();
     await sync();
   }
@@ -257,7 +314,17 @@ class CloudController {
     final engine = _engine;
     if (engine == null) return;
     await engine.sync();
-    if (engine.last.state == SyncState.unauthorized) await logout();
+    if (engine != _engine) {
+      // Otro cerró la sesión mientras tanto: se espera a que termine de cerrarla.
+      await _closing;
+      return;
+    }
+    if (engine.last.state == SyncState.unauthorized) {
+      await _expire();
+    } else if (engine.last.state == SyncState.idle) {
+      // Servidores nuevos, aprobados o de los que me echaron: el selector al día.
+      await loadMe();
+    }
   }
 
   /// La vista de un servidor: lo último del servidor con mis cambios pendientes encima.

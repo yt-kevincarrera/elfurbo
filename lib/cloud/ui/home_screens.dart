@@ -15,9 +15,14 @@ class CloudHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final me = ref.watch(meProvider).value;
+    final meAsync = ref.watch(meProvider);
+    final me = meAsync.value;
     final club = ref.watch(currentClubProvider);
-    if (me == null || club == null) return const NoClubsScreen();
+    if (me == null) {
+      // Todavía no se sabe en qué servidores estoy: no decir "ninguno" a quien sí tiene.
+      return meAsync.isLoading ? const _Loading() : const _NoConnection();
+    }
+    if (club == null) return const NoClubsScreen();
     return Scaffold(
       appBar: AppBar(
         title: ClubSwitcher(clubs: me.clubs, current: club),
@@ -37,7 +42,7 @@ class CloudHome extends ConsumerWidget {
                     ),
                   );
                 case 'logout':
-                  ref.read(cloudProvider).logout();
+                  confirmAndLogout(context, ref);
               }
             },
             itemBuilder: (_) => const [
@@ -58,6 +63,44 @@ class CloudHome extends ConsumerWidget {
       body: ClubOverview(club: club),
     );
   }
+}
+
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
+}
+
+/// Primera vez en este teléfono y sin señal: no hay nada guardado todavía.
+class _NoConnection extends ConsumerWidget {
+  const _NoConnection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              'Sin conexión. La primera vez hace falta señal para traer tus servidores.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => ref.read(cloudProvider).loadMe(),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class ClubSwitcher extends ConsumerWidget {

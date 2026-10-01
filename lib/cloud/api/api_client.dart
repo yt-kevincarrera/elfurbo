@@ -89,7 +89,8 @@ class ApiClient {
       ).timeout(timeout);
     } on TimeoutException catch (e) {
       throw OfflineException(e);
-    } on SocketException catch (e) {
+    } on IOException catch (e) {
+      // Socket, TLS cortado a medio handshake, HTTP… todo es "sin conexión".
       throw OfflineException(e);
     } on http.ClientException catch (e) {
       throw OfflineException(e);
@@ -104,7 +105,14 @@ class ApiClient {
       json = null;
     }
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return json is Map<String, dynamic> ? json : null;
+      if (text.isEmpty) return null;
+      if (json is Map<String, dynamic>) return json;
+      // Un 200 que no es JSON suele ser el portal de un WiFi público.
+      throw ApiException(
+        res.statusCode,
+        'bad_response',
+        'Respuesta inesperada del servidor. Si usas un WiFi con portal, ábrelo primero.',
+      );
     }
     final error = json is Map && json['error'] is Map
         ? json['error'] as Map

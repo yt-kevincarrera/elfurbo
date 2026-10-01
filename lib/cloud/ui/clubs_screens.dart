@@ -5,6 +5,61 @@ import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import 'errors.dart';
 
+/// Cierra sesión. Si hay cambios sin enviar o rechazados sin revisar, avisa antes:
+/// al salir se borran del teléfono los datos de la cuenta.
+Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
+  final cloud = ref.read(cloudProvider);
+  final pending = (await cloud.engine?.pending())?.length ?? 0;
+  final rejected = (await cloud.rejected()).length;
+  if (!context.mounted) return;
+  if (pending > 0 || rejected > 0) {
+    final what = [
+      if (pending > 0)
+        pending == 1 ? '1 cambio sin enviar' : '$pending cambios sin enviar',
+      if (rejected > 0)
+        rejected == 1
+            ? '1 cambio no aplicado'
+            : '$rejected cambios no aplicados',
+    ].join(' y ');
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Salir igual?'),
+        content: Text('Tienes $what. Si sales ahora, se pierden.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop(false);
+              cloud.sync();
+            },
+            child: const Text('Sincronizar primero'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Salir igual'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !context.mounted) return;
+  }
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const AlertDialog(
+      content: Row(
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 16),
+          Text('Cerrando sesión…'),
+        ],
+      ),
+    ),
+  );
+  await cloud.logout();
+  if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+}
+
 /// Sin servidores: cómo entrar en uno o pedir el tuyo.
 class NoClubsScreen extends ConsumerWidget {
   const NoClubsScreen({super.key});
@@ -20,7 +75,7 @@ class NoClubsScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(cloudProvider).logout(),
+            onPressed: () => confirmAndLogout(context, ref),
           ),
         ],
       ),
@@ -161,7 +216,7 @@ class _JoinSheetState extends ConsumerState<_JoinSheet> {
               onPressed: _busy
                   ? null
                   : () => _go(() async {
-                      await cloud.acceptInvite(_code.text);
+                      await cloud.acceptInvite(_code.text, clubId: p.clubId);
                       if (context.mounted) Navigator.of(context).pop();
                     }),
               child: const Text('Entrar'),

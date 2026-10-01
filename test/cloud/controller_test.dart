@@ -97,7 +97,12 @@ void main() {
   });
 
   tearDown(() async {
-    if (await dir.exists()) await dir.delete(recursive: true);
+    // Puede quedar alguna escritura en vuelo del sync de fondo: no hace fallar el test.
+    try {
+      await dir.delete(recursive: true);
+    } on FileSystemException {
+      // Ya no existe o la está usando otra operación que termina enseguida.
+    }
   });
 
   test(
@@ -156,6 +161,7 @@ void main() {
   test('si el servidor dice que la sesión caducó, se sale solo', () async {
     final a = await controller();
     await a.login('kevin', 'secreto123');
+    await a.sync(); // Deja terminar el sync que lanza el login.
     await a.run('c1', 'member.leave', {});
     status401For = calls.length + 1;
     await a.sync();

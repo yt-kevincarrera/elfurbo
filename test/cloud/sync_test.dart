@@ -103,7 +103,12 @@ void main() {
 
   tearDown(() async {
     engine.dispose();
-    if (await dir.exists()) await dir.delete(recursive: true);
+    // Puede quedar alguna escritura en vuelo del sync de fondo: no hace fallar el test.
+    try {
+      await dir.delete(recursive: true);
+    } on FileSystemException {
+      // Ya no existe o la está usando otra operación que termina enseguida.
+    }
   });
 
   group('LocalStore', () {

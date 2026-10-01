@@ -5,6 +5,7 @@ import 'package:elfurbo/cloud/api/api_client.dart';
 import 'package:elfurbo/cloud/auth/session.dart';
 import 'package:elfurbo/cloud/state/cloud_controller.dart';
 import 'package:elfurbo/cloud/state/providers.dart';
+import 'package:elfurbo/cloud/sync/command.dart';
 import 'package:elfurbo/cloud/sync/sync_engine.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
 import 'package:elfurbo/cloud/ui/home_screens.dart';
@@ -73,7 +74,12 @@ void main() {
     dir = await Directory.systemTemp.createTemp('furbo-ui');
   });
   tearDown(() async {
-    if (await dir.exists()) await dir.delete(recursive: true);
+    // Puede quedar alguna escritura en vuelo del sync de fondo: no hace fallar el test.
+    try {
+      await dir.delete(recursive: true);
+    } on FileSystemException {
+      // Ya no existe o la está usando otra operación que termina enseguida.
+    }
   });
 
   Future<void> pumpApp(WidgetTester tester, CloudController cloud) async {
@@ -134,6 +140,70 @@ void main() {
     expect(find.text('Unirme con un código'), findsOneWidget);
     expect(find.text('Solicitar un servidor'), findsOneWidget);
     expect(find.textContaining('Hola, Kevin'), findsOneWidget);
+  });
+
+  testWidgets(
+    'primera vez sin señal: "sin conexión" con reintentar, no "no estás en ningún servidor"',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'cloud.session': jsonEncode({'token': 'tok', 'user': _user}),
+      });
+      final cloud = await tester.runAsync(() async {
+        final prefs = await SharedPreferences.getInstance();
+        return CloudController(
+          api: ApiClient(
+            baseUrl: 'https://api.test',
+            client: MockClient(
+              (_) async => throw const SocketException('sin red'),
+            ),
+          ),
+          sessions: SessionStore(prefs),
+          dataRoot: dir,
+        );
+      });
+      // Sin pumpAndSettle: el spinner de "cargando" gira mientras se lee del disco.
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [cloudProvider.overrideWithValue(cloud!)],
+            child: const CloudApp(),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+      }
+      await tester.pump();
+      expect(find.textContaining('Sin conexión'), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+      expect(find.textContaining('ningún servidor'), findsNothing);
+    },
+  );
+
+  testWidgets('salir con cambios sin enviar pide confirmación', (tester) async {
+    final cloud = await tester.runAsync(() async {
+      final c = await _controller(dir);
+      await c.login('kevin', 'secreto123');
+      await c.engine!.enqueue(Command.create('c1', 'member.leave', {}));
+      return c;
+    });
+    await tester.runAsync(() async {
+      await pumpApp(tester, cloud!);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.byTooltip('Cerrar sesión'));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('¿Salir igual?'), findsOneWidget);
+    expect(find.textContaining('1 cambio sin enviar'), findsOneWidget);
+    expect(cloud!.session, isNotNull);
   });
 
   test('etiquetas del indicador de sync', () {

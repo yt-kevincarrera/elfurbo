@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'club_data.dart';
 import 'command.dart';
@@ -9,15 +10,27 @@ import 'command.dart';
 /// cambios rechazados y la última respuesta de `/me` (para arrancar sin señal).
 ///
 /// Cada cuenta tiene su carpeta: si en el teléfono entra otra persona, no ve
-/// nada de la anterior. Cada escritura es atómica (archivo temporal + rename).
+/// nada de la anterior. Cada escritura es atómica (archivo temporal + rename), y
+/// las operaciones van de una en una: en Windows, renombrar sobre un archivo que
+/// otra operación tiene abierto falla.
 class LocalStore {
   LocalStore(this.root);
 
   final Directory root;
+  static final _random = Random();
+
+  Future<void> _queue = Future.value();
+  Future<T> _serial<T>(Future<T> Function() f) {
+    final result = _queue.then((_) => f());
+    _queue = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
 
   File _file(String name) => File('${root.path}${Platform.pathSeparator}$name');
 
-  Future<Object?> _read(String name) async {
+  Future<Object?> _read(String name) => _serial(() => _readNow(name));
+
+  Future<Object?> _readNow(String name) async {
     final f = _file(name);
     if (!await f.exists()) return null;
     try {
@@ -25,12 +38,21 @@ class LocalStore {
     } on FormatException {
       // Un archivo a medias (corte de luz) no tumba la app: se descarta.
       return null;
+    } on FileSystemException {
+      // Se borró justo entre comprobarlo y leerlo (p. ej. al cerrar sesión).
+      return null;
     }
   }
 
-  Future<void> _write(String name, Object? value) async {
+  Future<void> _write(String name, Object? value) =>
+      _serial(() => _writeNow(name, value));
+
+  Future<void> _writeNow(String name, Object? value) async {
     await root.create(recursive: true);
-    final tmp = _file('$name.tmp');
+    // Un temporal distinto por escritura: dos escrituras a la vez no se mezclan.
+    final tmp = _file(
+      '$name.${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 30)}.tmp',
+    );
     await tmp.writeAsString(jsonEncode(value), flush: true);
     await tmp.rename(_file(name).path);
   }
@@ -45,13 +67,13 @@ class LocalStore {
   Future<void> writeClub(ClubData data) =>
       _write(_clubFile(data.clubId), data.toJson());
 
-  Future<void> deleteClub(String clubId) async {
+  Future<void> deleteClub(String clubId) => _serial(() async {
     final f = _file(_clubFile(clubId));
     if (await f.exists()) await f.delete();
-  }
+  });
 
-  Future<List<String>> clubIds() async {
-    if (!await root.exists()) return const [];
+  Future<List<String>> clubIds() => _serial(() async {
+    if (!await root.exists()) return const <String>[];
     final ids = <String>[];
     await for (final e in root.list()) {
       final name = e.uri.pathSegments.last;
@@ -60,7 +82,7 @@ class LocalStore {
       }
     }
     return ids;
-  }
+  });
 
   Future<List<Command>> readOutbox() async {
     final j = await _read('outbox.json');
@@ -93,7 +115,11 @@ class LocalStore {
   Future<void> writeMe(Map<String, dynamic> me) => _write('me.json', me);
 
   /// Borra todo lo de esta cuenta en el teléfono (al cerrar sesión).
-  Future<void> wipe() async {
-    if (await root.exists()) await root.delete(recursive: true);
-  }
+  Future<void> wipe() => _serial(() async {
+    try {
+      await root.delete(recursive: true);
+    } on PathNotFoundException {
+      // Ya no existía.
+    }
+  });
 }

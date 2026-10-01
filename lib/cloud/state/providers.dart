@@ -16,11 +16,10 @@ final sessionProvider = StreamProvider<Session?>((ref) async* {
   yield* cloud.sessionChanges;
 });
 
-final meProvider = StreamProvider<Me?>((ref) async* {
+final meProvider = StreamProvider<Me?>((ref) {
   final cloud = ref.watch(cloudProvider);
   ref.watch(sessionProvider);
-  yield cloud.me ?? await cloud.loadMe();
-  yield* cloud.meChanges;
+  return cloud.watchMe();
 });
 
 /// El servidor elegido en el selector (el primero, si no se eligió ninguno).
