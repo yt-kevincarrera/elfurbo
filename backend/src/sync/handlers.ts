@@ -11,6 +11,7 @@ import { rollCall, setIntent, setPlayed } from "../commands/attendance";
 import {
   createMatchday,
   deleteMatchday,
+  mergeMatchdays,
   saveTeams,
   setMatchdayStatus,
   updateMatchday,
@@ -46,6 +47,7 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "matchday.update": updateMatchday,
   "matchday.setStatus": setMatchdayStatus,
   "matchday.delete": deleteMatchday,
+  "matchday.merge": mergeMatchdays,
   "teams.save": saveTeams,
   "attendance.setIntent": setIntent,
   "attendance.setPlayed": setPlayed,

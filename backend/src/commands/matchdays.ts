@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { canActForOthers, canCreateMatchday, canEditMatchday, canManageMatchday } from "../authz";
 import { errors } from "../http/errors";
-import { remove, upsert } from "../sync/changes";
+import { remove, upsert, type Touch } from "../sync/changes";
 import { command, type CommandContext } from "../sync/command";
-import { assertActiveMembers, assertOpen, CHILDREN, childChanges, findMatchday, matchdayId, type Matchday } from "./pachanga";
+import { assertActiveMembers, assertOpen, CHILDREN, childChanges, findMatchday, key, matchdayId, type Matchday } from "./pachanga";
 
 const startsAt = z.iso.datetime({ offset: true }).transform((s) => new Date(s).toISOString());
 const durationMinutes = z.number().int().min(30).max(600);
@@ -173,3 +173,129 @@ export const saveTeams = command(
     };
   },
 );
+
+type ChildRow = { t: string; id: string; member_id: string; confirmer_id: string | null; updated_at: string; data: string };
+
+/**
+ * Une dos jornadas duplicadas (dos personas la crearon sin señal). Todo lo de `fromId` pasa a
+ * `intoId`; si una persona tiene datos en las dos, se queda el más reciente (y las confirmaciones
+ * siguen a su reporte). `fromId` se borra.
+ */
+export const mergeMatchdays = command(
+  z.object({ fromId: matchdayId, intoId: matchdayId }).refine((p) => p.fromId !== p.intoId, { error: "Son la misma jornada" }),
+  async (ctx, p) => {
+    const from = await findMatchday(ctx, p.fromId);
+    const into = await findMatchday(ctx, p.intoId);
+    await assertCanManage(ctx, from);
+    if (!canEditMatchday(ctx.member.role, { isCreator: into.createdBy === ctx.member.id })) throw errors.forbidden();
+    assertOpen(ctx, from);
+    assertOpen(ctx, into);
+
+    const { results } = await ctx.db
+      .prepare(
+        `SELECT 'attendance' AS t, id, member_id, NULL AS confirmer_id, updated_at,
+                json_object('intent', intent, 'played', played, 'played_set_by', played_set_by) AS data
+           FROM attendance WHERE matchday_id IN (?1, ?2)
+         UNION ALL
+         SELECT 'reports', id, member_id, NULL, updated_at,
+                json_object('goals', goals, 'assists', assists, 'note', note, 'loaded_by', loaded_by,
+                            'decision', decision, 'corrected_by', corrected_by)
+           FROM reports WHERE matchday_id IN (?1, ?2)
+         UNION ALL
+         SELECT 'report_confirmations', id, member_id, confirmer_id, created_at, '{}'
+           FROM report_confirmations WHERE matchday_id IN (?1, ?2)
+         UNION ALL
+         SELECT 'mvp_votes', id, voter_id, NULL, updated_at, json_object('voted_for', voted_for)
+           FROM mvp_votes WHERE matchday_id IN (?1, ?2)`,
+      )
+      .bind(from.id, into.id)
+      .all<ChildRow>();
+
+    const isFrom = (r: ChildRow) => r.id.startsWith(`${from.id}:`);
+    const statements: D1PreparedStatement[] = [];
+    const touched: Touch[] = [];
+    const entityOf: Record<string, Touch["entity"]> = {
+      attendance: "attendance",
+      reports: "report",
+      report_confirmations: "confirmation",
+      mvp_votes: "vote",
+    };
+
+    // Ganador por persona en asistencia, reportes y votos: el más reciente.
+    const reportFromWins = new Set<string>();
+    for (const table of ["attendance", "reports", "mvp_votes"]) {
+      const byMember = new Map<string, { from?: ChildRow; into?: ChildRow }>();
+      for (const r of results.filter((x) => x.t === table)) {
+        const slot = byMember.get(r.member_id) ?? {};
+        slot[isFrom(r) ? "from" : "into"] = r;
+        byMember.set(r.member_id, slot);
+      }
+      for (const [member, { from: f, into: i }] of byMember) {
+        if (!f) continue;
+        if (!i || f.updated_at > i.updated_at) {
+          if (table === "reports") reportFromWins.add(member);
+          statements.push(copyInto(ctx, table, f, into.id, member));
+          touched.push(upsert(entityOf[table]!, key(into.id, member)));
+        }
+      }
+    }
+
+    // Confirmaciones: si ganó el reporte de `fromId`, se quedan las suyas y se van las de `intoId`.
+    for (const r of results.filter((x) => x.t === "report_confirmations")) {
+      const wins = reportFromWins.has(r.member_id);
+      if (isFrom(r) && wins) {
+        const id = key(into.id, r.member_id, r.confirmer_id!);
+        statements.push(
+          ctx.db
+            .prepare(
+              "INSERT OR REPLACE INTO report_confirmations (id, club_id, matchday_id, member_id, confirmer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(id, ctx.club.id, into.id, r.member_id, r.confirmer_id, r.updated_at),
+        );
+        touched.push(upsert("confirmation", id));
+      } else if (!isFrom(r) && wins && !results.some((x) => x.t === "report_confirmations" && isFrom(x) && x.member_id === r.member_id && x.confirmer_id === r.confirmer_id)) {
+        statements.push(ctx.db.prepare("DELETE FROM report_confirmations WHERE id = ?").bind(r.id));
+        touched.push(remove("confirmation", r.id));
+      }
+    }
+
+    // Todo lo de `fromId` desaparece, y `fromId` también.
+    for (const { table, entity } of CHILDREN) {
+      statements.push(childChanges(ctx, table, entity, "delete", "matchday_id = ?", from.id));
+      statements.push(ctx.db.prepare(`DELETE FROM ${table} WHERE matchday_id = ?`).bind(from.id));
+    }
+    statements.push(ctx.db.prepare("DELETE FROM matchdays WHERE id = ?").bind(from.id));
+    touched.push(remove("matchday", from.id));
+
+    return {
+      statements,
+      touched,
+      audit: [{ action: "matchday.merge", entity: "matchday", entityKey: into.id, summary: { from: from.id } }],
+    };
+  },
+);
+
+/** Copia la fila ganadora de `fromId` a `intoId` (reemplazando la que hubiera). */
+function copyInto(ctx: CommandContext, table: string, row: ChildRow, intoId: string, member: string) {
+  const d = JSON.parse(row.data) as Record<string, unknown>;
+  const id = key(intoId, member);
+  if (table === "attendance") {
+    return ctx.db
+      .prepare(
+        `INSERT OR REPLACE INTO attendance (id, club_id, matchday_id, member_id, intent, played, played_set_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(id, ctx.club.id, intoId, member, d.intent ?? null, d.played ?? null, d.played_set_by ?? null, row.updated_at);
+  }
+  if (table === "reports") {
+    return ctx.db
+      .prepare(
+        `INSERT OR REPLACE INTO reports (id, club_id, matchday_id, member_id, goals, assists, note, loaded_by, decision, corrected_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(id, ctx.club.id, intoId, member, d.goals, d.assists, d.note ?? null, d.loaded_by, d.decision ?? null, d.corrected_by ?? null, row.updated_at);
+  }
+  return ctx.db
+    .prepare("INSERT OR REPLACE INTO mvp_votes (id, club_id, matchday_id, voter_id, voted_for, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(id, ctx.club.id, intoId, member, d.voted_for, row.updated_at);
+}
