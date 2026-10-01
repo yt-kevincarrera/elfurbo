@@ -14,5 +14,19 @@
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "furbo-api-staging",
+      "vars": { "ENVIRONMENT": "staging" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "furbo-staging",
+          "database_id": "7341098c-74f8-466f-baa7-db2ae83e9a28",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
 }
