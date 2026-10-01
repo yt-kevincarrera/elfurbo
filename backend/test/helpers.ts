@@ -1,5 +1,6 @@
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
+import { normalizeCode, sha256Hex } from "../src/auth/crypto";
 
 type ApiInit = { method?: string; body?: unknown; token?: string; ip?: string };
 
@@ -32,4 +33,24 @@ export async function register(username = "kevin", password = "secreto123", disp
 
 export async function login(username: string, password: string, ip?: string) {
   return api("/auth/login", { body: { username, password }, ip });
+}
+
+/** Inserta un código de recuperación como lo hará el PR2 (admin o superadmin). */
+export async function insertRecoveryCode(
+  userId: string,
+  code: string,
+  opts: { expiresAt?: string; usedAt?: string } = {},
+) {
+  await env.DB.prepare(
+    "INSERT INTO recovery_codes (id, user_id, code_hash, created_by, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      userId,
+      await sha256Hex(normalizeCode(code)),
+      "superadmin-de-prueba",
+      opts.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      opts.usedAt ?? null,
+    )
+    .run();
 }
