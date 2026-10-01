@@ -5,7 +5,8 @@ import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { issueRecoveryCode } from "../auth/recovery";
 import { findUserById } from "../auth/users";
-import { findClub, findMember, type ClubStatus } from "../clubs/model";
+import { findClub, type ClubStatus } from "../clubs/model";
+import { transferOwnership } from "../clubs/transfer";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { changeStatement, upsert } from "../sync/changes";
@@ -157,28 +158,20 @@ async function setClubStatus(
 superadminRoutes.post("/clubs/:id/transfer", async (c) => {
   const db = c.env.DB;
   const now = new Date();
-  const at = now.toISOString();
   const actor = c.var.auth.user.id;
   const { memberId } = await readJson(c, transferSchema);
   const club = await loadClubIn(db, c.req.param("id"), ["active", "suspended"]);
-  const target = await findMember(db, club.id, memberId);
-  if (!target || target.status !== "active" || !target.userId) {
-    throw errors.invalidInput({ memberId: ["Tiene que ser un miembro activo con cuenta"] });
-  }
-  if (target.role === "owner") throw errors.invalidState("Ese miembro ya es el dueño");
+  const t = await transferOwnership(db, club, memberId, now);
   await db.batch([
-    db
-      .prepare("UPDATE members SET role = 'admin', updated_at = ? WHERE club_id = ? AND role = 'owner'")
-      .bind(at, club.id),
-    db.prepare("UPDATE members SET role = 'owner', updated_at = ? WHERE id = ?").bind(at, target.id),
-    db.prepare("UPDATE clubs SET owner_user_id = ?, updated_at = ? WHERE id = ?").bind(target.userId, at, club.id),
+    ...t.statements,
+    ...t.touched.map((touch) => changeStatement(db, club.id, touch, now)),
     auditStatement(
       db,
-      { clubId: club.id, actorUserId: actor, action: "club.transfer", entity: "club", entityKey: club.id, summary: { from: club.ownerUserId, to: target.userId } },
+      { clubId: club.id, actorUserId: actor, action: "club.transfer", entity: "club", entityKey: club.id, summary: { from: club.ownerUserId, to: t.target.userId } },
       now,
     ),
   ]);
-  return c.json({ club: { id: club.id, ownerUserId: target.userId } });
+  return c.json({ club: { id: club.id, ownerUserId: t.target.userId } });
 });
 
 superadminRoutes.get("/users", async (c) => {
