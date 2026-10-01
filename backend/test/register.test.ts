@@ -11,6 +11,9 @@ describe("POST /auth/register", () => {
       .bind(await sha256Hex(token))
       .first<{ user_id: string }>();
     expect(session!.user_id).toBe(user.id);
+    const me = await api("/me", { token });
+    expect(me.status).toBe(200);
+    expect(me.body.user.id).toBe(user.id);
   });
 
   it("guarda el hash, nunca la contraseña", async () => {

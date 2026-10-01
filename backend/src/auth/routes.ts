@@ -3,9 +3,10 @@ import { errors } from "../http/errors";
 import { clientIp, readJson } from "../http/validate";
 import type { AppEnv } from "../types";
 import { hashPassword } from "./crypto";
+import { requireAuth } from "./middleware";
 import { assertNotLocked, authLimits, recordAttempt } from "./rate-limit";
 import { registerSchema } from "./schemas";
-import { newSession } from "./sessions";
+import { deleteSessionStatement, newSession } from "./sessions";
 import { findUserByUsername, insertUserStatement } from "./users";
 
 export const authRoutes = new Hono<AppEnv>();
@@ -42,4 +43,9 @@ authRoutes.post("/register", async (c) => {
     },
     201,
   );
+});
+
+authRoutes.post("/logout", requireAuth, async (c) => {
+  await deleteSessionStatement(c.env.DB, c.var.auth.sessionId).run();
+  return c.body(null, 204);
 });
