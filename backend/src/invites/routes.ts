@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { findMember, findMemberByUser } from "../clubs/model";
 import { errors } from "../http/errors";
@@ -36,19 +35,15 @@ inviteRoutes.post("/:code/accept", requireAuth, async (c) => {
   if (existing?.status === "active" || (existing && invite.targetMemberId)) throw errors.alreadyMember();
 
   await claimUse(db, invite, now);
+  let member: { id: string; role: string; displayName: string };
   try {
-    const member = await joinClub(db, invite, user, existing?.id ?? null, now);
-    await auditStatement(
-      db,
-      { clubId: invite.clubId, actorUserId: user.id, action: "invite.accept", entity: "member", entityKey: member.id, summary: { invite: invite.code } },
-      now,
-    ).run();
-    return c.json({ club: { id: invite.clubId, name: invite.club.name }, member }, 201);
+    member = await joinClub(db, invite, user, existing?.id ?? null, now);
   } catch (e) {
-    // Si no se pudo entrar, el uso no cuenta.
+    // El alta y su auditoría van en un solo batch: si falló, no entró nadie y el uso no cuenta.
     await db.prepare("UPDATE invites SET uses = uses - 1 WHERE code = ?").bind(invite.code).run();
     throw e;
   }
+  return c.json({ club: { id: invite.clubId, name: invite.club.name }, member }, 201);
 });
 
 /** Gasta un uso de forma atómica: dos personas no pueden llevarse el último a la vez. */
@@ -64,6 +59,22 @@ async function claimUse(db: D1Database, invite: InviteRecord, now: Date) {
   if (!claimed) throw errors.inviteInvalid();
 }
 
+/**
+ * Fila de auditoría que solo se escribe si el miembro quedó activo y vinculado al usuario. Va en el
+ * mismo batch que el alta: si el alta no cambió nada, tampoco se audita.
+ */
+function acceptAudit(db: D1Database, invite: InviteRecord, userId: string, memberId: string, now: Date) {
+  return db
+    .prepare(
+      `INSERT INTO audit_log (club_id, actor_user_id, action, entity, entity_key, summary, at)
+       SELECT ?, ?, 'invite.accept', 'member', ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM members WHERE id = ? AND user_id = ? AND status = 'active')`,
+    )
+    .bind(invite.clubId, userId, memberId, JSON.stringify({ invite: invite.code }), now.toISOString(), memberId, userId);
+}
+
+type JoinedRow = { id: string; role: string; display_name: string };
+
 async function joinClub(
   db: D1Database,
   invite: InviteRecord,
@@ -72,38 +83,51 @@ async function joinClub(
   now: Date,
 ) {
   const at = now.toISOString();
+  const joined = (row: JoinedRow | undefined) => {
+    if (!row) throw errors.inviteInvalid();
+    return { id: row.id, role: row.role, displayName: row.display_name };
+  };
 
   if (invite.targetMemberId) {
-    const claimed = await db
-      .prepare(
-        `UPDATE members SET user_id = ?, role = 'player', claimed_at = ?, updated_at = ?
-          WHERE id = ? AND club_id = ? AND user_id IS NULL AND status = 'active'
-          RETURNING id, role, display_name`,
-      )
-      .bind(user.id, at, at, invite.targetMemberId, invite.clubId)
-      .first<{ id: string; role: string; display_name: string }>();
-    if (!claimed) throw errors.inviteInvalid();
-    return { id: claimed.id, role: claimed.role, displayName: claimed.display_name };
+    const [claim] = await db.batch<JoinedRow>([
+      db
+        .prepare(
+          `UPDATE members SET user_id = ?, role = 'player', claimed_at = ?, updated_at = ?
+            WHERE id = ? AND club_id = ? AND user_id IS NULL AND status = 'active'
+            RETURNING id, role, display_name`,
+        )
+        .bind(user.id, at, at, invite.targetMemberId, invite.clubId),
+      acceptAudit(db, invite, user.id, invite.targetMemberId, now),
+    ]);
+    return joined(claim!.results[0]);
   }
 
   if (leftMemberId) {
     // Vuelve alguien que se había ido: mismo perfil, con sus estadísticas.
-    const back = await db
-      .prepare("UPDATE members SET status = 'active', role = ?, updated_at = ? WHERE id = ? RETURNING id, role, display_name")
-      .bind(invite.role, at, leftMemberId)
-      .first<{ id: string; role: string; display_name: string }>();
-    return { id: back!.id, role: back!.role, displayName: back!.display_name };
+    const [back] = await db.batch<JoinedRow>([
+      db
+        .prepare(
+          `UPDATE members SET status = 'active', role = ?, updated_at = ?
+            WHERE id = ? AND club_id = ? AND status = 'left'
+            RETURNING id, role, display_name`,
+        )
+        .bind(invite.role, at, leftMemberId, invite.clubId),
+      acceptAudit(db, invite, user.id, leftMemberId, now),
+    ]);
+    return joined(back!.results[0]);
   }
 
   const id = crypto.randomUUID();
   try {
-    await db
-      .prepare(
-        `INSERT INTO members (id, club_id, user_id, role, display_name, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(id, invite.clubId, user.id, invite.role, user.displayName, user.id, at, at)
-      .run();
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO members (id, club_id, user_id, role, display_name, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(id, invite.clubId, user.id, invite.role, user.displayName, user.id, at, at),
+      acceptAudit(db, invite, user.id, id, now),
+    ]);
   } catch (e) {
     // Dos aceptaciones simultáneas del mismo usuario: gana la primera.
     if (String(e).includes("UNIQUE constraint failed")) throw errors.alreadyMember();

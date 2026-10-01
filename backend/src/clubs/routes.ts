@@ -25,6 +25,13 @@ clubRoutes.post("/", async (c) => {
   const now = new Date();
   const userId = c.var.auth.user.id;
 
+  // Si se perdió la respuesta y la app reintenta, devuelve la misma solicitud en vez de duplicarla.
+  const retried = await db
+    .prepare("SELECT id FROM clubs WHERE owner_user_id = ? AND status = 'pending' AND lower(name) = lower(?)")
+    .bind(userId, body.name)
+    .first<{ id: string }>();
+  if (retried) return c.json({ club: { id: retried.id, name: body.name, status: "pending" } }, 200);
+
   const owned = await db
     .prepare("SELECT COUNT(*) AS n FROM clubs WHERE owner_user_id = ? AND status IN ('pending', 'active')")
     .bind(userId)
@@ -135,6 +142,18 @@ clubRoutes.post("/:clubId/members/:memberId/recovery-code", async (c) => {
   if (target.id === member.id || !target.userId || !canIssueRecoveryCode(member.role, target.role)) {
     throw errors.forbidden();
   }
+  // Con el código, quien lo genera puede entrar en la cuenta. Si esa cuenta es la del superadmin o
+  // administra otro servidor, se quedaría con eso también: esos casos los resuelve el superadmin.
+  const privileged = await db
+    .prepare(
+      `SELECT (SELECT is_superadmin FROM users WHERE id = ?1) AS superadmin,
+              EXISTS (SELECT 1 FROM members m JOIN clubs c ON c.id = m.club_id
+                       WHERE m.user_id = ?1 AND m.club_id <> ?2 AND m.status = 'active'
+                         AND m.role IN ('owner', 'admin') AND c.status IN ('active', 'suspended')) AS elsewhere`,
+    )
+    .bind(target.userId, club.id)
+    .first<{ superadmin: number | null; elsewhere: number }>();
+  if (privileged!.superadmin === 1 || privileged!.elsewhere === 1) throw errors.recoveryNeedsSuperadmin();
   const issued = await issueRecoveryCode(db, target.userId, userId, now);
   await db.batch([
     ...issued.statements,

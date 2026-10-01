@@ -28,6 +28,18 @@ describe("POST /clubs (solicitar servidor)", () => {
     expect(await auditActions(res.body.club.id)).toEqual(["club.request"]);
   });
 
+  it("reintentar la misma solicitud (respuesta perdida) no crea duplicados", async () => {
+    const { token } = await register("kevin");
+    const first = await api("/clubs", { token, body: { name: "Pachanga" } });
+    const again = await api("/clubs", { token, body: { name: "  pachanga " } });
+    expect(again.status).toBe(200);
+    expect(again.body.club.id).toBe(first.body.club.id);
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM clubs").first<{ n: number }>();
+    expect(row!.n).toBe(1);
+    for (let i = 0; i < 3; i++) await api("/clubs", { token, body: { name: "Pachanga" } });
+    expect((await api("/clubs", { token, body: { name: "Otra pachanga" } })).status).toBe(201);
+  });
+
   it("exige sesión y un nombre de 3 a 40 caracteres", async () => {
     expect((await api("/clubs", { body: { name: "Pachanga" } })).status).toBe(401);
     const { token } = await register("kevin");

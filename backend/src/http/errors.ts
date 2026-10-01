@@ -38,6 +38,12 @@ export const errors = {
   bannedFromClub: () => new ApiError(403, "banned_from_club", "No puedes volver a entrar en este servidor"),
   inviteInvalid: () =>
     new ApiError(404, "invite_invalid", "La invitación no existe, caducó o ya se usó"),
+  recoveryNeedsSuperadmin: () =>
+    new ApiError(
+      403,
+      "recovery_needs_superadmin",
+      "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
+    ),
   ownerMustTransfer: () =>
     new ApiError(409, "owner_must_transfer", "Eres dueño de un servidor: transfiérelo antes de borrar tu cuenta"),
 };

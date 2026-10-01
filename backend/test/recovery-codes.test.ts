@@ -1,5 +1,6 @@
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { activeClub, addGuest, addMember, auditActions, ownerMemberId } from "./fixtures";
+import { activeClub, addGuest, addMember, auditActions, ownerMemberId, superadmin } from "./fixtures";
 import { api, login } from "./helpers";
 
 const issue = (clubId: string, memberId: string, token: string) =>
@@ -53,5 +54,33 @@ describe("códigos de recuperación desde el servidor", () => {
     const pepe = await addMember(b.clubId, "pepe", "player");
     expect((await issue(a.clubId, pepe.memberId, a.owner.token)).status).toBe(404);
     expect((await issue(b.clubId, pepe.memberId, a.owner.token)).status).toBe(404);
+  });
+
+  it("nadie de un servidor puede generar un código para el superadmin (se quedaría con su cuenta)", async () => {
+    const { clubId, owner } = await activeClub();
+    const boss = await superadmin("el.jefe");
+    const memberId = crypto.randomUUID();
+    const at = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO members (id, club_id, user_id, role, display_name, created_at, updated_at) VALUES (?, ?, ?, 'player', 'Jefe', ?, ?)",
+    )
+      .bind(memberId, clubId, boss.user.id, at, at)
+      .run();
+    const res = await issue(clubId, memberId, owner.token);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("recovery_needs_superadmin");
+  });
+
+  it("tampoco para alguien que es owner o admin de otro servidor (se quedaría con ese servidor)", async () => {
+    const a = await activeClub("kevin");
+    const b = await activeClub("raul", "Otro servidor");
+    const raulInA = crypto.randomUUID();
+    const at = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO members (id, club_id, user_id, role, display_name, created_at, updated_at) VALUES (?, ?, ?, 'player', 'Raúl', ?, ?)",
+    )
+      .bind(raulInA, a.clubId, b.owner.user.id, at, at)
+      .run();
+    expect((await issue(a.clubId, raulInA, a.owner.token)).status).toBe(403);
   });
 });
