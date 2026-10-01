@@ -1,0 +1,22 @@
+{
+  "description": "Casos de las reglas de jornada. Los ejecutan backend/test/shared-fixtures.test.ts (TypeScript) y, desde el PR4, la app en Dart. Si cambias una regla, cambia aquí el caso y ambos lados tienen que pasar.",
+  "matchday": { "startsAt": "2026-10-04T14:00:00.000Z", "durationMinutes": 120, "status": "scheduled", "seasonClosed": false },
+  "cases": [
+    { "name": "antes de empezar no se jugó", "fn": "isPlayed", "at": "2026-10-04T13:59:00.000Z", "expected": false },
+    { "name": "durante la jornada no se jugó todavía", "fn": "isPlayed", "at": "2026-10-04T15:30:00.000Z", "expected": false },
+    { "name": "justo al terminar ya se jugó", "fn": "isPlayed", "at": "2026-10-04T16:00:00.000Z", "expected": true },
+    { "name": "una cancelada nunca se jugó", "fn": "isPlayed", "at": "2026-10-05T10:00:00.000Z", "matchday": { "status": "cancelled" }, "expected": false },
+    { "name": "la intención se marca hasta que termina", "fn": "acceptsIntent", "at": "2026-10-04T15:59:00.000Z", "expected": true },
+    { "name": "al terminar ya no se marca intención", "fn": "acceptsIntent", "at": "2026-10-04T16:00:00.000Z", "expected": false },
+    { "name": "en una cancelada no se marca intención", "fn": "acceptsIntent", "at": "2026-10-04T10:00:00.000Z", "matchday": { "status": "cancelled" }, "expected": false },
+    { "name": "abierta antes del plazo de cierre", "fn": "isClosed", "at": "2026-10-07T13:59:00.000Z", "closeAfterHours": 72, "expected": false },
+    { "name": "cerrada al cumplirse el plazo desde el inicio", "fn": "isClosed", "at": "2026-10-07T14:00:00.000Z", "closeAfterHours": 72, "expected": true },
+    { "name": "el plazo es el del servidor (48 h)", "fn": "isClosed", "at": "2026-10-06T14:00:00.000Z", "closeAfterHours": 48, "expected": true },
+    { "name": "cerrada a mano: cerrada aunque no haya empezado", "fn": "isClosed", "at": "2026-10-01T10:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "closed" }, "expected": true },
+    { "name": "cancelada: cerrada", "fn": "isClosed", "at": "2026-10-04T15:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "cancelled" }, "expected": true },
+    { "name": "reabierta: abierta aunque haya pasado el plazo", "fn": "isClosed", "at": "2026-11-30T10:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "reopened" }, "expected": false },
+    { "name": "temporada cerrada: cerrada aunque esté reabierta", "fn": "isClosed", "at": "2026-10-04T15:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "reopened", "seasonClosed": true }, "expected": true },
+    { "name": "día local en La Habana (de noche sigue siendo el mismo día)", "fn": "localDay", "at": "2026-10-05T03:30:00.000Z", "timezone": "America/Havana", "expected": "2026-10-04" },
+    { "name": "día local en Madrid", "fn": "localDay", "at": "2026-10-04T23:30:00.000Z", "timezone": "Europe/Madrid", "expected": "2026-10-05" }
+  ]
+}

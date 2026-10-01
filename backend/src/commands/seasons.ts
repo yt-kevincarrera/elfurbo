@@ -107,10 +107,12 @@ export const setSeasonClosed = command(z.object({ seasonId, closed: z.boolean() 
   };
 });
 
-/** El PR3b añade la condición "solo si no tiene jornadas" cuando existan las jornadas. */
+/** Solo si no tiene jornadas (si no, primero hay que moverlas o borrarlas). */
 export const deleteSeason = command(z.object({ seasonId }), async (ctx, p) => {
   assertCanManage(ctx);
   const s = await findSeason(ctx, p.seasonId);
+  const used = await ctx.db.prepare("SELECT 1 FROM matchdays WHERE season_id = ? LIMIT 1").bind(s.id).first();
+  if (used) throw errors.seasonHasMatchdays();
   return {
     statements: [ctx.db.prepare("DELETE FROM seasons WHERE id = ?").bind(s.id)],
     touched: [remove("season", s.id)],

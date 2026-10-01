@@ -184,6 +184,13 @@ npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrang
   - El pull recibe `{ cursors: { clubId: número } }`. Con 0 devuelve una foto completa; si no, solo lo
     cambiado, de 500 en 500.
   - Toda escritura sobre una entidad sincronizada añade su fila en `changes` en el mismo `batch`.
+- Pachanga (PR3b):
+  - Comandos `matchday.*`, `attendance.*`, `report.*`, `vote.*` y `teams.save`.
+  - Una jornada cerrada (temporada cerrada, cancelada, cerrada a mano o pasado el plazo sin reabrir) no
+    acepta cambios de nadie.
+  - El plazo cuenta con la hora del teléfono, acotada, para no perder lo hecho sin señal.
+  - Las reglas puras viven en `backend/src/rules/matchday.ts`, y sus casos en
+    `shared-fixtures/matchday-rules.json`, que también ejecutará la app.
 
 ## Tests y CI
 

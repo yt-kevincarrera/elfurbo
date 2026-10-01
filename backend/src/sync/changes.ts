@@ -1,5 +1,5 @@
-/** Entidades que viajan en el pull. El PR3b añade las de la pachanga. */
-export type SyncEntity = "club" | "member" | "season";
+/** Entidades que viajan en el pull. */
+export type SyncEntity = "club" | "member" | "season" | "matchday" | "attendance" | "report" | "confirmation" | "vote";
 
 export type Touch = { entity: SyncEntity; key: string; op: "upsert" | "delete" };
 

@@ -7,9 +7,28 @@ import {
   setSeasonClosed,
   updateSeason,
 } from "../commands/seasons";
+import { rollCall, setIntent, setPlayed } from "../commands/attendance";
+import {
+  createMatchday,
+  deleteMatchday,
+  mergeMatchdays,
+  saveTeams,
+  setMatchdayStatus,
+  updateMatchday,
+} from "../commands/matchdays";
+import {
+  confirmReport,
+  correctReport,
+  decideReport,
+  deleteReport,
+  loadReportFor,
+  unconfirmReport,
+  upsertReport,
+} from "../commands/reports";
+import { castVote, clearVote } from "../commands/votes";
 import type { CommandHandler } from "./command";
 
-/** Todos los tipos de comando que entiende el servidor. El PR3b añade los de la pachanga. */
+/** Todos los tipos de comando que entiende el servidor (spec §5). */
 export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "member.createGuest": createGuest,
   "member.update": updateMember,
@@ -24,4 +43,22 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "season.activate": activateSeason,
   "season.setClosed": setSeasonClosed,
   "season.delete": deleteSeason,
+  "matchday.create": createMatchday,
+  "matchday.update": updateMatchday,
+  "matchday.setStatus": setMatchdayStatus,
+  "matchday.delete": deleteMatchday,
+  "matchday.merge": mergeMatchdays,
+  "teams.save": saveTeams,
+  "attendance.setIntent": setIntent,
+  "attendance.setPlayed": setPlayed,
+  "attendance.rollCall": rollCall,
+  "report.upsert": upsertReport,
+  "report.delete": deleteReport,
+  "report.loadFor": loadReportFor,
+  "report.confirm": confirmReport,
+  "report.unconfirm": unconfirmReport,
+  "report.decide": decideReport,
+  "report.correct": correctReport,
+  "vote.cast": castVote,
+  "vote.clear": clearVote,
 };

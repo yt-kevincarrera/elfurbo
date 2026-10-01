@@ -44,6 +44,17 @@ export const errors = {
       "recovery_needs_superadmin",
       "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
     ),
+  matchdayClosed: () => new ApiError(409, "matchday_closed", "La jornada está cerrada: ya no acepta cambios"),
+  matchdayNotPlayed: () => new ApiError(409, "matchday_not_played", "La jornada todavía no se jugó"),
+  matchdayAlreadyPlayed: () =>
+    new ApiError(409, "matchday_already_played", "La jornada ya se jugó: marca si jugaste o no"),
+  notPresent: () => new ApiError(409, "not_present", "Solo pueden hacer esto los que jugaron esa jornada"),
+  reportRejected: () =>
+    new ApiError(409, "report_rejected", "El admin rechazó este reporte: ya no se puede cambiar"),
+  noActiveSeason: () => new ApiError(409, "no_active_season", "No hay temporada activa: crea o activa una"),
+  seasonClosed: () => new ApiError(409, "season_closed", "Esa temporada está cerrada"),
+  seasonHasMatchdays: () =>
+    new ApiError(409, "season_has_matchdays", "La temporada tiene jornadas: muévelas o bórralas antes"),
   ownerCannotLeave: () =>
     new ApiError(409, "owner_cannot_leave", "Eres el dueño: transfiere el servidor antes de salir"),
   ownerMustTransfer: () =>

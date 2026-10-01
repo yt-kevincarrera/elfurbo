@@ -80,7 +80,7 @@ describe("límites del push", () => {
 
   it("un tipo desconocido (app más nueva que el servidor) queda aplazado, no rechazado, para reintentarlo tras el despliegue", async () => {
     const { clubId, owner } = await activeClub();
-    const [r] = await push(owner.token, cmd(clubId, "matchday.create", {}));
+    const [r] = await push(owner.token, cmd(clubId, "matchday.teleport", {}));
     expect(r).toMatchObject({ status: "deferred", code: "unknown_command" });
     expect(await stored()).toBe(0);
   });
