@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { activeClub, addGuest, addMember, auditActions, ownerMemberId, requestClub, superadmin } from "./fixtures";
-import { api, register } from "./helpers";
+import { api, login, register } from "./helpers";
 
 const post = (path: string, token: string, body?: unknown) => api(path, { method: "POST", token, body });
 
@@ -110,5 +110,56 @@ describe("panel del superadmin: servidores", () => {
     const outsider = await addMember(other.clubId, "pepe", "player");
     expect((await post(`/admin/clubs/${clubId}/transfer`, admin.token, { memberId: guest })).status).toBe(400);
     expect((await post(`/admin/clubs/${clubId}/transfer`, admin.token, { memberId: outsider.memberId })).status).toBe(400);
+  });
+});
+
+describe("panel del superadmin: usuarios y métricas", () => {
+  it("busca usuarios por nombre y muestra la última conexión", async () => {
+    const admin = await superadmin();
+    await register("kevin");
+    await register("kevin.cc");
+    await register("raul");
+    const res = await api("/admin/users?q=kev", { token: admin.token });
+    expect(res.body.users.map((u: { username: string }) => u.username)).toEqual(["kevin", "kevin.cc"]);
+    expect(res.body.users[0].lastSeenAt).toEqual(expect.any(String));
+  });
+
+  it("suspender corta sus sesiones y el login; reactivar lo devuelve", async () => {
+    const admin = await superadmin();
+    const kevin = await register("kevin", "secreto123");
+    expect((await post(`/admin/users/${kevin.user.id}/suspend`, admin.token)).status).toBe(200);
+    expect((await api("/me", { token: kevin.token })).status).toBe(403);
+    expect((await login("kevin", "secreto123")).status).toBe(403);
+    await post(`/admin/users/${kevin.user.id}/unsuspend`, admin.token);
+    expect((await login("kevin", "secreto123")).status).toBe(200);
+    expect(await auditActions(null)).toEqual(["user.suspend", "user.unsuspend"]);
+  });
+
+  it("no puede suspenderse a sí mismo ni a otro superadmin", async () => {
+    const admin = await superadmin();
+    const other = await superadmin("otro.super");
+    expect((await post(`/admin/users/${admin.user.id}/suspend`, admin.token)).status).toBe(403);
+    expect((await post(`/admin/users/${other.user.id}/suspend`, admin.token)).status).toBe(403);
+  });
+
+  it("genera un código de recuperación que sirve para entrar", async () => {
+    const admin = await superadmin();
+    const kevin = await register("kevin", "secreto123");
+    const res = await post(`/admin/users/${kevin.user.id}/recovery-code`, admin.token);
+    expect(res.status).toBe(201);
+    expect(res.body.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    const recover = await api("/auth/recover", { body: { username: "kevin", code: res.body.code, newPassword: "nueva-clave" } });
+    expect(recover.status).toBe(200);
+  });
+
+  it("métricas: usuarios y servidores por estado", async () => {
+    const { admin } = await activeClub("kevin");
+    const raul = await register("raul");
+    await requestClub(raul.token, "Pendiente");
+    const res = await api("/admin/metrics", { token: admin.token });
+    expect(res.body).toEqual({
+      users: { total: 3, active7d: 3, active30d: 3 },
+      clubs: { pending: 1, active: 1, rejected: 0, suspended: 0 },
+    });
   });
 });

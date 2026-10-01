@@ -3,6 +3,7 @@ import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
+import { issueRecoveryCode } from "../auth/recovery";
 import { findUserById } from "../auth/users";
 import { findClub, findMember, type ClubStatus } from "../clubs/model";
 import { errors } from "../http/errors";
@@ -20,6 +21,7 @@ superadminRoutes.use(requireAuth, requireSuperadmin);
 
 const noteSchema = z.object({ note: z.string().trim().max(300).default("") });
 const transferSchema = z.object({ memberId: z.string().min(1).max(64) });
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** `?q=` busca en nombre o nombre de usuario del dueño; `\`, `%` y `_` se buscan literalmente. */
 function likePattern(q: string) {
@@ -163,4 +165,96 @@ superadminRoutes.post("/clubs/:id/transfer", async (c) => {
     ),
   ]);
   return c.json({ club: { id: club.id, ownerUserId: target.userId } });
+});
+
+superadminRoutes.get("/users", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().toLowerCase();
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.username, u.display_name, u.status, u.is_superadmin, u.created_at,
+            (SELECT MAX(s.last_seen_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen_at
+       FROM users u
+      WHERE ?1 = '' OR u.username LIKE ?2 ESCAPE '\\'
+      ORDER BY u.username LIMIT 50`,
+  )
+    .bind(q, likePattern(q))
+    .all<{ id: string; username: string; display_name: string; status: string; is_superadmin: number; created_at: string; last_seen_at: string | null }>();
+  return c.json({
+    users: results.map((r) => ({
+      id: r.id,
+      username: r.username,
+      displayName: r.display_name,
+      status: r.status,
+      isSuperadmin: r.is_superadmin === 1,
+      createdAt: r.created_at,
+      lastSeenAt: r.last_seen_at,
+    })),
+  });
+});
+
+async function loadOtherUser(db: D1Database, actorId: string, id: string) {
+  const user = await findUserById(db, id);
+  if (!user) throw errors.notFound();
+  if (user.id === actorId || user.isSuperadmin) throw errors.forbidden();
+  return user;
+}
+
+superadminRoutes.post("/users/:id/suspend", async (c) =>
+  c.json(await setUserStatus(c.env.DB, c.var.auth.user.id, c.req.param("id"), "suspended")),
+);
+superadminRoutes.post("/users/:id/unsuspend", async (c) =>
+  c.json(await setUserStatus(c.env.DB, c.var.auth.user.id, c.req.param("id"), "active")),
+);
+
+async function setUserStatus(
+  db: D1Database,
+  actor: string,
+  id: string,
+  status: "active" | "suspended",
+) {
+  const now = new Date();
+  const user = await loadOtherUser(db, actor, id);
+  await db.batch([
+    db.prepare("UPDATE users SET status = ?, updated_at = ? WHERE id = ?").bind(status, now.toISOString(), user.id),
+    auditStatement(
+      db,
+      { clubId: null, actorUserId: actor, action: status === "suspended" ? "user.suspend" : "user.unsuspend", entity: "user", entityKey: user.id },
+      now,
+    ),
+  ]);
+  return { user: { id: user.id, status } };
+}
+
+superadminRoutes.post("/users/:id/recovery-code", async (c) => {
+  const db = c.env.DB;
+  const now = new Date();
+  const actor = c.var.auth.user.id;
+  const user = await findUserById(db, c.req.param("id"));
+  if (!user) throw errors.notFound();
+  if (user.id === actor) throw errors.forbidden();
+  const issued = await issueRecoveryCode(db, user.id, actor, now);
+  await db.batch([
+    ...issued.statements,
+    auditStatement(db, { clubId: null, actorUserId: actor, action: "recovery.issue", entity: "user", entityKey: user.id }, now),
+  ]);
+  return c.json({ code: issued.code, expiresAt: issued.expiresAt }, 201);
+});
+
+superadminRoutes.get("/metrics", async (c) => {
+  const now = Date.now();
+  const since = (days: number) => new Date(now - days * DAY_MS).toISOString();
+  const users = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS total,
+            (SELECT COUNT(DISTINCT user_id) FROM sessions WHERE last_seen_at > ?1) AS active7d,
+            (SELECT COUNT(DISTINCT user_id) FROM sessions WHERE last_seen_at > ?2) AS active30d
+       FROM users`,
+  )
+    .bind(since(7), since(30))
+    .first<{ total: number; active7d: number; active30d: number }>();
+  const { results } = await c.env.DB.prepare("SELECT status, COUNT(*) AS n FROM clubs GROUP BY status").all<{
+    status: ClubStatus;
+    n: number;
+  }>();
+  const clubs = { pending: 0, active: 0, rejected: 0, suspended: 0 };
+  for (const r of results) clubs[r.status] = r.n;
+  return c.json({ users, clubs });
 });
