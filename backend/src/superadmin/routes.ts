@@ -263,5 +263,10 @@ superadminRoutes.get("/metrics", async (c) => {
   }>();
   const clubs = { pending: 0, active: 0, rejected: 0, suspended: 0 };
   for (const r of results) clubs[r.status] = r.n;
-  return c.json({ users, clubs });
+  const commands = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS last24h FROM applied_commands WHERE at > ?",
+  )
+    .bind(since(1))
+    .first<{ last24h: number }>();
+  return c.json({ users, clubs, commands });
 });

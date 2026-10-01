@@ -152,7 +152,7 @@ describe("panel del superadmin: usuarios y métricas", () => {
     expect(recover.status).toBe(200);
   });
 
-  it("métricas: usuarios y servidores por estado", async () => {
+  it("métricas: usuarios, servidores por estado y comandos de las últimas 24 h", async () => {
     const { admin } = await activeClub("kevin");
     const raul = await register("raul");
     await requestClub(raul.token, "Pendiente");
@@ -160,6 +160,7 @@ describe("panel del superadmin: usuarios y métricas", () => {
     expect(res.body).toEqual({
       users: { total: 3, active7d: 3, active30d: 3 },
       clubs: { pending: 1, active: 1, rejected: 0, suspended: 0 },
+      commands: { last24h: 0 },
     });
   });
 });
