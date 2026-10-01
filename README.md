@@ -165,6 +165,15 @@ npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrang
 - Copias de seguridad: D1 Time Travel permite volver a cualquier minuto de los últimos 7 días
   (`npx wrangler d1 time-travel restore DB --env staging --timestamp=<ISO>`). Export manual:
   `npx wrangler d1 export DB --remote --env staging --output=backup.sql`.
+- Servidores (PR2):
+  - Cualquiera los solicita con `POST /clubs`, y el superadmin los aprueba en `POST /admin/clubs/:id/approve`.
+  - Se entra por invitación: el staff la crea con `POST /clubs/:id/invites` y la comparte como
+    `https://<api>/i/<CÓDIGO>`.
+  - Con `targetMemberId`, la invitación sirve para que un jugador sin cuenta reclame su perfil.
+  - Si alguien olvida la contraseña, el owner o un admin genera un código con
+    `POST /clubs/:id/members/:memberId/recovery-code` y se lo pasa por WhatsApp.
+- Panel del superadmin: todo lo de `/admin/*` (servidores, usuarios, métricas). Primero hay que marcarse
+  como superadmin con el comando de arriba.
 
 ## Tests y CI
 

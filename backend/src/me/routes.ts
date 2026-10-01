@@ -13,8 +13,38 @@ export const meRoutes = new Hono<AppEnv>();
 
 meRoutes.use(requireAuth);
 
-// `clubs` se rellena en el PR2 (servidores). Hasta entonces, siempre vacío.
-meRoutes.get("/", (c) => c.json({ user: c.var.auth.user, clubs: [] }));
+/** El usuario, los servidores donde es miembro activo y sus solicitudes pendientes o rechazadas. */
+meRoutes.get("/", async (c) => {
+  const db = c.env.DB;
+  const userId = c.var.auth.user.id;
+  const clubs = await db
+    .prepare(
+      `SELECT c.id, c.name, c.status, m.id AS member_id, m.role
+         FROM members m JOIN clubs c ON c.id = m.club_id
+        WHERE m.user_id = ? AND m.status = 'active' AND c.status IN ('active', 'suspended')
+        ORDER BY c.name`,
+    )
+    .bind(userId)
+    .all<{ id: string; name: string; status: string; member_id: string; role: string }>();
+  const requests = await db
+    .prepare(
+      `SELECT id, name, status, review_note, created_at FROM clubs
+        WHERE owner_user_id = ? AND status IN ('pending', 'rejected') ORDER BY created_at DESC`,
+    )
+    .bind(userId)
+    .all<{ id: string; name: string; status: string; review_note: string | null; created_at: string }>();
+  return c.json({
+    user: c.var.auth.user,
+    clubs: clubs.results.map((r) => ({ id: r.id, name: r.name, status: r.status, memberId: r.member_id, role: r.role })),
+    clubRequests: requests.results.map((r) => ({
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      reviewNote: r.review_note,
+      createdAt: r.created_at,
+    })),
+  });
+});
 
 meRoutes.delete("/", async (c) => {
   const body = await readJson(c, confirmPasswordSchema);
@@ -29,7 +59,21 @@ meRoutes.delete("/", async (c) => {
     await recordAttempt(db, rateLimits, now);
     throw errors.invalidCredentials();
   }
+  const owns = await db
+    .prepare("SELECT 1 FROM clubs WHERE owner_user_id = ? AND status IN ('active', 'suspended') LIMIT 1")
+    .bind(userId)
+    .first();
+  if (owns) throw errors.ownerMustTransfer();
+
+  const at = now.toISOString();
   await db.batch([
+    // Sus estadísticas se quedan en cada servidor, a nombre de "Jugador eliminado".
+    db
+      .prepare(
+        "UPDATE members SET user_id = NULL, role = 'guest', display_name = 'Jugador eliminado', nickname = NULL, updated_at = ? WHERE user_id = ?",
+      )
+      .bind(at, userId),
+    db.prepare("DELETE FROM clubs WHERE owner_user_id = ? AND status IN ('pending', 'rejected')").bind(userId),
     deleteUserSessionsStatement(db, userId),
     db.prepare("DELETE FROM recovery_codes WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM users WHERE id = ?").bind(userId),

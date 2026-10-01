@@ -28,6 +28,24 @@ export const errors = {
       retryAfterSeconds,
     }),
   notFound: () => new ApiError(404, "not_found", "No encontrado"),
+  forbidden: () => new ApiError(403, "forbidden", "No tienes permiso para hacer esto"),
+  clubSuspended: () =>
+    new ApiError(403, "club_suspended", "Este servidor está suspendido: solo se puede consultar"),
+  invalidState: (message: string) => new ApiError(409, "invalid_state", message),
+  tooManyClubs: () =>
+    new ApiError(409, "too_many_clubs", "Ya tienes 3 servidores activos o pendientes de aprobación"),
+  alreadyMember: () => new ApiError(409, "already_member", "Ya tienes un perfil en este servidor"),
+  bannedFromClub: () => new ApiError(403, "banned_from_club", "No puedes volver a entrar en este servidor"),
+  inviteInvalid: () =>
+    new ApiError(404, "invite_invalid", "La invitación no existe, caducó o ya se usó"),
+  recoveryNeedsSuperadmin: () =>
+    new ApiError(
+      403,
+      "recovery_needs_superadmin",
+      "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
+    ),
+  ownerMustTransfer: () =>
+    new ApiError(409, "owner_must_transfer", "Eres dueño de un servidor: transfiérelo antes de borrar tu cuenta"),
 };
 
 export function errorResponse(c: Context, err: ApiError) {
