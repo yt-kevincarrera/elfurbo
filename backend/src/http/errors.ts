@@ -44,6 +44,8 @@ export const errors = {
       "recovery_needs_superadmin",
       "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
     ),
+  ownerCannotLeave: () =>
+    new ApiError(409, "owner_cannot_leave", "Eres el dueño: transfiere el servidor antes de salir"),
   ownerMustTransfer: () =>
     new ApiError(409, "owner_must_transfer", "Eres dueño de un servidor: transfiérelo antes de borrar tu cuenta"),
 };
