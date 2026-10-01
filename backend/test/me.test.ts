@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { activeClub, addMember, requestClub } from "./fixtures";
 import { api, insertRecoveryCode, login, register } from "./helpers";
 
 describe("POST /auth/password", () => {
@@ -59,4 +60,26 @@ describe("/me", () => {
     await register("kevin", "otra-clave-1");
   });
 
+  it("DELETE: el dueño de un servidor activo tiene que transferirlo antes", async () => {
+    const { owner } = await activeClub("kevin");
+    const res = await api("/me", { method: "DELETE", token: owner.token, body: { password: "secreto123" } });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("owner_must_transfer");
+    expect((await api("/me", { token: owner.token })).status).toBe(200);
+  });
+
+  it("DELETE: sus perfiles quedan como 'Jugador eliminado' sin cuenta, y sus solicitudes pendientes se borran", async () => {
+    const { clubId } = await activeClub("kevin");
+    const raul = await addMember(clubId, "raul", "admin");
+    await requestClub(raul.token, "Solicitud de Raúl");
+
+    const res = await api("/me", { method: "DELETE", token: raul.token, body: { password: "secreto123" } });
+    expect(res.status).toBe(204);
+    const member = await env.DB.prepare("SELECT user_id, role, display_name FROM members WHERE id = ?")
+      .bind(raul.memberId)
+      .first();
+    expect(member).toEqual({ user_id: null, role: "guest", display_name: "Jugador eliminado" });
+    const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM clubs WHERE name = 'Solicitud de Raúl'").first<{ n: number }>();
+    expect(pending!.n).toBe(0);
+  });
 });

@@ -59,7 +59,21 @@ meRoutes.delete("/", async (c) => {
     await recordAttempt(db, rateLimits, now);
     throw errors.invalidCredentials();
   }
+  const owns = await db
+    .prepare("SELECT 1 FROM clubs WHERE owner_user_id = ? AND status IN ('active', 'suspended') LIMIT 1")
+    .bind(userId)
+    .first();
+  if (owns) throw errors.ownerMustTransfer();
+
+  const at = now.toISOString();
   await db.batch([
+    // Sus estadísticas se quedan en cada servidor, a nombre de "Jugador eliminado".
+    db
+      .prepare(
+        "UPDATE members SET user_id = NULL, role = 'guest', display_name = 'Jugador eliminado', nickname = NULL, updated_at = ? WHERE user_id = ?",
+      )
+      .bind(at, userId),
+    db.prepare("DELETE FROM clubs WHERE owner_user_id = ? AND status IN ('pending', 'rejected')").bind(userId),
     deleteUserSessionsStatement(db, userId),
     db.prepare("DELETE FROM recovery_codes WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
