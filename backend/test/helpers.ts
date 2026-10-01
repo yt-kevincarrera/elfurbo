@@ -29,3 +29,7 @@ export async function register(username = "kevin", password = "secreto123", disp
   expect(res.status).toBe(201);
   return res.body as Registered;
 }
+
+export async function login(username: string, password: string, ip?: string) {
+  return api("/auth/login", { body: { username, password }, ip });
+}

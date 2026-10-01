@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { errors } from "../http/errors";
 import { clientIp, readJson } from "../http/validate";
 import type { AppEnv } from "../types";
-import { hashPassword } from "./crypto";
+import { DUMMY_HASH, hashPassword, verifyPassword } from "./crypto";
 import { requireAuth } from "./middleware";
-import { assertNotLocked, authLimits, recordAttempt } from "./rate-limit";
-import { registerSchema } from "./schemas";
+import { assertNotLocked, authLimits, clearAttempts, recordAttempt } from "./rate-limit";
+import { loginSchema, registerSchema } from "./schemas";
 import { deleteSessionStatement, newSession } from "./sessions";
-import { findUserByUsername, insertUserStatement } from "./users";
+import { findUserByUsername, insertUserStatement, toPublicUser } from "./users";
 
 export const authRoutes = new Hono<AppEnv>();
 
@@ -43,6 +43,27 @@ authRoutes.post("/register", async (c) => {
     },
     201,
   );
+});
+
+authRoutes.post("/login", async (c) => {
+  const body = await readJson(c, loginSchema);
+  const db = c.env.DB;
+  const now = new Date();
+  const rateLimits = authLimits.login(body.username, clientIp(c));
+  await assertNotLocked(db, rateLimits, now);
+
+  const user = await findUserByUsername(db, body.username);
+  const ok = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !ok) {
+    await recordAttempt(db, rateLimits, now);
+    throw errors.invalidCredentials();
+  }
+  if (user.status === "suspended") throw errors.accountSuspended();
+
+  await clearAttempts(db, [rateLimits[0]!.key]);
+  const session = await newSession(db, user.id, body.deviceLabel ?? null, now);
+  await session.statement.run();
+  return c.json({ token: session.token, user: toPublicUser(user) });
 });
 
 authRoutes.post("/logout", requireAuth, async (c) => {

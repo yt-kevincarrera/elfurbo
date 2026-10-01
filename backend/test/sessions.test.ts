@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../src/auth/crypto";
-import { api, register } from "./helpers";
+import { api, login, register } from "./helpers";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -53,10 +53,10 @@ describe("sesiones", () => {
 
   it("logout revoca solo esa sesión", async () => {
     const { token } = await register("kevin", "secreto123");
-    const other = await register("raul", "secreto123");
+    const other = (await login("kevin", "secreto123")).body.token;
     expect((await api("/auth/logout", { method: "POST", token })).status).toBe(204);
     expect((await api("/me", { token })).status).toBe(401);
-    expect((await api("/me", { token: other.token })).status).toBe(200);
+    expect((await api("/me", { token: other })).status).toBe(200);
   });
 
   it("si suspenden la cuenta, las sesiones abiertas dan 403", async () => {
