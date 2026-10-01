@@ -1,5 +1,6 @@
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { api, login, register } from "./helpers";
+import { api, insertRecoveryCode, login, register } from "./helpers";
 
 describe("POST /auth/password", () => {
   it("cambia la contraseña y cierra las demás sesiones, no la actual", async () => {
@@ -34,5 +35,27 @@ describe("/me", () => {
     const { token, user } = await register();
     const res = await api("/me", { token });
     expect(res.body).toEqual({ user, clubs: [] });
+  });
+
+  it("DELETE con la contraseña mal: 401 y la cuenta sigue", async () => {
+    const { token } = await register("kevin", "secreto123");
+    const res = await api("/me", { method: "DELETE", token, body: { password: "mala" } });
+    expect(res.status).toBe(401);
+    expect((await api("/me", { token })).status).toBe(200);
+  });
+
+  it("DELETE borra la cuenta, sus sesiones y sus códigos, y libera el nombre", async () => {
+    const { token, user } = await register("kevin", "secreto123");
+    await login("kevin", "secreto123");
+    await insertRecoveryCode(user.id, "ABCDEFGH");
+
+    const res = await api("/me", { method: "DELETE", token, body: { password: "secreto123" } });
+    expect(res.status).toBe(204);
+    expect((await api("/me", { token })).status).toBe(401);
+    for (const table of ["users", "sessions", "recovery_codes"]) {
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>();
+      expect(row!.n, table).toBe(0);
+    }
+    await register("kevin", "otra-clave-1");
   });
 });
