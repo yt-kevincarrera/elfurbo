@@ -147,6 +147,7 @@ async function setClubStatus(
         "UPDATE clubs SET status = ?, review_note = COALESCE(?, review_note), reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
       )
       .bind(to, note, actor, at, at, club.id),
+    changeStatement(db, club.id, upsert("club", club.id), now),
     auditStatement(db, { clubId: club.id, actorUserId: actor, action, entity: "club", entityKey: club.id, summary: note ? { note } : {} }, now),
   ]);
   return { club: { id: club.id, status: to } };

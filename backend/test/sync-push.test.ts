@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { activeClub, addMember } from "./fixtures";
-import { api } from "./helpers";
+import { api, register } from "./helpers";
 import { cmd, push } from "./sync-helpers";
 
 const guest = (clubId: string, name = "Yoandry") => cmd(clubId, "member.createGuest", { id: crypto.randomUUID(), displayName: name });
@@ -118,5 +118,7 @@ describe("POST /sync/push", () => {
 
   it("exige sesión", async () => {
     expect((await api("/sync/push", { body: { commands: [] } })).status).toBe(401);
+    const { token } = await register("nadie");
+    expect((await api("/sync/pull", { token, body: { cursors: {} } })).status).toBe(200);
   });
 });
