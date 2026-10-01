@@ -11,6 +11,8 @@ export default defineConfig(async () => {
         miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
       }),
     ],
-    test: { setupFiles: ["./test/setup.ts"] },
+    // Cada login o registro hace PBKDF2 de 100k iteraciones; los tests con decenas de ellos
+    // pasan de los 5 s por defecto en máquinas lentas (y en el CI).
+    test: { setupFiles: ["./test/setup.ts"], testTimeout: 30_000 },
   };
 });

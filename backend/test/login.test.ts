@@ -63,4 +63,21 @@ describe("POST /auth/login", () => {
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("account_suspended");
   });
+
+  it("CGNAT: 101 fallos con usuarios inventados desde una IP no bloquean a los demás de esa IP", async () => {
+    await register("kevin", "secreto123");
+    for (let i = 0; i < 101; i++) await login(`nadie${i}`, "mala", "152.206.9.9");
+    expect((await login("kevin", "secreto123", "152.206.9.9")).status).toBe(200);
+  });
+
+  it("los fallos contra usuarios reales sí cuentan para la IP, y a los 100 la bloquean", async () => {
+    await register("kevin", "secreto123");
+    await login("kevin", "mala", "152.206.9.9");
+    const row = await env.DB.prepare("SELECT count FROM login_attempts WHERE key = 'login-ip:152.206.9.9'").first<{
+      count: number;
+    }>();
+    expect(row!.count).toBe(1);
+    await env.DB.prepare("UPDATE login_attempts SET count = 100 WHERE key = 'login-ip:152.206.9.9'").run();
+    expect((await login("kevin", "secreto123", "152.206.9.9")).status).toBe(429);
+  });
 });

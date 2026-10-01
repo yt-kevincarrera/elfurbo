@@ -4,7 +4,7 @@ import { clientIp, readJson } from "../http/validate";
 import type { AppEnv } from "../types";
 import { DUMMY_HASH, hashPassword, normalizeCode, sha256Hex, verifyPassword } from "./crypto";
 import { requireAuth } from "./middleware";
-import { assertNotLocked, authLimits, clearAttempts, recordAttempt } from "./rate-limit";
+import { assertNotLocked, authLimits, clearAttempts, consumeAttempt, recordAttempt } from "./rate-limit";
 import { changePasswordSchema, loginSchema, recoverSchema, registerSchema } from "./schemas";
 import { deleteSessionStatement, deleteUserSessionsStatement, newSession } from "./sessions";
 import {
@@ -55,18 +55,19 @@ authRoutes.post("/login", async (c) => {
   const body = await readJson(c, loginSchema);
   const db = c.env.DB;
   const now = new Date();
-  const rateLimits = authLimits.login(body.username, clientIp(c));
-  await assertNotLocked(db, rateLimits, now);
+  const [userLimit, ipLimit] = authLimits.login(body.username, clientIp(c));
+  await assertNotLocked(db, [ipLimit], now);
 
   const user = await findUserByUsername(db, body.username);
+  if (user) await consumeAttempt(db, userLimit, now);
   const ok = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !ok) {
-    await recordAttempt(db, rateLimits, now);
+    if (user) await recordAttempt(db, [ipLimit], now);
     throw errors.invalidCredentials();
   }
   if (user.status === "suspended") throw errors.accountSuspended();
 
-  await clearAttempts(db, [rateLimits[0]!.key]);
+  await clearAttempts(db, [userLimit.key]);
   const session = await newSession(db, user.id, body.deviceLabel ?? null, now);
   await session.statement.run();
   return c.json({ token: session.token, user: toPublicUser(user) });
@@ -81,10 +82,11 @@ authRoutes.post("/recover", async (c) => {
   const body = await readJson(c, recoverSchema);
   const db = c.env.DB;
   const now = new Date();
-  const rateLimits = authLimits.recover(body.username, clientIp(c));
-  await assertNotLocked(db, rateLimits, now);
+  const [userLimit, ipLimit] = authLimits.recover(body.username, clientIp(c));
+  await assertNotLocked(db, [ipLimit], now);
 
   const user = await findUserByUsername(db, body.username);
+  if (user) await consumeAttempt(db, userLimit, now);
   const code = user
     ? await db
         .prepare(
@@ -94,7 +96,7 @@ authRoutes.post("/recover", async (c) => {
         .first<{ id: string }>()
     : null;
   if (!user || !code) {
-    await recordAttempt(db, rateLimits, now);
+    if (user) await recordAttempt(db, [ipLimit], now);
     throw errors.invalidRecoveryCode();
   }
   if (user.status === "suspended") throw errors.accountSuspended();
@@ -106,7 +108,7 @@ authRoutes.post("/recover", async (c) => {
     deleteUserSessionsStatement(db, user.id),
     session.statement,
   ]);
-  await clearAttempts(db, [rateLimits[0]!.key]);
+  await clearAttempts(db, [userLimit.key]);
   return c.json({ token: session.token, user: toPublicUser(user) });
 });
 

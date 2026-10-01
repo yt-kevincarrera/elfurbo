@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { api, insertRecoveryCode, login, register } from "./helpers";
 
@@ -68,5 +69,11 @@ describe("POST /auth/recover", () => {
     const res = await recover("kevin", "ABCDEFGH", "corta");
     expect(res.status).toBe(400);
     expect(res.body.error.details.newPassword).toBeDefined();
+  });
+
+  it("pedir códigos para usuarios inexistentes no gasta el cupo de la IP", async () => {
+    await api("/auth/recover", { body: { username: "nadie", code: "ABCDEFGH", newPassword: "nueva-clave" }, ip: "152.206.9.9" });
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_attempts").first<{ n: number }>();
+    expect(row!.n).toBe(0);
   });
 });

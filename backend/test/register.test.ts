@@ -55,24 +55,16 @@ describe("POST /auth/register", () => {
     expect(res.body.error.details.displayName).toEqual(["Escribe tu nombre"]);
   });
 
-  it("como mucho 30 registros por hora desde la misma IP", async () => {
-    for (let i = 0; i < 30; i++) {
-      const res = await api("/auth/register", {
-        body: { username: `jugador${i}`, password: "secreto123", displayName: "J" },
-        ip: "152.206.0.1",
-      });
-      expect(res.status).toBe(201);
-    }
-    const res = await api("/auth/register", {
-      body: { username: "jugador30", password: "secreto123", displayName: "J" },
-      ip: "152.206.0.1",
-    });
+  it("como mucho 200 registros por hora desde la misma IP (el corte a 1.0 es masivo)", async () => {
+    const now = new Date().toISOString();
+    await env.DB.prepare("INSERT INTO login_attempts (key, window_start, count) VALUES ('register-ip:152.206.0.1', ?, 199)")
+      .bind(now)
+      .run();
+    const body = (username: string) => ({ username, password: "secreto123", displayName: "J" });
+    expect((await api("/auth/register", { body: body("jugador199"), ip: "152.206.0.1" })).status).toBe(201);
+    const res = await api("/auth/register", { body: body("jugador200"), ip: "152.206.0.1" });
     expect(res.status).toBe(429);
     expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
-    const otherIp = await api("/auth/register", {
-      body: { username: "jugador30", password: "secreto123", displayName: "J" },
-      ip: "152.206.0.2",
-    });
-    expect(otherIp.status).toBe(201);
+    expect((await api("/auth/register", { body: body("jugador200"), ip: "152.206.0.2" })).status).toBe(201);
   });
 });
