@@ -8,6 +8,7 @@ import { findUserById } from "../auth/users";
 import { findClub, findMember, type ClubStatus } from "../clubs/model";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
+import { changeStatement, upsert } from "../sync/changes";
 import type { AppEnv } from "../types";
 
 const requireSuperadmin = createMiddleware<AppEnv>(async (c, next) => {
@@ -87,6 +88,9 @@ superadminRoutes.post("/clubs/:id/approve", async (c) => {
   const club = await loadClubIn(db, c.req.param("id"), ["pending"]);
   const owner = await findUserById(db, club.ownerUserId);
   if (!owner) throw errors.invalidState("El solicitante ya no tiene cuenta");
+  const ownerMemberId = crypto.randomUUID();
+  const seasonId = crypto.randomUUID();
+  const year = new Intl.DateTimeFormat("en", { timeZone: club.settings.timezone, year: "numeric" }).format(now);
   await db.batch([
     db
       .prepare("UPDATE clubs SET status = 'active', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?")
@@ -96,7 +100,16 @@ superadminRoutes.post("/clubs/:id/approve", async (c) => {
         `INSERT INTO members (id, club_id, user_id, role, display_name, created_by, created_at, updated_at)
          VALUES (?, ?, ?, 'owner', ?, ?, ?, ?)`,
       )
-      .bind(crypto.randomUUID(), club.id, owner.id, owner.displayName, actor, at, at),
+      .bind(ownerMemberId, club.id, owner.id, owner.displayName, actor, at, at),
+    // Temporada inicial: el año en curso en la zona horaria del servidor.
+    db
+      .prepare(
+        "INSERT INTO seasons (id, club_id, name, start_date, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)",
+      )
+      .bind(seasonId, club.id, year, `${year}-01-01`, at, at),
+    changeStatement(db, club.id, upsert("club", club.id), now),
+    changeStatement(db, club.id, upsert("member", ownerMemberId), now),
+    changeStatement(db, club.id, upsert("season", seasonId), now),
     auditStatement(db, { clubId: club.id, actorUserId: actor, action: "club.approve", entity: "club", entityKey: club.id }, now),
   ]);
   return c.json({ club: { id: club.id, status: "active" } });
