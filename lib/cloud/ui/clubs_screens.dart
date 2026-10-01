@@ -1,0 +1,295 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../state/cloud_controller.dart';
+import '../state/providers.dart';
+import 'errors.dart';
+
+/// Sin servidores: cómo entrar en uno o pedir el tuyo.
+class NoClubsScreen extends ConsumerWidget {
+  const NoClubsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(meProvider).value;
+    final text = Theme.of(context).textTheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('El Furbo'),
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(cloudProvider).logout(),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(cloudProvider).loadMe(),
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            Text(
+              'Hola, ${me?.user.displayName ?? ''}',
+              style: text.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Todavía no estás en ningún servidor. Pídele a quien organiza tu grupo una invitación '
+              '(un enlace o un código), o solicita un servidor propio.',
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => showJoinWithCode(context),
+              icon: const Icon(Icons.vpn_key),
+              label: const Text('Unirme con un código'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => showRequestClub(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Solicitar un servidor'),
+            ),
+            if (me != null && me.requests.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              Text('Mis solicitudes', style: text.titleMedium),
+              for (final r in me.requests) ClubRequestTile(request: r),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ClubRequestTile extends StatelessWidget {
+  const ClubRequestTile({super.key, required this.request});
+
+  final ClubRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = request.status == 'pending';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(pending ? Icons.hourglass_top : Icons.block),
+      title: Text(request.name),
+      subtitle: Text(
+        pending
+            ? 'Esperando aprobación'
+            : 'Rechazada${request.reviewNote == null || request.reviewNote!.isEmpty ? '' : ': ${request.reviewNote}'}',
+      ),
+    );
+  }
+}
+
+/// Pide el código, enseña a qué servidor entra y lo acepta.
+Future<void> showJoinWithCode(BuildContext context, {String? initialCode}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _JoinSheet(initialCode: initialCode),
+    );
+
+class _JoinSheet extends ConsumerStatefulWidget {
+  const _JoinSheet({this.initialCode});
+
+  final String? initialCode;
+
+  @override
+  ConsumerState<_JoinSheet> createState() => _JoinSheetState();
+}
+
+class _JoinSheetState extends ConsumerState<_JoinSheet> {
+  late final _code = TextEditingController(text: widget.initialCode);
+  InvitePreview? _preview;
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _go(Future<void> Function() f) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await f();
+    } catch (e) {
+      if (mounted) setState(() => _error = describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cloud = ref.read(cloudProvider);
+    final p = _preview;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Unirme con un código',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _code,
+            autofocus: widget.initialCode == null,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: 'Código',
+              hintText: 'ABCD-EFGH',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() => _preview = null),
+          ),
+          const SizedBox(height: 16),
+          if (p != null) ...[
+            Text('Vas a entrar en ${p.clubName}'),
+            if (p.claimName != null)
+              Text('Con el perfil de ${p.claimName} (y su historial).'),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _busy
+                  ? null
+                  : () => _go(() async {
+                      await cloud.acceptInvite(_code.text);
+                      if (context.mounted) Navigator.of(context).pop();
+                    }),
+              child: const Text('Entrar'),
+            ),
+          ] else
+            FilledButton(
+              onPressed: _busy
+                  ? null
+                  : () => _go(() async {
+                      final preview = await cloud.previewInvite(_code.text);
+                      if (mounted) setState(() => _preview = preview);
+                    }),
+              child: const Text('Ver invitación'),
+            ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showRequestClub(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _RequestClubSheet(),
+    );
+
+class _RequestClubSheet extends ConsumerStatefulWidget {
+  const _RequestClubSheet();
+
+  @override
+  ConsumerState<_RequestClubSheet> createState() => _RequestClubSheetState();
+}
+
+class _RequestClubSheetState extends ConsumerState<_RequestClubSheet> {
+  final _name = TextEditingController();
+  final _description = TextEditingController();
+  final _note = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _send() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(cloudProvider)
+          .requestClub(
+            name: _name.text,
+            description: _description.text,
+            requestNote: _note.text,
+          );
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) setState(() => _error = describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Solicitar un servidor',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'El superadmin lo revisa y te avisa. Puedes tener hasta 3 activos o pendientes.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _description,
+            decoration: const InputDecoration(
+              labelText: 'Descripción (opcional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _note,
+            decoration: const InputDecoration(
+              labelText: 'Nota para el superadmin (opcional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _send,
+            child: const Text('Enviar solicitud'),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
