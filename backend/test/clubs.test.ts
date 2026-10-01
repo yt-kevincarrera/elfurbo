@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { auditActions, requestClub } from "./fixtures";
+import { activeClub, auditActions, requestClub } from "./fixtures";
 import { api, register } from "./helpers";
 
 describe("POST /clubs (solicitar servidor)", () => {
@@ -45,5 +45,21 @@ describe("POST /clubs (solicitar servidor)", () => {
 
     await env.DB.prepare("UPDATE clubs SET status = 'rejected' WHERE owner_user_id = ? AND name = 'Servidor Uno'").bind(user.id).run();
     expect((await api("/clubs", { token, body: { name: "Servidor Cuatro" } })).status).toBe(201);
+  });
+});
+
+describe("GET /me con servidores", () => {
+  it("al aprobarse, el servidor sale en clubs con el rol owner y desaparece de las solicitudes", async () => {
+    const { clubId, owner } = await activeClub("kevin");
+    const me = await api("/me", { token: owner.token });
+    expect(me.body.clubs).toMatchObject([{ id: clubId, name: "Pachanga del sábado", status: "active", role: "owner" }]);
+    expect(me.body.clubs[0].memberId).toEqual(expect.any(String));
+    expect(me.body.clubRequests).toEqual([]);
+  });
+
+  it("no lista servidores de los que se fue ni de los que lo expulsaron", async () => {
+    const { clubId, owner } = await activeClub("kevin");
+    await env.DB.prepare("UPDATE members SET status = 'left' WHERE club_id = ?").bind(clubId).run();
+    expect((await api("/me", { token: owner.token })).body.clubs).toEqual([]);
   });
 });
