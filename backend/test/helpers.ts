@@ -1,4 +1,5 @@
 import { exports } from "cloudflare:workers";
+import { expect } from "vitest";
 
 type ApiInit = { method?: string; body?: unknown; token?: string; ip?: string };
 
@@ -16,4 +17,15 @@ export async function api(path: string, init: ApiInit = {}) {
   });
   const text = await res.text();
   return { status: res.status, headers: res.headers, body: text ? JSON.parse(text) : null };
+}
+
+export type Registered = {
+  token: string;
+  user: { id: string; username: string; displayName: string; isSuperadmin: boolean; status: string };
+};
+
+export async function register(username = "kevin", password = "secreto123", displayName = "Kevin") {
+  const res = await api("/auth/register", { body: { username, password, displayName } });
+  expect(res.status).toBe(201);
+  return res.body as Registered;
 }
