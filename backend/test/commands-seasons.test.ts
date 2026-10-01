@@ -58,6 +58,13 @@ describe("temporadas", () => {
     expect(await auditActions(clubId)).toContain("season.delete");
   });
 
+  it("una temporada con jornadas no se borra", async () => {
+    const { clubId, owner } = await activeClub();
+    const season = await env.DB.prepare("SELECT id FROM seasons WHERE club_id = ?").bind(clubId).first<{ id: string }>();
+    await apply(owner.token, cmd(clubId, "matchday.create", { id: crypto.randomUUID(), startsAt: "2099-01-01T10:00:00Z" }));
+    expect(await rejection(owner.token, cmd(clubId, "season.delete", { seasonId: season!.id }))).toBe("season_has_matchdays");
+  });
+
   it("solo owner y admin; fecha en formato AAAA-MM-DD; la de otro servidor no existe", async () => {
     const { clubId, owner } = await activeClub();
     const scorer = await addMember(clubId, "anotador", "scorer");
