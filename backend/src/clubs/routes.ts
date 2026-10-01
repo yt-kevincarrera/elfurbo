@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { randomCode } from "../auth/crypto";
-import { canInviteAs, canManageInvites } from "../authz";
+import { issueRecoveryCode } from "../auth/recovery";
+import { canInviteAs, canIssueRecoveryCode, canManageInvites } from "../authz";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
@@ -121,4 +122,23 @@ clubRoutes.post("/:clubId/invites/:code/revoke", async (c) => {
     auditStatement(db, { clubId: club.id, actorUserId: userId, action: "invite.revoke", entity: "invite", entityKey: invite.code }, now),
   ]);
   return c.body(null, 204);
+});
+
+/** Código de recuperación para un miembro que olvidó la contraseña. Se muestra una sola vez. */
+clubRoutes.post("/:clubId/members/:memberId/recovery-code", async (c) => {
+  const db = c.env.DB;
+  const now = new Date();
+  const userId = c.var.auth.user.id;
+  const { club, member } = await requireMembership(db, c.req.param("clubId"), userId);
+  const target = await findMember(db, club.id, c.req.param("memberId"));
+  if (!target || target.status !== "active") throw errors.notFound();
+  if (target.id === member.id || !target.userId || !canIssueRecoveryCode(member.role, target.role)) {
+    throw errors.forbidden();
+  }
+  const issued = await issueRecoveryCode(db, target.userId, userId, now);
+  await db.batch([
+    ...issued.statements,
+    auditStatement(db, { clubId: club.id, actorUserId: userId, action: "recovery.issue", entity: "member", entityKey: target.id }, now),
+  ]);
+  return c.json({ code: issued.code, expiresAt: issued.expiresAt }, 201);
 });
