@@ -55,10 +55,10 @@ describe("POST /sync/push", () => {
     expect(results[0]!.details).toHaveProperty("id");
   });
 
-  it("tipo desconocido (app más nueva que el servidor): rechazado con unknown_command", async () => {
+  it("tipo desconocido (app más nueva que el servidor): aplazado con unknown_command", async () => {
     const { clubId, owner } = await activeClub();
     const [r] = await push(owner.token, cmd(clubId, "matchday.teleport"));
-    expect(r).toMatchObject({ status: "rejected", code: "unknown_command" });
+    expect(r).toMatchObject({ status: "deferred", code: "unknown_command" });
   });
 
   it("un servidor del que no es miembro: rechazado con not_found, sin tocar nada", async () => {

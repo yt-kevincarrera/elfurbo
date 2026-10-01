@@ -140,6 +140,13 @@ describe("POST /sync/pull", () => {
     expect(next.upserts.member).toMatchObject([{ id: raul.memberId, userId: null, role: "guest", displayName: "Jugador eliminado" }]);
   });
 
+  it("un cursor por delante del servidor (tras restaurar la base con Time Travel) recibe una foto completa", async () => {
+    const { clubId, owner } = await activeClub();
+    const res = await pullAll(owner.token, { [clubId]: 999_999_999 });
+    expect(res.clubs[clubId]!.snapshot).toBe(true);
+    expect(res.clubs[clubId]!.upserts.member).toHaveLength(1);
+  });
+
   it("valida los cursores", async () => {
     const { token } = await register("kevin");
     expect((await api("/sync/pull", { token, body: { cursors: { x: -1 } } })).status).toBe(400);

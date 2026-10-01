@@ -37,9 +37,12 @@ export async function pull(db: D1Database, user: PublicUser, cursors: Record<str
 
   if (user.isSuperadmin) {
     const asked = Object.keys(cursors).filter((id) => !allowed.has(id));
-    for (const id of asked) {
-      const exists = await db.prepare("SELECT 1 FROM clubs WHERE id = ?").bind(id).first();
-      if (exists) allowed.add(id);
+    if (asked.length) {
+      const { results: existing } = await db
+        .prepare(`SELECT id FROM clubs WHERE id IN (${asked.map(() => "?").join(", ")})`)
+        .bind(...asked)
+        .all<{ id: string }>();
+      for (const r of existing) allowed.add(r.id);
     }
   }
 
@@ -69,6 +72,8 @@ async function snapshot(db: D1Database, clubId: string): Promise<ClubPull> {
 }
 
 async function incremental(db: D1Database, clubId: string, cursor: number): Promise<ClubPull> {
+  // Un cursor por delante del servidor solo pasa si la base se restauró (Time Travel): foto completa.
+  if (cursor > (await lastChangeId(db, clubId))) return snapshot(db, clubId);
   const { results } = await db
     .prepare(
       `SELECT entity, entity_key, MAX(id) AS last FROM changes
