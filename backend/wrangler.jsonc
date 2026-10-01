@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "furbo-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": { "ENVIRONMENT": "local" },
+  // Base local para `wrangler dev` y los tests. Los entornos remotos van en "env".
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "furbo-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

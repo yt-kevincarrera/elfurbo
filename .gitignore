@@ -55,3 +55,7 @@ firebase-debug.log
 /firestore-tests/node_modules/
 firestore-debug.log
 ui-debug.log
+
+# Backend (Cloudflare Worker)
+/backend/node_modules/
+/backend/.wrangler/
