@@ -13,6 +13,8 @@ export default defineConfig(async () => {
     ],
     // Cada login o registro hace PBKDF2 de 100k iteraciones; los tests con decenas de ellos
     // pasan de los 5 s por defecto en máquinas lentas (y en el CI).
-    test: { setupFiles: ["./test/setup.ts"], testTimeout: 30_000 },
+    // Con demasiados workers a la vez, miniflare en Windows a veces no logra arrancar uno ("bad port")
+    // y ese archivo no se ejecuta (vitest lo cuenta como error y sale con código 1).
+    test: { setupFiles: ["./test/setup.ts"], testTimeout: 30_000, maxWorkers: 4 },
   };
 });
