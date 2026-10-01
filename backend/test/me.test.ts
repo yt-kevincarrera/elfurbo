@@ -31,10 +31,10 @@ describe("POST /auth/password", () => {
 });
 
 describe("/me", () => {
-  it("GET devuelve el usuario y, por ahora, ningún servidor", async () => {
+  it("GET devuelve el usuario, sin servidores ni solicitudes al principio", async () => {
     const { token, user } = await register();
     const res = await api("/me", { token });
-    expect(res.body).toEqual({ user, clubs: [] });
+    expect(res.body).toEqual({ user, clubs: [], clubRequests: [] });
   });
 
   it("DELETE con la contraseña mal: 401 y la cuenta sigue", async () => {
@@ -58,4 +58,5 @@ describe("/me", () => {
     }
     await register("kevin", "otra-clave-1");
   });
+
 });
