@@ -9,6 +9,7 @@ MatchDay m(
   DateTime date, {
   MatchStatus status = MatchStatus.scheduled,
   String? place,
+  int duration = MatchDay.defaultDurationMinutes,
 }) => MatchDay(
   id: id,
   date: date,
@@ -16,6 +17,7 @@ MatchDay m(
   status: status,
   createdBy: 'a',
   place: place,
+  durationMinutes: duration,
 );
 
 void main() {
@@ -121,7 +123,8 @@ void main() {
       'jornada que termina después de las 22:00 no recuerda cargar goles',
       () {
         final list = plannedReminders(
-          [m('late', DateTime(2026, 9, 20, 21))],
+          // Una de las de antes, con duración: termina a las 23:00.
+          [m('late', DateTime(2026, 9, 20, 21), duration: 120)],
           const {},
           now,
         );

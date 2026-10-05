@@ -14,7 +14,7 @@ describe("matchday.create", () => {
     expect(await row("matchdays", id)).toMatchObject({
       season_id: active!.id,
       starts_at: "2026-10-10T18:00:00.000Z",
-      duration_minutes: 120,
+      duration_minutes: 0,
       place: "Cancha de 23",
       status: "scheduled",
       created_by: raul.memberId,
@@ -38,11 +38,11 @@ describe("matchday.create", () => {
     expect(await rejection(owner.token, create({ seasonId: season!.id }))).toBe("season_closed");
   });
 
-  it("valida fecha y duración (30 a 600 min)", async () => {
+  it("valida fecha y duración (opcional, 0 a 600 min)", async () => {
     const { clubId, owner } = await activeClub();
     const create = (extra: Record<string, unknown>) => cmd(clubId, "matchday.create", { id: crypto.randomUUID(), startsAt: hoursAgo(-24), ...extra });
     expect(await rejection(owner.token, create({ startsAt: "sábado" }))).toBe("invalid_input");
-    expect(await rejection(owner.token, create({ durationMinutes: 20 }))).toBe("invalid_input");
+    expect(await rejection(owner.token, create({ durationMinutes: -1 }))).toBe("invalid_input");
     expect(await rejection(owner.token, create({ durationMinutes: 601 }))).toBe("invalid_input");
   });
 });

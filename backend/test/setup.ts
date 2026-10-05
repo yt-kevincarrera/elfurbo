@@ -12,5 +12,9 @@ beforeEach(async () => {
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations' ORDER BY rowid DESC",
   ).all<{ name: string }>();
   if (results.length === 0) return;
-  await env.DB.batch(results.map((t) => env.DB.prepare(`DELETE FROM "${t.name}"`)));
+  // Claves foráneas diferidas: el orden de creación ya no sirve desde que la 0006 rehízo matchdays.
+  await env.DB.batch([
+    env.DB.prepare("PRAGMA defer_foreign_keys = true"),
+    ...results.map((t) => env.DB.prepare(`DELETE FROM "${t.name}"`)),
+  ]);
 });

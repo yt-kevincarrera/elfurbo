@@ -44,7 +44,7 @@ void main() {
       notes: '',
     ),
     'crear jornada en la temporada activa': (r) =>
-        r.createMatches(dates: [at], durationMinutes: 90, notes: 'Traer petos'),
+        r.createMatches(dates: [at], notes: 'Traer petos'),
     'cambiar la hora y borrar el lugar': (r) => r.updateMatch(
       'm1',
       date: at.add(const Duration(minutes: 90)),
