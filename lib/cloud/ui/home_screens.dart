@@ -321,7 +321,7 @@ class _AccountMenu extends ConsumerWidget {
           child: Text('Cambios no aplicados'),
         ),
         // El dueño no se puede ir sin pasarle el servidor a otro.
-        if (club != null && club.role != 'owner')
+        if (club != null && club.role != 'owner' && club.status != 'suspended')
           const PopupMenuItem(
             value: 'leave',
             child: Text('Salir de este servidor'),

@@ -30,6 +30,13 @@ describe("auditoría del servidor", () => {
     expect(page2.body.entries[0].id).toBeLessThan(page1.body.entries[1].id);
   });
 
+  it("un limit o un before raros no rompen la ruta", async () => {
+    const { clubId, owner } = await activeClub();
+    for (const q of ["?limit=1.5", "?limit=abc", "?before=1e999", "?before=-3", "?limit=100000"]) {
+      expect((await audit(clubId, owner.token, q)).status, q).toBe(200);
+    }
+  });
+
   it("un jugador o un anotador no la ven; alguien de otro servidor, ni que existe", async () => {
     const { clubId } = await activeClub();
     for (const role of ["player", "scorer"] as const) {

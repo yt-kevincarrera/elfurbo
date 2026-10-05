@@ -102,6 +102,18 @@ describe("listar y revocar", () => {
     expect((await api(`/clubs/${clubId}/invites/${code}/revoke`, { method: "POST", token: raul.token })).status).toBe(403);
   });
 
+  it("un admin no ve ni revoca las invitaciones de admin del dueño (no puede colar admins)", async () => {
+    const { clubId, owner } = await activeClub();
+    const adminCode = (await invite(clubId, owner.token, { role: "admin", maxUses: 50 })).body.invite.code;
+    const playerCode = (await invite(clubId, owner.token)).body.invite.code;
+    const raul = await addMember(clubId, "raul", "admin");
+    const list = await api(`/clubs/${clubId}/invites`, { token: raul.token });
+    expect(list.body.invites.map((i: { code: string }) => i.code)).toEqual([playerCode]);
+    expect((await api(`/clubs/${clubId}/invites/${adminCode}/revoke`, { method: "POST", token: raul.token })).status).toBe(403);
+    const mine = await api(`/clubs/${clubId}/invites`, { token: owner.token });
+    expect(mine.body.invites).toHaveLength(2);
+  });
+
   it("no se puede revocar una invitación de otro servidor", async () => {
     const a = await activeClub("kevin");
     const b = await activeClub("raul", "Otro");

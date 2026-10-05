@@ -79,7 +79,11 @@ Widget _async<T>(
 );
 
 /// Pide una nota opcional (para rechazar o suspender).
-Future<String?> _askNote(BuildContext context, String title) async {
+Future<String?> _askNote(
+  BuildContext context,
+  String title, {
+  required String confirm,
+}) async {
   final note = TextEditingController();
   final ok = await showDialog<bool>(
     context: context,
@@ -98,7 +102,7 @@ Future<String?> _askNote(BuildContext context, String title) async {
         ),
         FilledButton(
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Dale'),
+          child: Text(confirm),
         ),
       ],
     ),
@@ -106,17 +110,20 @@ Future<String?> _askNote(BuildContext context, String title) async {
   return ok == true ? note.text.trim() : null;
 }
 
-/// Ejecuta una acción del panel, avisa y refresca lo que haga falta.
+/// Ejecuta una acción del panel, avisa y refresca lo que haga falta. El
+/// contenedor se toma antes de esperar: si cambias de pestaña o sales del panel
+/// mientras tanto, esta pestaña ya no existe, pero la acción termina igual.
 Future<void> _act(
-  WidgetRef ref,
+  BuildContext context,
   Future<void> Function() action, {
   required String done,
   required List<ProviderOrFamily> refresh,
 }) async {
+  final container = ProviderScope.containerOf(context, listen: false);
   try {
     await action();
     for (final p in refresh) {
-      ref.invalidate(p);
+      container.invalidate(p);
     }
     showMessage(done);
   } catch (e) {
@@ -124,12 +131,31 @@ Future<void> _act(
   }
 }
 
-class _Requests extends ConsumerWidget {
+class _Requests extends ConsumerStatefulWidget {
   const _Requests();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Requests> createState() => _RequestsState();
+}
+
+class _RequestsState extends ConsumerState<_Requests> {
+  /// Las que se están aprobando o rechazando (sin doble toque).
+  final _busy = <String>{};
+
+  Future<void> _run(String id, Future<void> Function() f) async {
+    if (!_busy.add(id)) return;
+    setState(() {});
+    try {
+      await f();
+    } finally {
+      if (mounted) setState(() => _busy.remove(id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final api = ref.read(superadminApiProvider);
+    final cloud = ref.read(cloudProvider);
     final text = Theme.of(context).textTheme;
     return _async(
       ref.watch(_clubsProvider('pending')),
@@ -166,35 +192,52 @@ class _Requests extends ConsumerWidget {
                               children: [
                                 Expanded(
                                   child: FilledButton(
-                                    onPressed: () => _act(
-                                      ref,
-                                      () async {
-                                        await api.approve(c.id);
-                                        // Si era mío, ya sale en el selector.
-                                        await ref.read(cloudProvider).loadMe();
-                                      },
-                                      done: '${c.name} aprobado',
-                                      refresh: [_clubsProvider],
-                                    ),
+                                    onPressed: _busy.contains(c.id)
+                                        ? null
+                                        : () => _run(
+                                            c.id,
+                                            () => _act(
+                                              context,
+                                              () async {
+                                                await api.approve(c.id);
+                                                // Si era mío, ya sale en el selector.
+                                                await cloud.loadMe();
+                                              },
+                                              done: '${c.name} aprobado',
+                                              refresh: [_clubsProvider],
+                                            ),
+                                          ),
                                     child: const Text('Aprobar'),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: OutlinedButton(
-                                    onPressed: () async {
-                                      final note = await _askNote(
-                                        context,
-                                        '¿Rechazar ${c.name}?',
-                                      );
-                                      if (note == null) return;
-                                      await _act(
-                                        ref,
-                                        () => api.reject(c.id, note: note),
-                                        done: '${c.name} rechazado',
-                                        refresh: [_clubsProvider],
-                                      );
-                                    },
+                                    onPressed: _busy.contains(c.id)
+                                        ? null
+                                        : () async {
+                                            final note = await _askNote(
+                                              context,
+                                              '¿Rechazar ${c.name}?',
+                                              confirm: 'Rechazar',
+                                            );
+                                            if (note == null ||
+                                                !context.mounted) {
+                                              return;
+                                            }
+                                            await _run(
+                                              c.id,
+                                              () => _act(
+                                                context,
+                                                () => api.reject(
+                                                  c.id,
+                                                  note: note,
+                                                ),
+                                                done: '${c.name} rechazado',
+                                                refresh: [_clubsProvider],
+                                              ),
+                                            );
+                                          },
                                     child: const Text('Rechazar'),
                                   ),
                                 ),
@@ -265,10 +308,13 @@ class _ClubsState extends ConsumerState<_Clubs> {
                                     final note = await _askNote(
                                       context,
                                       '¿Suspender ${c.name}?',
+                                      confirm: 'Suspender',
                                     );
-                                    if (note == null) return;
+                                    if (note == null || !context.mounted) {
+                                      return;
+                                    }
                                     await _act(
-                                      ref,
+                                      context,
                                       () => api.suspend(c.id, note: note),
                                       done: '${c.name} suspendido',
                                       refresh: [_clubsProvider],
@@ -278,7 +324,7 @@ class _ClubsState extends ConsumerState<_Clubs> {
                                 ),
                                 'suspended' => TextButton(
                                   onPressed: () => _act(
-                                    ref,
+                                    context,
                                     () => api.reactivate(c.id),
                                     done: '${c.name} reactivado',
                                     refresh: [_clubsProvider],
@@ -312,6 +358,7 @@ class _UsersState extends ConsumerState<_Users> {
   @override
   Widget build(BuildContext context) {
     final api = ref.read(superadminApiProvider);
+    final myId = ref.watch(meProvider).value?.user.id;
     return Column(
       children: [
         Padding(
@@ -350,7 +397,7 @@ class _UsersState extends ConsumerState<_Users> {
                                     'visto el ${Fmt.dateOnly(u.lastSeenAt!)}',
                                 ].join(' · '),
                               ),
-                              trailing: u.isSuperadmin
+                              trailing: u.id == myId
                                   ? null
                                   : PopupMenuButton<String>(
                                       onSelected: (a) async {
@@ -370,14 +417,14 @@ class _UsersState extends ConsumerState<_Users> {
                                             }
                                           case 'suspend':
                                             await _act(
-                                              ref,
+                                              context,
                                               () => api.suspendUser(u.id),
                                               done: '@${u.username} suspendido',
                                               refresh: [_usersProvider],
                                             );
                                           case 'unsuspend':
                                             await _act(
-                                              ref,
+                                              context,
                                               () => api.unsuspendUser(u.id),
                                               done:
                                                   '@${u.username} puede volver a entrar',
@@ -390,12 +437,13 @@ class _UsersState extends ConsumerState<_Users> {
                                           value: 'code',
                                           child: Text('Código de recuperación'),
                                         ),
-                                        if (u.status == 'suspended')
+                                        if (!u.isSuperadmin &&
+                                            u.status == 'suspended')
                                           const PopupMenuItem(
                                             value: 'unsuspend',
                                             child: Text('Quitar la suspensión'),
                                           )
-                                        else
+                                        else if (!u.isSuperadmin)
                                           const PopupMenuItem(
                                             value: 'suspend',
                                             child: Text('Suspender'),

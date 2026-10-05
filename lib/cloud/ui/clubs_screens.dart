@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_messenger.dart';
 import '../../services/local_notifications.dart';
 import '../../ui/superadmin/superadmin_screen.dart';
 import '../state/cloud_controller.dart';
@@ -389,5 +390,8 @@ Future<void> confirmLeave(
   if (ok != true) return;
   final cloud = ref.read(cloudProvider);
   await cloud.run(club.id, 'member.leave', {});
+  showMessage(
+    'Listo, te sales de ${club.name}. Si no hay señal, en cuanto vuelva.',
+  );
   await cloud.sync();
 }

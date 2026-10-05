@@ -110,9 +110,11 @@ class AdminScreen extends ConsumerWidget {
                           label: Text('Tú'),
                           visualDensity: VisualDensity.compact,
                         )
-                      : readOnly
-                      ? null
-                      : _PlayerMenu(user: u, myRole: myRole),
+                      : _PlayerMenu(
+                          user: u,
+                          myRole: myRole,
+                          readOnly: readOnly,
+                        ),
                 ),
             ],
           ),
@@ -489,23 +491,36 @@ class _SeasonTile extends ConsumerWidget {
 
 /// Lo que yo puedo hacer con otro miembro (la misma matriz que el servidor).
 class _PlayerMenu extends ConsumerWidget {
-  const _PlayerMenu({required this.user, required this.myRole});
+  const _PlayerMenu({
+    required this.user,
+    required this.myRole,
+    this.readOnly = false,
+  });
 
   final AppUser user;
   final UserRole myRole;
+
+  /// Servidor suspendido: los cambios no entran, pero un código sí se puede dar.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.read(repoProvider);
     final u = user;
     final roles = [
-      for (final r in const [UserRole.admin, UserRole.scorer, UserRole.player])
-        if (r != u.role && canSetRole(myRole, u.role, r)) r,
+      if (!readOnly)
+        for (final r in const [
+          UserRole.admin,
+          UserRole.scorer,
+          UserRole.player,
+        ])
+          if (r != u.role && canSetRole(myRole, u.role, r)) r,
     ];
-    final ban = canBan(myRole, u.role);
-    final claim = u.isGuest && canInviteAs(myRole, UserRole.player);
+    final ban = !readOnly && canBan(myRole, u.role);
+    final claim =
+        !readOnly && u.isGuest && canInviteAs(myRole, UserRole.player);
     final code = !u.isGuest && canIssueRecoveryCode(myRole, u.role);
-    final transfer = canManageClub(myRole) && !u.isGuest;
+    final transfer = !readOnly && canManageClub(myRole) && !u.isGuest;
     if (roles.isEmpty && !ban && !claim && !code && !transfer) {
       return const SizedBox.shrink();
     }

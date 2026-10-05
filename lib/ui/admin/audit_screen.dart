@@ -90,7 +90,8 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
             )
           : NotificationListener<ScrollNotification>(
               onNotification: (n) {
-                if (n.metrics.extentAfter < 400) _load();
+                // Tras un error, reintenta el botón (no cada movimiento).
+                if (n.metrics.extentAfter < 400 && _error == null) _load();
                 return false;
               },
               child: ListView.builder(

@@ -3,7 +3,7 @@ import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { randomCode } from "../auth/crypto";
 import { issueRecoveryCode } from "../auth/recovery";
-import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin } from "../authz";
+import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, type InvitableRole } from "../authz";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
@@ -104,8 +104,10 @@ clubRoutes.get("/:clubId/invites", async (c) => {
     )
     .bind(club.id, new Date().toISOString())
     .all<{ code: string; role: string; target_member_id: string | null; max_uses: number; uses: number; expires_at: string }>();
+  // Solo las que uno mismo podría crear: un admin no ve (ni reparte) las de admin del dueño.
+  const visible = results.filter((r) => canInviteAs(member.role, r.role as InvitableRole));
   return c.json({
-    invites: results.map((r) => ({
+    invites: visible.map((r) => ({
       code: formatCode(r.code),
       role: r.role,
       maxUses: r.max_uses,
@@ -124,6 +126,7 @@ clubRoutes.post("/:clubId/invites/:code/revoke", async (c) => {
   if (!canManageInvites(member.role)) throw errors.forbidden();
   const invite = await findInvite(db, c.req.param("code"));
   if (!invite || invite.clubId !== club.id) throw errors.notFound();
+  if (!canInviteAs(member.role, invite.role as InvitableRole)) throw errors.forbidden();
   await db.batch([
     db.prepare("UPDATE invites SET revoked_at = ? WHERE code = ?").bind(now.toISOString(), invite.code),
     auditStatement(db, { clubId: club.id, actorUserId: userId, action: "invite.revoke", entity: "invite", entityKey: invite.code }, now),
@@ -167,8 +170,10 @@ clubRoutes.get("/:clubId/audit", async (c) => {
   const db = c.env.DB;
   const { club, member } = await requireMembership(db, c.req.param("clubId"), c.var.auth.user.id);
   if (!isAdmin(member.role)) throw errors.forbidden();
-  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 50, 1), 100);
-  const before = Number(c.req.query("before")) || null;
+  const limitQ = Number.parseInt(c.req.query("limit") ?? "", 10);
+  const limit = Number.isSafeInteger(limitQ) ? Math.min(Math.max(limitQ, 1), 100) : 50;
+  const beforeQ = Number.parseInt(c.req.query("before") ?? "", 10);
+  const before = Number.isSafeInteger(beforeQ) && beforeQ > 0 ? beforeQ : null;
   const { results } = await db
     .prepare(
       `SELECT a.id, a.action, a.entity, a.entity_key, a.summary, a.at, u.username, u.display_name
