@@ -6,7 +6,8 @@ import { command, type CommandContext } from "../sync/command";
 import { assertActiveMembers, assertOpen, CHILDREN, childChanges, findMatchday, key, matchdayId, type Matchday } from "./pachanga";
 
 const startsAt = z.iso.datetime({ offset: true }).transform((s) => new Date(s).toISOString());
-const durationMinutes = z.number().int().min(30).max(600);
+/** Opcional: la jornada dura lo que quieran (0 = se reporta desde que empieza). */
+const durationMinutes = z.number().int().min(0).max(600);
 const place = z.string().trim().max(80).nullable();
 const notes = z.string().trim().max(300).nullable();
 const seasonId = z.string().min(1).max(64);
@@ -52,7 +53,7 @@ export const createMatchday = command(
   z.object({
     id: z.uuid(),
     startsAt,
-    durationMinutes: durationMinutes.default(120),
+    durationMinutes: durationMinutes.default(0),
     place: place.optional(),
     notes: notes.optional(),
     seasonId: seasonId.optional(),

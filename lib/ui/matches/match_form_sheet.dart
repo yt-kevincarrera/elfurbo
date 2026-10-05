@@ -29,10 +29,7 @@ class _MatchForm extends ConsumerStatefulWidget {
 }
 
 class _MatchFormState extends ConsumerState<_MatchForm> {
-  static const _durations = [60, 90, 120, 180];
-
   late DateTime _date;
-  late int _duration;
   String? _seasonId;
   bool _repeat = false;
   int _weeks = 4;
@@ -46,7 +43,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
     super.initState();
     final e = widget.existing;
     _date = e?.date ?? _nextSunday();
-    _duration = e?.durationMinutes ?? MatchDay.defaultDurationMinutes;
     _seasonId = e?.seasonId;
     _place = TextEditingController(text: e?.place ?? '');
     _notes = TextEditingController(text: e?.notes ?? '');
@@ -131,7 +127,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
       // Solo lo que cambió: al que creó la jornada el servidor no le deja
       // moverla de fecha o de temporada si ya hay datos de otros.
       final date = _date == existing.date ? null : _date;
-      final duration = _duration == existing.durationMinutes ? null : _duration;
       final season = seasonId == existing.seasonId ? null : seasonId;
       final place = _place.text.trim() == (existing.place ?? '')
           ? null
@@ -139,7 +134,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
       final notes = _notes.text.trim() == (existing.notes ?? '')
           ? null
           : _notes.text;
-      if ([date, duration, season, place, notes].every((v) => v == null)) {
+      if ([date, season, place, notes].every((v) => v == null)) {
         Navigator.of(context).pop(); // Nada que cambiar.
         return;
       }
@@ -147,7 +142,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
         repo.updateMatch(
           existing.id,
           date: date,
-          durationMinutes: duration,
           seasonId: season,
           place: place,
           notes: notes,
@@ -160,7 +154,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
         repo.createMatches(
           dates: dates,
           seasonId: seasonId,
-          durationMinutes: _duration,
           place: _place.text,
           notes: _notes.text,
         ),
@@ -181,7 +174,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
         .toList();
     final activeId = ref.watch(activeSeasonProvider)?.id;
     final selectedSeason = _seasonId ?? activeId;
-    final durationOptions = {..._durations, _duration}.toList()..sort();
     final count = _repeat ? _weeks : 1;
     // El que la creó, si ya hay datos de otros, solo cambia lugar y notas.
     final locked =
@@ -208,7 +200,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
             const SizedBox(height: 16),
             if (locked) ...[
               Text(
-                'Ya hay datos de otros: la fecha, la duración y la temporada solo las cambia el staff.',
+                'Ya hay datos de otros: la fecha y la temporada solo las cambia el staff.',
                 style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
@@ -228,20 +220,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
                   icon: const Icon(Icons.schedule),
                   label: Text(Fmt.time(_date)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('Duración', style: text.labelLarge),
-            const SizedBox(height: 6),
-            SegmentedButton<int>(
-              showSelectedIcon: false,
-              selected: {_duration},
-              onSelectionChanged: locked
-                  ? null
-                  : (s) => setState(() => _duration = s.first),
-              segments: [
-                for (final d in durationOptions)
-                  ButtonSegment(value: d, label: Text(_durationLabel(d))),
               ],
             ),
             if (seasons.isNotEmpty) ...[
@@ -337,11 +315,5 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
         ),
       ),
     );
-  }
-
-  static String _durationLabel(int minutes) {
-    if (minutes % 60 == 0) return '${minutes ~/ 60} h';
-    if (minutes > 60) return '${minutes ~/ 60} h ${minutes % 60}';
-    return '$minutes min';
   }
 }

@@ -148,7 +148,7 @@ void _applyPachanga(ClubData d, Command c, String? me) {
         'id': p['id'],
         'seasonId': p['seasonId'] ?? active.firstOrNull?['id'],
         'startsAt': p['startsAt'],
-        'durationMinutes': p['durationMinutes'] ?? 120,
+        'durationMinutes': p['durationMinutes'] ?? 0,
         'place': p['place'],
         'notes': p['notes'],
         'status': 'scheduled',

@@ -89,7 +89,7 @@ class ClubRepo {
   Future<void> createMatches({
     required List<DateTime> dates,
     String? seasonId,
-    int durationMinutes = MatchDay.defaultDurationMinutes,
+    int? durationMinutes,
     String? place,
     String? notes,
   }) async {
@@ -97,7 +97,7 @@ class ClubRepo {
       await _run('matchday.create', {
         'id': newId(),
         'startsAt': _instant(date),
-        'durationMinutes': durationMinutes,
+        'durationMinutes': ?durationMinutes,
         'place': _text(place),
         'notes': _text(notes),
         'seasonId': ?seasonId,

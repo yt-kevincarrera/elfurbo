@@ -25,7 +25,9 @@ class MatchDay {
     this.teamB = const [],
   });
 
-  static const int defaultDurationMinutes = 120;
+  /// Las jornadas duran lo que quieran: sin duración, se reportan goles desde
+  /// que empiezan y el "voy" se marca hasta la hora de inicio.
+  static const int defaultDurationMinutes = 0;
 
   /// Por defecto de los servidores (`closeAfterHours`).
   static const int defaultCloseAfterHours = 72;
