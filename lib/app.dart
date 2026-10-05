@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/providers.dart';
+import 'data/update_controller.dart';
 import 'domain/reminders.dart';
 import 'models/notification_payload.dart';
 import 'services/local_notifications.dart';
@@ -35,16 +37,32 @@ class ClubSession extends ConsumerStatefulWidget {
   ConsumerState<ClubSession> createState() => _ClubSessionState();
 }
 
-class _ClubSessionState extends ConsumerState<ClubSession> {
+class _ClubSessionState extends ConsumerState<ClubSession>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    NotificationRouter.onUpdateTapped = () => _checkForUpdates(force: true);
+    WidgetsBinding.instance.addObserver(this);
+    // Tocar el aviso de versión nueva: instala si ya está descargada.
+    NotificationRouter.onUpdateTapped = () {
+      if (mounted) openUpdate(context, ref);
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSafely());
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Al volver a la app (como mucho cada 12 h pregunta a GitHub).
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        ref.read(updateProvider.notifier).check().catchError((Object _) {}),
+      );
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     NotificationRouter.onUpdateTapped = null;
     _debounce?.cancel();
     _reminders?.close();
@@ -64,6 +82,7 @@ class _ClubSessionState extends ConsumerState<ClubSession> {
     await LocalNotifications.ensureInitialized(
       onTap: NotificationRouter.handle,
     );
+    await LocalNotifications.requestPermission();
     // Si la app se abrió tocando una notificación local, se atiende ahora
     // que ya hay sesión y navigator.
     final launch = await LocalNotifications.consumeLaunchPayload();
@@ -78,22 +97,33 @@ class _ClubSessionState extends ConsumerState<ClubSession> {
       (_, plan) => _scheduleReminders(plan),
       fireImmediately: true,
     );
-    await _checkForUpdates(force: launch?.kind == NotificationKind.update);
+    await _checkForUpdates(
+      fromNotification: launch?.kind == NotificationKind.update,
+    );
     await UpdateWorker.schedule();
   }
 
   ProviderSubscription<List<PlannedReminder>>? _reminders;
 
-  /// Busca una versión nueva (como mucho cada 12 h, o siempre con [force]).
-  Future<void> _checkForUpdates({bool force = false}) async {
-    final service = ref.read(updateServiceProvider);
-    final release = await service
-        .checkForUpdate(force: force)
-        .catchError((_) => null);
-    if (force) await LocalNotifications.cancelUpdate();
-    if (release != null && mounted) {
-      await showUpdateDialog(context, release: release, service: service);
+  static const _promptedKey = 'update.promptedTag';
+
+  /// Busca una versión nueva (como mucho cada 12 h). Si se abrió desde su
+  /// notificación, la instala (o la ofrece). Si no, el diálogo sale una sola vez
+  /// por versión: después queda el aviso de la barra y el punto en Perfil.
+  Future<void> _checkForUpdates({bool fromNotification = false}) async {
+    final updates = ref.read(updateProvider.notifier);
+    await updates.check(force: fromNotification).catchError((Object _) {});
+    if (!mounted) return;
+    if (fromNotification) {
+      await openUpdate(context, ref);
+      return;
     }
+    final release = ref.read(updateProvider).release;
+    if (release == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_promptedKey) == release.tag || !mounted) return;
+    await prefs.setString(_promptedKey, release.tag);
+    if (mounted) await showUpdateDialog(context);
   }
 
   Timer? _debounce;

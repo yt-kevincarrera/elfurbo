@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../../app.dart';
+import '../../data/update_controller.dart';
+import '../../ui/widgets/update_dialog.dart';
 import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
@@ -44,6 +46,8 @@ class ClubBar extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final syncing = sync?.state == SyncState.syncing;
+    final update = ref.watch(updateProvider);
+    final downloading = update.phase == UpdatePhase.downloading;
     return Material(
       color: scheme.surface,
       child: SafeArea(
@@ -149,6 +153,26 @@ class ClubBar extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  if (update.pending)
+                    IconButton(
+                      tooltip: switch (update.phase) {
+                        UpdatePhase.ready => 'Instalar la versión nueva',
+                        UpdatePhase.downloading =>
+                          'Descargando la versión nueva',
+                        _ => 'Hay una versión nueva',
+                      },
+                      onPressed: () => openUpdate(context, ref),
+                      icon: Badge(
+                        smallSize: 9,
+                        isLabelVisible: !downloading,
+                        child: Icon(
+                          update.phase == UpdatePhase.ready
+                              ? Icons.install_mobile
+                              : Icons.system_update,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ),
                   IconButton(
                     tooltip: 'Sincronizar',
                     onPressed: syncing
@@ -166,10 +190,15 @@ class ClubBar extends ConsumerWidget {
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 250),
-              child: syncing
-                  ? const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 0, 16, 6),
-                      child: WavyProgressBar(height: 8),
+              child: syncing || downloading
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: WavyProgressBar(
+                        height: 8,
+                        value: !syncing && (update.progress ?? -1) >= 0
+                            ? update.progress
+                            : null,
+                      ),
                     )
                   : const SizedBox(width: double.infinity),
             ),

@@ -15,6 +15,7 @@ import '../domain/app_update.dart';
 ///
 /// El repo es público, así que la API se consulta sin token. Los APK son los
 /// de `flutter build apk --split-per-abi`; se elige el de la ABI del teléfono.
+/// Lo usan la app (`UpdateController`) y el worker de segundo plano.
 class UpdateService {
   UpdateService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -26,12 +27,12 @@ class UpdateService {
   static const checkInterval = Duration(hours: 12);
 
   static const _lastCheckKey = 'update.lastCheckMillis';
-  static const _notifiedTagKey = 'update.notifiedTag';
+  static const _latestJsonKey = 'update.latestJson';
 
   final http.Client _client;
 
-  /// Última release publicada, o null si no hay ninguna o falla la red.
-  /// Es estático porque también lo usa el worker de segundo plano.
+  /// Última release publicada, o null si no hay ninguna. Se guarda en el
+  /// teléfono para saber que hay una versión nueva aunque no haya señal.
   static Future<AppRelease?> fetchLatest({http.Client? client}) async {
     final c = client ?? http.Client();
     try {
@@ -50,6 +51,8 @@ class UpdateService {
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       if (json['draft'] == true) return null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_latestJsonKey, res.body);
       return AppRelease.fromGitHubJson(json);
     } finally {
       if (client == null) c.close();
@@ -64,6 +67,21 @@ class UpdateService {
     if (!Platform.isAndroid) return const [];
     final info = await DeviceInfoPlugin().androidInfo;
     return info.supportedAbis;
+  }
+
+  /// La última release que se vio, si es más nueva que la instalada. Sin red.
+  Future<AppRelease?> lastKnown() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_latestJsonKey);
+    if (raw == null) return null;
+    try {
+      final release = AppRelease.fromGitHubJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+      return release.isNewerThan(await installedVersion()) ? release : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Devuelve la release si hay una versión más nueva que la instalada.
@@ -90,14 +108,44 @@ class UpdateService {
     }
   }
 
-  /// Descarga el APK a la carpeta temporal de la app. [onProgress] recibe
-  /// 0..1 (o -1 si el servidor no informa el tamaño).
+  /// El APK de esta release para este teléfono, o null si no hay.
+  Future<ReleaseAsset?> assetForDevice(AppRelease release) async =>
+      release.assetFor(await supportedAbis());
+
+  static Future<Directory> _updatesDir() async {
+    final dir = Directory(
+      '${(await getApplicationSupportDirectory()).path}/updates',
+    );
+    await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// El APK ya descargado (completo), o null.
+  Future<File?> cachedApk(ReleaseAsset asset) async {
+    final file = File('${(await _updatesDir()).path}/${asset.name}');
+    if (!await file.exists()) return null;
+    if (asset.size > 0 && await file.length() != asset.size) return null;
+    return file;
+  }
+
+  /// Descarga el APK a la carpeta de actualizaciones (si ya está, no repite).
+  /// [onProgress] recibe 0..1 (o -1 si el servidor no informa el tamaño).
+  /// Se escribe a un `.part` y se renombra al final: un corte no deja un APK
+  /// a medias que parezca bueno. Borra los APK de versiones anteriores.
   Future<File> download(
     ReleaseAsset asset, {
     void Function(double progress)? onProgress,
   }) async {
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/${asset.name}');
+    final cached = await cachedApk(asset);
+    if (cached != null) {
+      onProgress?.call(1);
+      return cached;
+    }
+    final dir = await _updatesDir();
+    for (final old in dir.listSync().whereType<File>()) {
+      await old.delete();
+    }
+    final part = File('${dir.path}/${asset.name}.part');
     final req = http.Request('GET', Uri.parse(asset.url))
       ..headers['User-Agent'] = 'elfurbo-app';
     final res = await _client.send(req).timeout(const Duration(seconds: 30));
@@ -106,7 +154,7 @@ class UpdateService {
     }
     final total = res.contentLength ?? asset.size;
     var received = 0;
-    final sink = file.openWrite();
+    final sink = part.openWrite();
     try {
       await for (final chunk in res.stream) {
         sink.add(chunk);
@@ -116,7 +164,7 @@ class UpdateService {
     } finally {
       await sink.close();
     }
-    return file;
+    return part.rename('${dir.path}/${asset.name}');
   }
 
   /// Abre el instalador de Android con el APK descargado.
@@ -130,11 +178,13 @@ class UpdateService {
     }
   }
 
-  /// Marca que ya se avisó (notificación) de esta versión, para no repetir.
-  static Future<bool> markNotified(String tag) async {
+  /// Marca que ya se avisó de esta versión ([kind]: 'available' o 'ready'),
+  /// para no repetir el mismo aviso. Devuelve false si ya se había avisado.
+  static Future<bool> markNotified(String tag, {required String kind}) async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(_notifiedTagKey) == tag) return false;
-    await prefs.setString(_notifiedTagKey, tag);
+    final key = 'update.notified.$kind';
+    if (prefs.getString(key) == tag) return false;
+    await prefs.setString(key, tag);
     return true;
   }
 

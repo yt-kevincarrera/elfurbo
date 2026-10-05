@@ -81,6 +81,18 @@ class LocalNotifications {
     _initialized = true;
   }
 
+  /// Pide permiso para avisar (Android 13+ lo exige; antes lo pedía el push
+  /// de Firebase). Solo desde la app abierta: el sistema enseña el diálogo una
+  /// vez y luego responde solo.
+  static Future<void> requestPermission() async {
+    await ensureInitialized();
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+  }
+
   static Future<void> _initTimeZone() async {
     try {
       tzdata.initializeTimeZones();
@@ -116,7 +128,61 @@ class LocalNotifications {
       id: idUpdate,
       title: 'Nueva versión de El Furbo',
       body:
-          'Ya está la ${release.version}. Toca para actualizar (en Cuba, con VPN).',
+          'Ya salió la ${release.version}. Toca para actualizar (en Cuba, con VPN).',
+      notificationDetails: _details(
+        channelUpdates,
+        'Actualizaciones',
+        importance: Importance.defaultImportance,
+      ),
+      payload: NotificationPayload(
+        kind: NotificationKind.update,
+        tag: release.tag,
+      ).encode(),
+    );
+  }
+
+  /// Descarga en curso (fija mientras dura, sin sonar en cada avance).
+  /// [progress] de 0 a 1, o negativo si no se sabe el tamaño.
+  static Future<void> showUpdateProgress(
+    AppRelease release,
+    double progress,
+  ) async {
+    await ensureInitialized();
+    final pct = (progress * 100).round().clamp(0, 100);
+    await _plugin.show(
+      id: idUpdate,
+      title: 'Descargando El Furbo ${release.version}',
+      body: progress < 0 ? 'Un momentico…' : '$pct%',
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelUpdates,
+          'Actualizaciones',
+          importance: Importance.low,
+          priority: Priority.low,
+          color: _color,
+          icon: _icon,
+          ongoing: true,
+          onlyAlertOnce: true,
+          showProgress: true,
+          maxProgress: 100,
+          progress: pct,
+          indeterminate: progress < 0,
+        ),
+      ),
+      payload: NotificationPayload(
+        kind: NotificationKind.update,
+        tag: release.tag,
+      ).encode(),
+    );
+  }
+
+  /// La versión ya está descargada: tocar abre el instalador.
+  static Future<void> showUpdateReady(AppRelease release) async {
+    await ensureInitialized();
+    await _plugin.show(
+      id: idUpdate,
+      title: 'El Furbo ${release.version} está lista',
+      body: 'Ya se descargó. Toca para instalarla.',
       notificationDetails: _details(
         channelUpdates,
         'Actualizaciones',
