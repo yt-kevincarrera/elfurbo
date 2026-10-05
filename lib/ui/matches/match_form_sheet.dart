@@ -147,7 +147,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
           notes: _notes.text,
         ),
         success: dates.length == 1
-            ? 'Jornada creada'
+            ? 'Listo, jornada creada'
             : '${dates.length} jornadas creadas',
       );
     }
@@ -233,7 +233,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
             TextField(
               controller: _place,
               decoration: const InputDecoration(
-                labelText: 'Cancha / lugar (opcional)',
+                labelText: 'Terreno / lugar (opcional)',
                 prefixIcon: Icon(Icons.place_outlined),
               ),
               textCapitalization: TextCapitalization.sentences,

@@ -223,8 +223,8 @@ class _ProfileWaitState extends State<_ProfileWait> {
             const SizedBox(height: 16),
             Text(
               _slow
-                  ? 'Esto está tardando más de lo normal. Revisa tu conexión.'
-                  : 'Preparando tu perfil…',
+                  ? 'Esto está demorando más de la cuenta. Revisa la conexión.'
+                  : 'Un momentico, preparando tu perfil…',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -284,7 +284,7 @@ class _ErrorScreen extends StatelessWidget {
               const Icon(Icons.error_outline, size: 56),
               const SizedBox(height: 12),
               const Text(
-                'No pudimos cargar tu perfil.',
+                'No se pudo traer tu perfil.',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),

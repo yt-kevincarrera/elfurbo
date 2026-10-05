@@ -111,7 +111,7 @@ async function applyOne(
 
   const handler = HANDLERS[cmd.type];
   if (!handler) {
-    return { id: cmd.id, status: "deferred", code: "unknown_command", message: "El servidor aún no admite este cambio: se reintentará" };
+    return { id: cmd.id, status: "deferred", code: "unknown_command", message: "El servidor todavía no admite este cambio: se vuelve a intentar más tarde" };
   }
 
   // Hasta aquí nada depende del estado del servidor: si se rechaza, no se guarda.
@@ -126,7 +126,7 @@ async function applyOne(
   } catch (e) {
     if (e instanceof ApiError) return { id: cmd.id, ...rejected(e) };
     console.error(e);
-    return { id: cmd.id, status: "error", code: "internal", message: "Error interno. Se reintentará" };
+    return { id: cmd.id, status: "error", code: "internal", message: "Algo se trabó en el servidor. Se vuelve a intentar solo" };
   }
 
   let outcome: Outcome;
@@ -152,14 +152,14 @@ async function applyOne(
     } else {
       // Fallo inesperado: no se guarda, para que la app lo reintente más tarde.
       console.error(e);
-      return { id: cmd.id, status: "error", code: "internal", message: "Error interno. Se reintentará" };
+      return { id: cmd.id, status: "error", code: "internal", message: "Algo se trabó en el servidor. Se vuelve a intentar solo" };
     }
     try {
       await recordStatement(db, user.id, cmd, outcome, now).run();
     } catch (recordError) {
       if (isDuplicateId(recordError)) return await concurrentDuplicate(db, cmd, user, stored);
       console.error(recordError);
-      return { id: cmd.id, status: "error", code: "internal", message: "Error interno. Se reintentará" };
+      return { id: cmd.id, status: "error", code: "internal", message: "Algo se trabó en el servidor. Se vuelve a intentar solo" };
     }
   }
   stored.set(cmd.id, { user_id: user.id, result: JSON.stringify(outcome) });
@@ -200,7 +200,7 @@ async function concurrentDuplicate(db: D1Database, cmd: Command, user: PublicUse
     .prepare("SELECT user_id, result FROM applied_commands WHERE id = ?")
     .bind(cmd.id)
     .first<Stored>();
-  if (!row) return { id: cmd.id, status: "error" as const, code: "internal" as const, message: "Error interno. Se reintentará" };
+  if (!row) return { id: cmd.id, status: "error" as const, code: "internal" as const, message: "Algo se trabó en el servidor. Se vuelve a intentar solo" };
   stored.set(cmd.id, row);
   return fromStored(cmd, user, row);
 }

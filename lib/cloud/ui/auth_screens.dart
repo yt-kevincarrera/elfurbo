@@ -32,7 +32,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Goles, asistencias y MVP de tu grupo.\nFunciona sin internet y sincroniza solo.',
+                'Goles, asistencias y MVP de tu grupo.\nPincha sin internet y se sincroniza solo cuando hay conexión.',
                 textAlign: TextAlign.center,
                 style: text.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
               ),
@@ -207,7 +207,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         const Text(
           'Crea tu cuenta (o entra si ya tienes una) y después escribe el código de invitación.',
         ),
-      _field(_name, 'Tu nombre', hint: 'Como te conocen en el grupo'),
+      _field(_name, 'Tu nombre', hint: 'Cómo te dicen en el grupo'),
       _field(
         _user,
         'Usuario',

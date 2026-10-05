@@ -24,7 +24,7 @@ Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Salir igual?'),
+        title: const Text('¿Te vas igual?'),
         content: Text('Tienes $what. Si sales ahora, se pierden.'),
         actions: [
           TextButton(
@@ -85,7 +85,7 @@ class NoClubsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           children: [
             Text(
-              'Hola, ${me?.user.displayName ?? ''}',
+              '¿Qué bolá, ${me?.user.displayName ?? ''}?',
               style: text.headlineSmall,
             ),
             const SizedBox(height: 8),

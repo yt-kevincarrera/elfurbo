@@ -6,7 +6,7 @@ import { assertOpen, assertPlayed, findMatchday, key, matchdayId, memberId } fro
 
 /** Mi voto de MVP. Votan los que jugaron, por otro que jugó (con o sin cuenta). Cambiarlo reemplaza. */
 export const castVote = command(z.object({ matchdayId, votedFor: memberId }), async (ctx, p) => {
-  if (p.votedFor === ctx.member.id) throw errors.invalidInput({ votedFor: ["No puedes votarte a ti mismo"] });
+  if (p.votedFor === ctx.member.id) throw errors.invalidInput({ votedFor: ["No vale votarte a ti mismo"] });
   const md = await findMatchday(ctx, p.matchdayId);
   assertOpen(ctx, md);
   assertPlayed(ctx, md);

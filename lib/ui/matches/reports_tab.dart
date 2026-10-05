@@ -25,7 +25,7 @@ class ReportsTab extends ConsumerWidget {
         title: match.isCancelled ? 'Jornada cancelada' : 'Todavía no terminó',
         subtitle: match.isCancelled
             ? null
-            : 'Cuando termine la jornada, aquí cargas tus goles y asistencias.',
+            : 'Cuando termine la jornada, aquí pones tus goles y asistencias.',
       );
     }
 
@@ -60,7 +60,7 @@ class ReportsTab extends ConsumerWidget {
                 const SizedBox(height: 8),
                 if (myReport == null)
                   Text(
-                    'Todavía no cargaste nada de esta jornada.',
+                    'Todavía no has puesto nada de esta jornada.',
                     style: text.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -104,7 +104,7 @@ class ReportsTab extends ConsumerWidget {
                               ),
                         icon: Icon(myReport == null ? Icons.add : Icons.edit),
                         label: Text(
-                          myReport == null ? 'Cargar goles' : 'Editar',
+                          myReport == null ? 'Poner goles' : 'Editar',
                         ),
                       ),
                     if (myReport != null &&
@@ -130,7 +130,7 @@ class ReportsTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              'Nadie más cargó todavía.',
+              'Nadie más ha puesto nada todavía.',
               style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
@@ -379,7 +379,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
         note: _note.text,
       ),
       success: widget.existing == null
-          ? 'Reporte enviado. Ahora lo tienen que confirmar.'
+          ? 'Listo, reporte enviado. Ahora te lo tienen que confirmar.'
           : 'Reporte actualizado. Vuelve a pendiente.',
     );
     Navigator.of(context).pop();

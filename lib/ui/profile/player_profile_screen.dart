@@ -220,7 +220,7 @@ class PlayerProfileScreen extends ConsumerWidget {
           autofocus: true,
           maxLength: 20,
           decoration: const InputDecoration(
-            hintText: 'Cómo te llaman en la cancha',
+            hintText: 'Cómo te dicen en el terreno',
           ),
           textCapitalization: TextCapitalization.words,
         ),

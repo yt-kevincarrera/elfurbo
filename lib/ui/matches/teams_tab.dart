@@ -150,8 +150,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
             child: EmptyState(
               icon: Icons.groups_outlined,
               title: 'Todavía no hay equipos',
-              subtitle:
-                  'Cuando el grupo confirme asistencia, ármalos con un toque.',
+              subtitle: 'Cuando la gente diga si va, se arman con un toque.',
             ),
           )
         else ...[
