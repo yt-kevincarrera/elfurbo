@@ -30,3 +30,27 @@ bool canBan(UserRole actor, UserRole target) {
   if (actor == UserRole.owner) return true;
   return actor == UserRole.admin && _rank[target]! <= _rank[UserRole.scorer]!;
 }
+
+/// owner o admin.
+bool _isAdmin(UserRole r) => r == UserRole.owner || r == UserRole.admin;
+
+/// Ajustes del servidor y pasárselo a otro: solo el dueño.
+bool canManageClub(UserRole actor) => actor == UserRole.owner;
+
+/// Ver, crear y revocar invitaciones.
+bool canManageInvites(UserRole actor) => _isAdmin(actor);
+
+/// El dueño invita con cualquier rol; un admin, como jugador o anotador.
+bool canInviteAs(UserRole actor, UserRole invited) {
+  if (actor == UserRole.owner) return true;
+  return actor == UserRole.admin && invited != UserRole.admin;
+}
+
+/// Código de recuperación: el dueño, para cualquiera con cuenta menos él; un
+/// admin, para anotadores y jugadores.
+bool canIssueRecoveryCode(UserRole actor, UserRole target) {
+  if (target == UserRole.guest) return false;
+  if (actor == UserRole.owner) return target != UserRole.owner;
+  return actor == UserRole.admin &&
+      (target == UserRole.scorer || target == UserRole.player);
+}

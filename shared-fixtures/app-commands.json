@@ -34,6 +34,9 @@
     { "name": "hacer anotador", "type": "member.setRole", "payload": { "memberId": "p1", "role": "scorer" } },
     { "name": "expulsar", "type": "member.ban", "payload": { "memberId": "p1" } },
     { "name": "perdonar", "type": "member.unban", "payload": { "memberId": "p1" } },
+    { "name": "cambiar ajustes", "type": "club.updateSettings", "payload": { "reportValidation": "trust", "closeAfterHours": 48 } },
+    { "name": "pasar el servidor", "type": "club.transferOwnership", "payload": { "memberId": "p2" } },
+    { "name": "irme del servidor", "type": "member.leave", "payload": {} },
     { "name": "jugador sin cuenta", "type": "member.createGuest", "payload": { "id": "<uuid>", "displayName": "Yoandry" } }
   ]
 }

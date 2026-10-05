@@ -49,4 +49,29 @@ void main() {
       expect(canBan(player, guest), isFalse);
     });
   });
+
+  group('invitaciones y códigos', () {
+    test('el dueño invita con cualquier rol; un admin, sin hacer admins', () {
+      expect(canInviteAs(owner, admin), isTrue);
+      expect(canInviteAs(admin, scorer), isTrue);
+      expect(canInviteAs(admin, admin), isFalse);
+      expect(canInviteAs(scorer, player), isFalse);
+      expect(canManageInvites(admin), isTrue);
+      expect(canManageInvites(scorer), isFalse);
+    });
+    test(
+      'códigos: nunca para sin cuenta; el admin solo para anotador y jugador',
+      () {
+        expect(canIssueRecoveryCode(owner, admin), isTrue);
+        expect(canIssueRecoveryCode(owner, owner), isFalse);
+        expect(canIssueRecoveryCode(owner, guest), isFalse);
+        expect(canIssueRecoveryCode(admin, player), isTrue);
+        expect(canIssueRecoveryCode(admin, admin), isFalse);
+      },
+    );
+    test('ajustes y pasar el servidor: solo el dueño', () {
+      expect(canManageClub(owner), isTrue);
+      expect(canManageClub(admin), isFalse);
+    });
+  });
 }

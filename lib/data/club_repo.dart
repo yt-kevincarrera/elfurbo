@@ -255,6 +255,26 @@ class ClubRepo {
   Future<void> unban(String memberId) =>
       _run('member.unban', {'memberId': memberId});
 
+  /// Ajustes del servidor (solo lo que cambia). Solo el dueño.
+  Future<void> updateSettings({
+    String? matchdayCreators,
+    String? reportValidation,
+    int? confirmationsNeeded,
+    int? closeAfterHours,
+  }) => _run('club.updateSettings', {
+    'matchdayCreators': ?matchdayCreators,
+    'reportValidation': ?reportValidation,
+    'confirmationsNeeded': ?confirmationsNeeded,
+    'closeAfterHours': ?closeAfterHours,
+  });
+
+  /// El dueño le pasa el servidor a otro miembro con cuenta (él queda de admin).
+  Future<void> transferOwnership(String memberId) =>
+      _run('club.transferOwnership', {'memberId': memberId});
+
+  /// Me voy de este servidor (el dueño antes tiene que pasárselo a otro).
+  Future<void> leave() => _run('member.leave', {});
+
   /// Un jugador sin cuenta (lo puede reclamar después con una invitación).
   /// Devuelve su id, para ponerle los goles enseguida (va en la misma cola).
   Future<String> createGuest(String displayName) async {

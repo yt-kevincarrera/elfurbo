@@ -3,7 +3,7 @@ import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { randomCode } from "../auth/crypto";
 import { issueRecoveryCode } from "../auth/recovery";
-import { canInviteAs, canIssueRecoveryCode, canManageInvites } from "../authz";
+import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin } from "../authz";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
@@ -160,4 +160,44 @@ clubRoutes.post("/:clubId/members/:memberId/recovery-code", async (c) => {
     auditStatement(db, { clubId: club.id, actorUserId: userId, action: "recovery.issue", entity: "member", entityKey: target.id }, now),
   ]);
   return c.json({ code: issued.code, expiresAt: issued.expiresAt }, 201);
+});
+
+/** Quién hizo qué en el servidor (owner y admin), lo más nuevo primero. `?before=<id>` pagina. */
+clubRoutes.get("/:clubId/audit", async (c) => {
+  const db = c.env.DB;
+  const { club, member } = await requireMembership(db, c.req.param("clubId"), c.var.auth.user.id);
+  if (!isAdmin(member.role)) throw errors.forbidden();
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 50, 1), 100);
+  const before = Number(c.req.query("before")) || null;
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.action, a.entity, a.entity_key, a.summary, a.at, u.username, u.display_name
+         FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+        WHERE a.club_id = ?1 AND (?2 IS NULL OR a.id < ?2)
+        ORDER BY a.id DESC LIMIT ?3`,
+    )
+    .bind(club.id, before, limit + 1)
+    .all<{
+      id: number;
+      action: string;
+      entity: string;
+      entity_key: string;
+      summary: string;
+      at: string;
+      username: string | null;
+      display_name: string | null;
+    }>();
+  const page = results.slice(0, limit);
+  return c.json({
+    entries: page.map((r) => ({
+      id: r.id,
+      action: r.action,
+      entity: r.entity,
+      entityKey: r.entity_key,
+      summary: JSON.parse(r.summary) as unknown,
+      at: r.at,
+      actor: r.username === null ? null : { username: r.username, displayName: r.display_name },
+    })),
+    next: results.length > limit ? page[page.length - 1]!.id : null,
+  });
 });
