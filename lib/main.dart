@@ -1,23 +1,39 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
 
-import 'app.dart';
+import 'cloud/api/api_client.dart';
+import 'cloud/auth/session.dart';
+import 'cloud/state/cloud_controller.dart';
+import 'cloud/state/providers.dart';
+import 'cloud/ui/cloud_app.dart';
 import 'services/update_worker.dart';
 
+/// El Furbo 1.0, con el backend propio (sin Firebase Auth ni Firestore).
+///
+///   flutter run [--dart-define=API_URL=https://...]
+///
+/// Por defecto habla con staging (ver `apiBaseUrl`).
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // En Android la configuración sale de android/app/google-services.json.
-  await Firebase.initializeApp();
-  // Offline first: todo se guarda local y se sube cuando hay red.
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
   await initializeDateFormatting('es');
+  tzdata.initializeTimeZones();
   // Chequeo periódico de nuevas versiones (GitHub Releases) con la app cerrada.
   await UpdateWorker.initialize();
-  runApp(const ProviderScope(child: ElFurboApp()));
+  final prefs = await SharedPreferences.getInstance();
+  final dir = await getApplicationSupportDirectory();
+  final cloud = CloudController(
+    api: ApiClient(),
+    sessions: SessionStore(prefs),
+    dataRoot: dir,
+  );
+  runApp(
+    ProviderScope(
+      overrides: [cloudProvider.overrideWithValue(cloud)],
+      child: const CloudApp(),
+    ),
+  );
 }

@@ -1,14 +1,7 @@
 import 'package:elfurbo/domain/matchday_rules.dart';
-import 'package:elfurbo/models/app_user.dart';
 import 'package:elfurbo/models/match_day.dart';
 import 'package:elfurbo/models/season.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-AppUser _u(
-  String uid, {
-  UserRole role = UserRole.player,
-  UserStatus status = UserStatus.active,
-}) => AppUser(uid: uid, displayName: uid, role: role, status: status);
 
 void main() {
   group('weeklyDates', () {
@@ -27,31 +20,6 @@ void main() {
     test('acota entre 1 y 26 semanas', () {
       expect(weeklyDates(first, 0).length, 1);
       expect(weeklyDates(first, 99).length, 26);
-    });
-  });
-
-  group('canRemoveAdminRole', () {
-    test('false si es el único admin activo', () {
-      final users = [_u('a', role: UserRole.admin), _u('b')];
-      expect(canRemoveAdminRole(users, 'a'), isFalse);
-    });
-    test('true si hay otro admin activo', () {
-      final users = [
-        _u('a', role: UserRole.admin),
-        _u('b', role: UserRole.admin),
-      ];
-      expect(canRemoveAdminRole(users, 'a'), isTrue);
-    });
-    test('un admin bloqueado no cuenta como respaldo', () {
-      final users = [
-        _u('a', role: UserRole.admin),
-        _u('b', role: UserRole.admin, status: UserStatus.blocked),
-      ];
-      expect(canRemoveAdminRole(users, 'a'), isFalse);
-    });
-    test('quitar rol a un jugador normal siempre se puede', () {
-      final users = [_u('a', role: UserRole.admin), _u('b')];
-      expect(canRemoveAdminRole(users, 'b'), isTrue);
     });
   });
 

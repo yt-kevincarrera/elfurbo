@@ -1,13 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum ReportStatus { pending, confirmed, rejected }
 
-/// Goles y asistencias que un jugador reportó en un partido (colección `reports`).
-/// El id del documento es `{matchId}_{uid}`.
+/// Goles y asistencias de un jugador en una jornada.
 ///
-/// Reglas de confirmación: queda confirmado si el admin lo confirma, o si dos
-/// compañeros con presencia real lo confirman. El admin puede rechazarlo
-/// (definitivo para el autor) o corregir los números (queda confirmado).
+/// Cuenta (spec §2) si el staff lo confirmó, lo corrigió o lo puso él (en los
+/// tres casos llega con decisión "confirmado"); si el servidor confía en los
+/// reportes ([autoConfirmed]), salvo rechazo; o si lo confirman [confirmationsNeeded] compañeros que jugaron.
+/// El staff puede rechazarlo (definitivo para el autor) o corregir los números.
 class MatchReport {
   const MatchReport({
     required this.matchId,
@@ -18,28 +16,38 @@ class MatchReport {
     this.confirmations = const [],
     this.adminStatus,
     this.correctedBy,
-    this.updatedAt,
+    this.loadedBy,
+    this.autoConfirmed = false,
+    this.confirmationsNeeded = defaultConfirmationsNeeded,
   });
 
-  static const int confirmationsNeeded = 2;
+  static const int defaultConfirmationsNeeded = 2;
 
   final String matchId;
+
+  /// Id de miembro del autor.
   final String uid;
   final int goals;
   final int assists;
   final String? note;
+
+  /// Miembros que lo confirmaron (solo los que jugaron).
   final List<String> confirmations;
   final ReportStatus? adminStatus;
 
-  /// Uid del admin que corrigió los números (queda confirmado por él).
+  /// Miembro del staff que corrigió los números (queda confirmado).
   final String? correctedBy;
-  final DateTime? updatedAt;
 
-  String get id => docId(matchId, uid);
-  static String docId(String matchId, String uid) => '${matchId}_$uid';
+  /// Quién lo puso (el autor o alguien del staff por él).
+  final String? loadedBy;
+
+  /// Cuenta sin confirmaciones: el servidor confía en los reportes.
+  final bool autoConfirmed;
+  final int confirmationsNeeded;
 
   ReportStatus get status {
     if (adminStatus != null) return adminStatus!;
+    if (autoConfirmed) return ReportStatus.confirmed;
     return confirmations.length >= confirmationsNeeded
         ? ReportStatus.confirmed
         : ReportStatus.pending;
@@ -51,30 +59,12 @@ class MatchReport {
   bool get confirmedByAdmin => adminStatus == ReportStatus.confirmed;
   bool get correctedByAdmin => correctedBy != null;
 
-  /// El autor puede editar o borrar salvo que el admin lo haya rechazado: el
-  /// rechazo es definitivo hasta que el admin quite su decisión.
-  bool get authorCanEdit => !isRejected;
+  /// Confirmaciones que le faltan para contar (0 si ya cuenta).
+  int get confirmationsMissing => isPending
+      ? (confirmationsNeeded - confirmations.length).clamp(0, 99).toInt()
+      : 0;
 
-  factory MatchReport.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? const <String, dynamic>{};
-    final adminRaw = d['adminStatus'] as String?;
-    return MatchReport(
-      matchId: (d['matchId'] as String?) ?? '',
-      uid: (d['uid'] as String?) ?? '',
-      goals: (d['goals'] as num?)?.toInt() ?? 0,
-      assists: (d['assists'] as num?)?.toInt() ?? 0,
-      note: d['note'] as String?,
-      confirmations: List<String>.from(
-        (d['confirmations'] as List?) ?? const [],
-      ),
-      correctedBy: d['correctedBy'] as String?,
-      adminStatus: adminRaw == null
-          ? null
-          : ReportStatus.values.firstWhere(
-              (s) => s.name == adminRaw,
-              orElse: () => ReportStatus.pending,
-            ),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
-    );
-  }
+  /// El autor puede editar o borrar salvo que lo hayan rechazado: el
+  /// rechazo es definitivo hasta que el staff quite su decisión.
+  bool get authorCanEdit => !isRejected;
 }

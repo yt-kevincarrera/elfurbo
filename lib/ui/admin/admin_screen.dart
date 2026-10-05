@@ -1,28 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../cloud/ui/home_screens.dart';
 import '../../core/app_messenger.dart';
 import '../../core/formatters.dart';
 import '../../data/providers.dart';
+import '../../domain/club_roles.dart';
 import '../../domain/matchday_rules.dart';
 import '../../models/app_user.dart';
 import '../../models/season.dart';
 import '../widgets/common.dart';
+import '../widgets/guest_dialog.dart';
 import '../widgets/player_avatar.dart';
 
-/// Panel del administrador: aprobar jugadores, roles y temporadas.
+/// Admin del servidor (owner y admin): temporadas, miembros y jugadores sin
+/// cuenta. Invitaciones, códigos de recuperación y ajustes llegan en el PR5b.
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final users = ref.watch(usersProvider).value ?? const [];
-    final pending = users.where((u) => u.isPending).toList();
-    final active = users.where((u) => u.isActive).toList();
-    final blocked = users.where((u) => u.status == UserStatus.blocked).toList();
+    final active = ref.watch(activeUsersProvider);
+    final banned = users.where((u) => u.status == UserStatus.banned).toList();
     final seasons = ref.watch(seasonsProvider).value ?? const [];
     final matches = ref.watch(matchesProvider).value ?? const [];
     final myUid = ref.watch(myUidProvider);
+    final myRole = ref.watch(myRoleProvider);
+    final readOnly = ref.watch(clubReadOnlyProvider);
     final repo = ref.read(repoProvider);
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -32,58 +37,21 @@ class AdminScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
-          SectionTitle('Pendientes de aprobación (${pending.length})'),
-          if (pending.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                'Nadie esperando. Cuando alguien entre con Google aparece aquí.',
-                style: text.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          for (final u in pending)
-            Card(
-              child: ListTile(
-                leading: PlayerAvatar(user: u),
-                title: Text(u.displayName),
-                subtitle: Text(u.email ?? ''),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filled(
-                      tooltip: 'Aprobar',
-                      onPressed: () => fireAndForget(
-                        repo.setUserStatus(u.uid, UserStatus.active),
-                        success: '${u.displayName} ya puede entrar',
-                      ),
-                      icon: const Icon(Icons.check),
-                    ),
-                    IconButton(
-                      tooltip: 'Rechazar',
-                      onPressed: () => fireAndForget(
-                        repo.setUserStatus(u.uid, UserStatus.blocked),
-                      ),
-                      icon: Icon(Icons.block, color: scheme.error),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           SectionTitle(
             'Temporadas',
-            trailing: TextButton.icon(
-              onPressed: () => _newSeason(context, ref, seasons),
-              icon: const Icon(Icons.add),
-              label: const Text('Nueva'),
-            ),
+            trailing: readOnly
+                ? null
+                : TextButton.icon(
+                    onPressed: () => _newSeason(context, ref),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nueva'),
+                  ),
           ),
           if (seasons.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text(
-                'Al crear la primera jornada se genera una temporada automáticamente.',
+                'Al crear la primera jornada se genera una temporada sola.',
                 style: text.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -95,38 +63,52 @@ class AdminScreen extends ConsumerWidget {
               matchCount: matches.where((m) => m.seasonId == s.id).length,
               seasons: seasons,
             ),
-          SectionTitle('Jugadores (${active.length})'),
+          SectionTitle(
+            'Jugadores (${active.length})',
+            trailing: readOnly
+                ? null
+                : TextButton.icon(
+                    onPressed: () => _newGuest(context, ref),
+                    icon: const Icon(Icons.person_add_alt),
+                    label: const Text('Sin cuenta'),
+                  ),
+          ),
           for (final u in active)
             ListTile(
               leading: PlayerAvatar(user: u),
               title: Text(u.name),
               subtitle: Text(
-                [if (u.isAdmin) 'Admin', u.email ?? ''].join(' · '),
+                [
+                  roleLabel(u.role.name),
+                  if (u.nickname != null && u.nickname!.isNotEmpty)
+                    u.displayName,
+                ].join(' · '),
               ),
               trailing: u.uid == myUid
                   ? const Chip(
                       label: Text('Tú'),
                       visualDensity: VisualDensity.compact,
                     )
-                  : _PlayerMenu(
-                      user: u,
-                      canDemote: canRemoveAdminRole(users, u.uid),
-                    ),
+                  : readOnly
+                  ? null
+                  : _PlayerMenu(user: u, myRole: myRole),
             ),
-          if (blocked.isNotEmpty) ...[
-            SectionTitle('Bloqueados (${blocked.length})'),
-            for (final u in blocked)
+          if (banned.isNotEmpty) ...[
+            SectionTitle('Expulsados (${banned.length})'),
+            for (final u in banned)
               ListTile(
                 leading: PlayerAvatar(user: u),
-                title: Text(u.displayName),
-                subtitle: Text(u.email ?? ''),
-                trailing: TextButton(
-                  onPressed: () => fireAndForget(
-                    repo.setUserStatus(u.uid, UserStatus.active),
-                    success: '${u.displayName} desbloqueado',
-                  ),
-                  child: const Text('Desbloquear'),
-                ),
+                title: Text(u.name),
+                subtitle: const Text('Para volver necesita otra invitación'),
+                trailing: readOnly || !canBan(myRole, u.role)
+                    ? null
+                    : TextButton(
+                        onPressed: () => fireAndForget(
+                          repo.unban(u.uid),
+                          success: '${u.name} puede volver con una invitación',
+                        ),
+                        child: const Text('Perdonar'),
+                      ),
               ),
           ],
         ],
@@ -134,11 +116,18 @@ class AdminScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _newSeason(
-    BuildContext context,
-    WidgetRef ref,
-    List<Season> seasons,
-  ) async {
+  /// Un jugador sin cuenta: sus goles los pone el staff, y más adelante puede
+  /// reclamar el perfil con una invitación.
+  Future<void> _newGuest(BuildContext context, WidgetRef ref) async {
+    final name = await askGuestName(context);
+    if (name == null) return;
+    fireAndForget(
+      ref.read(repoProvider).createGuest(name),
+      success: 'Listo, $name ya está en la lista',
+    );
+  }
+
+  Future<void> _newSeason(BuildContext context, WidgetRef ref) async {
     final name = TextEditingController(
       text: 'Temporada ${DateTime.now().year}',
     );
@@ -196,15 +185,14 @@ class AdminScreen extends ConsumerWidget {
       ),
     );
     if (ok != true || name.text.trim().isEmpty) return;
+    final repo = ref.read(repoProvider);
     fireAndForget(
-      ref
-          .read(repoProvider)
-          .createSeason(
-            name: name.text,
-            startDate: startDate,
-            activate: activate,
-            otherSeasonIds: seasons.map((s) => s.id).toList(),
-          ),
+      repo.createSeason(
+        id: repo.newId(),
+        name: name.text,
+        startDate: startDate,
+        activate: activate,
+      ),
       success: 'Temporada creada',
     );
   }
@@ -247,28 +235,34 @@ class _SeasonTile extends ConsumerWidget {
           if (s.isClosed) 'cerrada' else if (s.isActive) 'activa',
         ].join(' · '),
       ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (a) => _onAction(context, ref, a),
-        itemBuilder: (_) => [
-          if (!s.isActive && !s.isClosed)
-            const PopupMenuItem(
-              value: 'activate',
-              child: Text('Marcar como activa'),
+      trailing: ref.watch(clubReadOnlyProvider)
+          ? null
+          : PopupMenuButton<String>(
+              onSelected: (a) => _onAction(context, ref, a),
+              itemBuilder: (_) => [
+                if (!s.isActive && !s.isClosed)
+                  const PopupMenuItem(
+                    value: 'activate',
+                    child: Text('Marcar como activa'),
+                  ),
+                const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                PopupMenuItem(
+                  value: 'close',
+                  child: Text(
+                    s.isClosed ? 'Reabrir temporada' : 'Cerrar temporada',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(
+                    'Eliminar',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          const PopupMenuItem(value: 'edit', child: Text('Editar')),
-          PopupMenuItem(
-            value: 'close',
-            child: Text(s.isClosed ? 'Reabrir temporada' : 'Cerrar temporada'),
-          ),
-          PopupMenuItem(
-            value: 'delete',
-            child: Text(
-              'Eliminar',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -282,7 +276,7 @@ class _SeasonTile extends ConsumerWidget {
     switch (action) {
       case 'activate':
         fireAndForget(
-          repo.activateSeason(s.id, seasons.map((x) => x.id).toList()),
+          repo.activateSeason(s.id),
           success: '${s.name} es la temporada activa',
         );
       case 'edit':
@@ -300,7 +294,7 @@ class _SeasonTile extends ConsumerWidget {
           builder: (ctx) => AlertDialog(
             title: Text('¿Cerrar ${s.name}?'),
             content: const Text(
-              'Sus jornadas quedan congeladas: nadie podrá cargar goles, confirmar ni votar. Puedes reabrirla cuando quieras.',
+              'Sus jornadas quedan congeladas: nadie podrá poner goles, confirmar ni votar. Puedes reabrirla cuando quieras.',
             ),
             actions: [
               TextButton(
@@ -410,10 +404,20 @@ class _SeasonTile extends ConsumerWidget {
       return;
     }
 
-    final others = seasons.where((s) => s.id != season.id).toList();
+    // El servidor no deja tocar una jornada cerrada (ni mover nada a una
+    // temporada cerrada): si hay alguna, no se puede vaciar esta temporada.
+    if (mine.any((m) => ref.read(matchClosedProvider(m.id)))) {
+      showMessage(
+        'Tiene jornadas ya cerradas y esas no se pueden mover. Si ya terminó, mejor ciérrala en vez de borrarla.',
+      );
+      return;
+    }
+    final others = seasons
+        .where((s) => s.id != season.id && !s.isClosed)
+        .toList();
     if (others.isEmpty) {
       showMessage(
-        'Tiene ${Fmt.plural(mine.length, 'jornada', 'jornadas')} y no hay otra temporada a la que moverlas.',
+        'Tiene ${Fmt.plural(mine.length, 'jornada', 'jornadas')} y no hay otra temporada abierta a la que moverlas.',
       );
       return;
     }
@@ -453,54 +457,77 @@ class _SeasonTile extends ConsumerWidget {
   }
 }
 
+/// Lo que yo puedo hacer con otro miembro (la misma matriz que el servidor).
 class _PlayerMenu extends ConsumerWidget {
-  const _PlayerMenu({required this.user, required this.canDemote});
+  const _PlayerMenu({required this.user, required this.myRole});
 
   final AppUser user;
-
-  /// false cuando es el único admin activo: no se le puede quitar el rol
-  /// ni bloquear, o el grupo quedaría sin nadie que apruebe.
-  final bool canDemote;
+  final UserRole myRole;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.read(repoProvider);
     final u = user;
-    return PopupMenuButton<String>(
+    final roles = [
+      for (final r in const [UserRole.admin, UserRole.scorer, UserRole.player])
+        if (r != u.role && canSetRole(myRole, u.role, r)) r,
+    ];
+    final ban = canBan(myRole, u.role);
+    if (roles.isEmpty && !ban) return const SizedBox.shrink();
+    return PopupMenuButton<Object>(
       onSelected: (a) {
-        switch (a) {
-          case 'admin':
-            fireAndForget(
-              repo.setUserRole(u.uid, UserRole.admin),
-              success: '${u.name} ahora es admin',
-            );
-          case 'player':
-            fireAndForget(
-              repo.setUserRole(u.uid, UserRole.player),
-              success: '${u.name} ya no es admin',
-            );
-          case 'block':
-            fireAndForget(
-              repo.setUserStatus(u.uid, UserStatus.blocked),
-              success: '${u.name} bloqueado',
-            );
+        if (a is UserRole) {
+          fireAndForget(
+            repo.setRole(u.uid, a),
+            success: '${u.name} ahora es ${roleLabel(a.name).toLowerCase()}',
+          );
+        } else if (a == 'ban') {
+          _confirmBan(context, ref);
         }
       },
       itemBuilder: (_) => [
-        if (!u.isAdmin)
-          const PopupMenuItem(value: 'admin', child: Text('Hacer admin')),
-        if (u.isAdmin)
+        for (final r in roles)
           PopupMenuItem(
-            value: 'player',
-            enabled: canDemote,
-            child: Text(canDemote ? 'Quitar admin' : 'Es el único admin'),
+            value: r,
+            child: Text('Hacer ${roleLabel(r.name).toLowerCase()}'),
           ),
-        PopupMenuItem(
-          value: 'block',
-          enabled: canDemote,
-          child: const Text('Bloquear'),
-        ),
+        if (ban)
+          PopupMenuItem(
+            value: 'ban',
+            child: Text(
+              'Expulsar',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
       ],
     );
+  }
+
+  Future<void> _confirmBan(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('¿Expulsar a ${user.name}?'),
+        content: const Text(
+          'Deja de ver el servidor. Sus goles y asistencias se quedan en el historial.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Expulsar'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      fireAndForget(
+        ref.read(repoProvider).ban(user.uid),
+        success: '${user.name} expulsado',
+      );
+    }
   }
 }

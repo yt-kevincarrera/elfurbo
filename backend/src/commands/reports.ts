@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { canActForOthers, canDecideReports } from "../authz";
+import { canActForOthers, canDecideReports, isStaff } from "../authz";
 import { errors } from "../http/errors";
 import { remove, upsert } from "../sync/changes";
 import { command, type CommandContext } from "../sync/command";
@@ -25,16 +25,31 @@ function clearConfirmations(ctx: CommandContext, matchday: string, member: strin
   ];
 }
 
-/** Escribe un reporte nuevo (o reemplaza el que había): sin decisión ni corrección. */
+/**
+ * Escribe un reporte nuevo (o reemplaza el que había), sin corrección. Si lo pone alguien del staff
+ * cuenta al momento: queda confirmado en el propio reporte, así no cambia si después le cambian el rol
+ * (o borra su cuenta). Si no, queda sin decisión.
+ */
 function writeReport(ctx: CommandContext, matchday: string, member: string, goals: number, assists: number, n: string | null) {
   return ctx.db
     .prepare(
       `INSERT INTO reports (id, club_id, matchday_id, member_id, goals, assists, note, loaded_by, decision, corrected_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
        ON CONFLICT(id) DO UPDATE SET goals = excluded.goals, assists = excluded.assists, note = excluded.note,
-         loaded_by = excluded.loaded_by, decision = NULL, corrected_by = NULL, updated_at = excluded.updated_at`,
+         loaded_by = excluded.loaded_by, decision = excluded.decision, corrected_by = NULL, updated_at = excluded.updated_at`,
     )
-    .bind(key(matchday, member), ctx.club.id, matchday, member, goals, assists, n, ctx.member.id, ctx.now.toISOString());
+    .bind(
+      key(matchday, member),
+      ctx.club.id,
+      matchday,
+      member,
+      goals,
+      assists,
+      n,
+      ctx.member.id,
+      isStaff(ctx.member.role) ? "confirmed" : null,
+      ctx.now.toISOString(),
+    );
 }
 
 /**

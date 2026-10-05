@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../services/local_notifications.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import 'errors.dart';
@@ -56,8 +57,10 @@ Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
+  // El diálogo lo cierra CloudGate al ver la sesión cerrada (esta pantalla ya no existe).
   await cloud.logout();
-  if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+  // Que otra cuenta que entre después no reciba recordatorios de esta.
+  await cancelRemindersQuietly();
 }
 
 /// Sin servidores: cómo entrar en uno o pedir el tuyo.

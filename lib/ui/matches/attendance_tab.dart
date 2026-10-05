@@ -13,7 +13,7 @@ import '../widgets/player_avatar.dart';
 ///
 /// Antes de jugarse: intención (Voy / Quizás / No voy). Después: presencia
 /// real (Jugué / No fui), que es lo único que cuenta para estadísticas. El
-/// admin puede pasar lista.
+/// staff pasa lista (también a los jugadores sin cuenta).
 class AttendanceTab extends ConsumerWidget {
   const AttendanceTab({super.key, required this.match});
 
@@ -38,7 +38,6 @@ class _IntentionView extends ConsumerWidget {
     final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final users = ref.watch(activeUsersProvider);
     final myUid = ref.watch(myUidProvider);
-    final isAdmin = ref.watch(isAdminProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
     final mine = attendance[myUid]?.status;
 
@@ -77,7 +76,7 @@ class _IntentionView extends ConsumerWidget {
                             fireAndForget(
                               ref
                                   .read(repoProvider)
-                                  .setAttendance(match.id, myUid, sel.first),
+                                  .setIntent(match.id, sel.first),
                             );
                           },
                     segments: const [
@@ -108,91 +107,26 @@ class _IntentionView extends ConsumerWidget {
           users: withStatus(AttendanceStatus.yes),
           icon: Icons.check_circle,
           color: Colors.green,
-          onLongPress: isAdmin && !closed
-              ? (u) => _adminSetIntention(context, ref, u)
-              : null,
         ),
         _Group(
           title: 'Quizás',
           users: withStatus(AttendanceStatus.maybe),
           icon: Icons.help,
           color: Colors.amber.shade700,
-          onLongPress: isAdmin && !closed
-              ? (u) => _adminSetIntention(context, ref, u)
-              : null,
         ),
         _Group(
           title: 'No van',
           users: withStatus(AttendanceStatus.no),
           icon: Icons.cancel,
           color: Colors.red,
-          onLongPress: isAdmin && !closed
-              ? (u) => _adminSetIntention(context, ref, u)
-              : null,
         ),
         _Group(
           title: 'Sin responder',
           users: withStatus(null),
           icon: Icons.radio_button_unchecked,
           color: Colors.grey,
-          onLongPress: isAdmin && !closed
-              ? (u) => _adminSetIntention(context, ref, u)
-              : null,
         ),
-        if (isAdmin && !closed)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: Text(
-              'Mantén presionado un jugador para cambiarle la respuesta.',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
       ],
-    );
-  }
-
-  Future<void> _adminSetIntention(
-    BuildContext context,
-    WidgetRef ref,
-    AppUser u,
-  ) async {
-    final status = await showModalBottomSheet<AttendanceStatus>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: Text(
-              'Respuesta de ${u.name}',
-              style: Theme.of(ctx).textTheme.titleMedium,
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.check_circle, color: Colors.green),
-            title: const Text('Va'),
-            onTap: () => Navigator.pop(ctx, AttendanceStatus.yes),
-          ),
-          ListTile(
-            leading: const Icon(Icons.help, color: Colors.amber),
-            title: const Text('Quizás'),
-            onTap: () => Navigator.pop(ctx, AttendanceStatus.maybe),
-          ),
-          ListTile(
-            leading: const Icon(Icons.cancel, color: Colors.red),
-            title: const Text('No va'),
-            onTap: () => Navigator.pop(ctx, AttendanceStatus.no),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-    if (status == null) return;
-    fireAndForget(
-      ref.read(repoProvider).setAttendance(match.id, u.uid, status),
-      success: 'Respuesta de ${u.name} actualizada',
     );
   }
 }
@@ -209,7 +143,7 @@ class _PresenceView extends ConsumerWidget {
     final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final users = ref.watch(activeUsersProvider);
     final myUid = ref.watch(myUidProvider);
-    final isAdmin = ref.watch(isAdminProvider);
+    final isStaff = ref.watch(isStaffProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
     final mine = attendance[myUid];
     final scheme = Theme.of(context).colorScheme;
@@ -224,8 +158,8 @@ class _PresenceView extends ConsumerWidget {
     String intentionOf(AppUser u) => switch (attendance[u.uid]?.status) {
       AttendanceStatus.yes => 'dijo que iba',
       AttendanceStatus.no => 'dijo que no iba',
-      AttendanceStatus.maybe when attendance[u.uid] != null => 'dijo quizás',
-      _ => 'no respondió',
+      AttendanceStatus.maybe => 'dijo quizás',
+      null => 'no respondió',
     };
 
     return ListView(
@@ -240,7 +174,7 @@ class _PresenceView extends ConsumerWidget {
                 Text('¿Jugaste esta jornada?', style: text.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Solo lo que confirmes aquí cuenta como jornada jugada. Cargar goles también te marca presente.',
+                  'Solo lo que confirmes aquí cuenta como jornada jugada. Poner tus goles también te marca presente.',
                   style: text.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -257,12 +191,7 @@ class _PresenceView extends ConsumerWidget {
                             fireAndForget(
                               ref
                                   .read(repoProvider)
-                                  .setPresence(
-                                    match.id,
-                                    myUid,
-                                    sel.first,
-                                    setBy: myUid,
-                                  ),
+                                  .setPlayed(match.id, sel.first),
                             );
                           },
                     segments: const [
@@ -279,7 +208,7 @@ class _PresenceView extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (isAdmin) ...[
+                if (isStaff) ...[
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
@@ -301,7 +230,7 @@ class _PresenceView extends ConsumerWidget {
           users: present.toList(),
           icon: Icons.check_circle,
           color: Colors.green,
-          onLongPress: isAdmin && !closed
+          onLongPress: isStaff && !closed
               ? (u) => _adminSetPresence(context, ref, u)
               : null,
         ),
@@ -310,7 +239,7 @@ class _PresenceView extends ConsumerWidget {
           users: absent.toList(),
           icon: Icons.cancel,
           color: Colors.red,
-          onLongPress: isAdmin && !closed
+          onLongPress: isStaff && !closed
               ? (u) => _adminSetPresence(context, ref, u)
               : null,
         ),
@@ -320,11 +249,11 @@ class _PresenceView extends ConsumerWidget {
           icon: Icons.radio_button_unchecked,
           color: Colors.grey,
           subtitleOf: intentionOf,
-          onLongPress: isAdmin && !closed
+          onLongPress: isStaff && !closed
               ? (u) => _adminSetPresence(context, ref, u)
               : null,
         ),
-        if (isAdmin && !closed)
+        if (isStaff && !closed)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: Text(
@@ -368,9 +297,8 @@ class _PresenceView extends ConsumerWidget {
       ),
     );
     if (played == null) return;
-    final myUid = ref.read(myUidProvider);
     fireAndForget(
-      ref.read(repoProvider).setPresence(match.id, u.uid, played, setBy: myUid),
+      ref.read(repoProvider).rollCall(match.id, {u.uid: played}),
       success: '${u.name}: ${played ? 'jugó' : 'no fue'}',
     );
   }
@@ -395,9 +323,8 @@ class _PresenceView extends ConsumerWidget {
       builder: (ctx) => _PassListSheet(users: users, initial: initial),
     );
     if (result == null) return;
-    final myUid = ref.read(myUidProvider);
     fireAndForget(
-      ref.read(repoProvider).setPresenceBulk(match.id, result, setBy: myUid),
+      ref.read(repoProvider).rollCall(match.id, result),
       success:
           'Lista guardada: ${result.values.where((v) => v).length} presentes',
     );

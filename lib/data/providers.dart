@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../cloud/state/providers.dart';
+import '../cloud/sync/club_data.dart';
 import '../domain/stats_engine.dart';
 import '../models/app_user.dart';
 import '../models/attendance.dart';
@@ -9,25 +9,21 @@ import '../models/match_day.dart';
 import '../models/match_report.dart';
 import '../models/mvp_vote.dart';
 import '../models/season.dart';
-import '../services/auth_service.dart';
-import '../services/push_service.dart';
 import '../services/update_service.dart';
-import 'firestore_repo.dart';
+import 'club_repo.dart';
+
+// Todo lo de aquí es del servidor elegido en el selector: sale de su vista local
+// (lo último del servidor con mis cambios pendientes encima), así que funciona
+// igual con o sin señal.
 
 // ------------------------------------------------------------ infraestructura
 
-final firestoreProvider = Provider<FirebaseFirestore>(
-  (ref) => FirebaseFirestore.instance,
-);
-final repoProvider = Provider<FirestoreRepo>(
-  (ref) => FirestoreRepo(ref.watch(firestoreProvider)),
-);
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
-final pushServiceProvider = Provider<PushService>((ref) {
-  final service = PushService(ref.watch(repoProvider));
-  ref.onDispose(service.dispose);
-  return service;
+/// Escribe cambios del servidor elegido (comandos a la cola de sync).
+final repoProvider = Provider<ClubRepo>((ref) {
+  final club = ref.watch(currentClubProvider);
+  return ClubRepo(ref.watch(cloudProvider).run, club?.id ?? '');
 });
+
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final service = UpdateService();
   ref.onDispose(service.dispose);
@@ -39,80 +35,201 @@ final appVersionProvider = FutureProvider<String>(
   (ref) => UpdateService.installedVersion(),
 );
 
+/// La vista local del servidor elegido.
+final clubDataProvider = Provider<AsyncValue<ClubData>>((ref) {
+  final club = ref.watch(currentClubProvider);
+  if (club == null) return const AsyncLoading();
+  return ref.watch(clubViewProvider(club.id));
+});
+
+/// Ajustes del servidor, con los valores por defecto del backend.
+class ClubSettings {
+  const ClubSettings({
+    this.matchdayCreators = 'members',
+    this.reportValidation = 'confirm',
+    this.confirmationsNeeded = MatchReport.defaultConfirmationsNeeded,
+    this.closeAfterHours = MatchDay.defaultCloseAfterHours,
+  });
+
+  /// `members` (cualquiera crea jornadas) o `staff`.
+  final String matchdayCreators;
+
+  /// `confirm` (hacen falta confirmaciones) o `trust` (cuenta al momento).
+  final String reportValidation;
+  final int confirmationsNeeded;
+  final int closeAfterHours;
+
+  factory ClubSettings.fromCloud(Map<String, dynamic>? s) {
+    s ??= const {};
+    return ClubSettings(
+      matchdayCreators: (s['matchdayCreators'] as String?) ?? 'members',
+      reportValidation: (s['reportValidation'] as String?) ?? 'confirm',
+      confirmationsNeeded:
+          (s['confirmationsNeeded'] as num?)?.toInt() ??
+          MatchReport.defaultConfirmationsNeeded,
+      closeAfterHours:
+          (s['closeAfterHours'] as num?)?.toInt() ??
+          MatchDay.defaultCloseAfterHours,
+    );
+  }
+}
+
+final clubSettingsProvider = Provider<ClubSettings>((ref) {
+  final club = ref.watch(clubDataProvider).value?.club;
+  return ClubSettings.fromCloud(
+    (club?['settings'] as Map?)?.cast<String, dynamic>(),
+  );
+});
+
 // -------------------------------------------------------------------- sesión
 
-final authStateProvider = StreamProvider<User?>(
-  (ref) => ref.watch(authServiceProvider).authStateChanges,
-);
-
-/// Perfil del usuario logueado (null mientras no exista el documento).
-final currentUserProvider = StreamProvider<AppUser?>((ref) {
-  final user = ref.watch(authStateProvider).value;
-  if (user == null) return Stream.value(null);
-  return ref
-      .watch(repoProvider)
-      .users
-      .doc(user.uid)
-      .snapshots()
-      .map((doc) => doc.exists ? AppUser.fromDoc(doc) : null);
-});
-
-/// Uid del usuario logueado. Solo usar dentro de la app (ya autenticado).
+/// Mi id de miembro en el servidor elegido ('' si todavía no se sabe).
 final myUidProvider = Provider<String>((ref) {
-  return ref.watch(authStateProvider).value?.uid ?? '';
+  return ref.watch(currentClubProvider)?.memberId ?? '';
 });
 
+/// Mi rol en el servidor elegido.
+final myRoleProvider = Provider<UserRole>((ref) {
+  final role = ref.watch(currentClubProvider)?.role;
+  return UserRole.values.firstWhere(
+    (r) => r.name == role,
+    orElse: () => UserRole.player,
+  );
+});
+
+/// owner o admin: temporadas, decidir y corregir reportes.
 final isAdminProvider = Provider<bool>((ref) {
-  return ref.watch(currentUserProvider).value?.isAdmin ?? false;
+  final role = ref.watch(myRoleProvider);
+  return role == UserRole.owner || role == UserRole.admin;
+});
+
+/// owner, admin o anotador: pasar lista, poner goles por otros, equipos,
+/// cancelar o cerrar jornadas.
+final isStaffProvider = Provider<bool>((ref) {
+  return ref.watch(isAdminProvider) ||
+      ref.watch(myRoleProvider) == UserRole.scorer;
+});
+
+final canCreateMatchdayProvider = Provider<bool>((ref) {
+  if (ref.watch(clubReadOnlyProvider)) return false;
+  if (ref.watch(isStaffProvider)) return true;
+  return ref.watch(myRoleProvider) == UserRole.player &&
+      ref.watch(clubSettingsProvider).matchdayCreators == 'members';
+});
+
+/// Servidor suspendido: solo se puede consultar.
+final clubReadOnlyProvider = Provider<bool>((ref) {
+  return ref.watch(currentClubProvider)?.status == 'suspended';
 });
 
 // -------------------------------------------------------------- colecciones
-//
-// Traemos las colecciones completas: son chicas (un grupo de amigos) y así
-// Firestore las cachea enteras para trabajar offline sin queries especiales.
 
-Stream<List<T>> _collection<T>(
-  Query<Map<String, dynamic>> query,
-  T Function(DocumentSnapshot<Map<String, dynamic>>) fromDoc,
+List<T> _rows<T>(
+  ClubData d,
+  String entity,
+  T Function(Map<String, dynamic>) from,
+) => [for (final r in d.all(entity)) from(r)];
+
+final usersProvider = Provider<AsyncValue<List<AppUser>>>((ref) {
+  return ref
+      .watch(clubDataProvider)
+      .whenData((d) => _rows(d, 'member', AppUser.fromCloud));
+});
+
+final seasonsProvider = Provider<AsyncValue<List<Season>>>((ref) {
+  return ref
+      .watch(clubDataProvider)
+      .whenData(
+        (d) =>
+            _rows(d, 'season', Season.fromCloud)
+              ..sort((a, b) => b.startDate.compareTo(a.startDate)),
+      );
+});
+
+final matchesProvider = Provider<AsyncValue<List<MatchDay>>>((ref) {
+  return ref
+      .watch(clubDataProvider)
+      .whenData(
+        (d) =>
+            _rows(d, 'matchday', MatchDay.fromCloud)
+              ..sort((a, b) => b.date.compareTo(a.date)),
+      );
+});
+
+final attendanceProvider = Provider<AsyncValue<List<Attendance>>>((ref) {
+  return ref
+      .watch(clubDataProvider)
+      .whenData((d) => _rows(d, 'attendance', Attendance.fromCloud));
+});
+
+final mvpVotesProvider = Provider<AsyncValue<List<MvpVote>>>((ref) {
+  return ref
+      .watch(clubDataProvider)
+      .whenData((d) => _rows(d, 'vote', MvpVote.fromCloud));
+});
+
+/// Reportes con su regla de "cuenta" (spec §2): solo valen las confirmaciones
+/// de quienes jugaron; lo que pone el staff llega ya confirmado; y en un
+/// servidor que confía en los reportes, todo cuenta salvo un rechazo.
+final reportsProvider = Provider<AsyncValue<List<MatchReport>>>((ref) {
+  final settings = ref.watch(clubSettingsProvider);
+  final present = ref.watch(_presentByMatchProvider);
+  return ref.watch(clubDataProvider).whenData((d) {
+    final confirmers = <String, List<String>>{};
+    for (final c in d.all('confirmation')) {
+      final match = '${c['matchdayId']}';
+      final confirmer = '${c['confirmerId']}';
+      if (!(present[match]?.contains(confirmer) ?? false)) continue;
+      confirmers
+          .putIfAbsent('$match:${c['memberId']}', () => [])
+          .add(confirmer);
+    }
+    return [for (final r in d.all('report')) _report(r, confirmers, settings)];
+  });
+});
+
+MatchReport _report(
+  Map<String, dynamic> r,
+  Map<String, List<String>> confirmers,
+  ClubSettings settings,
 ) {
-  return query.snapshots().map((snap) => snap.docs.map(fromDoc).toList());
+  final decision = r['decision'] as String?;
+  final loadedBy = r['loadedBy'] as String?;
+  return MatchReport(
+    matchId: '${r['matchdayId']}',
+    uid: '${r['memberId']}',
+    goals: (r['goals'] as num?)?.toInt() ?? 0,
+    assists: (r['assists'] as num?)?.toInt() ?? 0,
+    note: r['note'] as String?,
+    confirmations:
+        confirmers['${r['matchdayId']}:${r['memberId']}'] ?? const [],
+    adminStatus: decision == null
+        ? null
+        : ReportStatus.values.firstWhere(
+            (s) => s.name == decision,
+            orElse: () => ReportStatus.pending,
+          ),
+    correctedBy: r['correctedBy'] as String?,
+    loadedBy: loadedBy,
+    // Lo del staff ya viene con decision = confirmed (lo guarda el servidor).
+    autoConfirmed: settings.reportValidation == 'trust',
+    confirmationsNeeded: settings.confirmationsNeeded,
+  );
 }
 
-final usersProvider = StreamProvider<List<AppUser>>((ref) {
-  return _collection(
-    ref.watch(repoProvider).users.orderBy('displayName'),
-    AppUser.fromDoc,
-  );
-});
-
-final seasonsProvider = StreamProvider<List<Season>>((ref) {
-  return _collection(
-    ref.watch(repoProvider).seasons.orderBy('startDate', descending: true),
-    Season.fromDoc,
-  );
-});
-
-final matchesProvider = StreamProvider<List<MatchDay>>((ref) {
-  return _collection(
-    ref.watch(repoProvider).matches.orderBy('date', descending: true),
-    MatchDay.fromDoc,
-  );
-});
-
-final attendanceProvider = StreamProvider<List<Attendance>>((ref) {
-  return _collection(ref.watch(repoProvider).attendance, Attendance.fromDoc);
-});
-
-final reportsProvider = StreamProvider<List<MatchReport>>((ref) {
-  return _collection(ref.watch(repoProvider).reports, MatchReport.fromDoc);
-});
-
-final mvpVotesProvider = StreamProvider<List<MvpVote>>((ref) {
-  return _collection(ref.watch(repoProvider).mvpVotes, MvpVote.fromDoc);
+/// Quién jugó cada jornada (presencia real), por id de jornada.
+final _presentByMatchProvider = Provider<Map<String, Set<String>>>((ref) {
+  final all = ref.watch(attendanceProvider).value ?? const [];
+  final out = <String, Set<String>>{};
+  for (final a in all) {
+    if (a.isPresent) out.putIfAbsent(a.matchId, () => {}).add(a.uid);
+  }
+  return out;
 });
 
 // ---------------------------------------------------------------- derivados
 
+/// Todos los miembros, también los que se fueron: su historial sigue con su nombre.
 final usersByIdProvider = Provider<Map<String, AppUser>>((ref) {
   final users = ref.watch(usersProvider).value ?? const [];
   return {for (final u in users) u.uid: u};
@@ -122,11 +239,6 @@ final activeUsersProvider = Provider<List<AppUser>>((ref) {
   final users = ref.watch(usersProvider).value ?? const [];
   return users.where((u) => u.isActive).toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-});
-
-final pendingUsersProvider = Provider<List<AppUser>>((ref) {
-  final users = ref.watch(usersProvider).value ?? const [];
-  return users.where((u) => u.isPending).toList();
 });
 
 /// Temporada activa. Si ninguna está marcada, la más reciente que no esté
@@ -146,10 +258,12 @@ final seasonByIdProvider = Provider.family<Season?, String>((ref, id) {
 final matchClosedProvider = Provider.family<bool, String>((ref, matchId) {
   final match = ref.watch(matchByIdProvider(matchId));
   if (match == null) return true;
+  if (ref.watch(clubReadOnlyProvider)) return true;
   final season = ref.watch(seasonByIdProvider(match.seasonId));
   return match.isClosed(
     DateTime.now(),
     seasonClosed: season?.isClosed ?? false,
+    closeAfterHours: ref.watch(clubSettingsProvider).closeAfterHours,
   );
 });
 
@@ -164,22 +278,38 @@ final attendanceForMatchProvider =
       return {for (final a in all.where((a) => a.matchId == matchId)) a.uid: a};
     });
 
-/// Uids con presencia real confirmada en la jornada.
+/// Miembros con presencia real confirmada en la jornada.
 final presentUidsProvider = Provider.family<Set<String>, String>((
   ref,
   matchId,
 ) {
-  final all = ref.watch(attendanceForMatchProvider(matchId));
-  return {
-    for (final a in all.values)
-      if (a.isPresent) a.uid,
-  };
+  return ref.watch(_presentByMatchProvider)[matchId] ?? const {};
 });
 
-/// true si el usuario logueado tiene presencia real en la jornada.
+/// true si yo tengo presencia real en la jornada.
 final iAmPresentProvider = Provider.family<bool, String>((ref, matchId) {
   final myUid = ref.watch(myUidProvider);
   return ref.watch(presentUidsProvider(matchId)).contains(myUid);
+});
+
+/// ¿Hay asistencia, reportes o votos de alguien que no sea quien creó la
+/// jornada? Entonces ese jugador ya no la mueve de fecha ni de temporada, ni la
+/// cancela o borra (igual que `hasOthersData` del servidor).
+final matchHasOthersDataProvider = Provider.family<bool, String>((
+  ref,
+  matchId,
+) {
+  final creator = ref.watch(matchByIdProvider(matchId))?.createdBy;
+  return ref
+          .watch(attendanceForMatchProvider(matchId))
+          .keys
+          .any((u) => u != creator) ||
+      ref
+          .watch(reportsForMatchProvider(matchId))
+          .any((r) => r.uid != creator) ||
+      ref
+          .watch(votesForMatchProvider(matchId))
+          .any((v) => v.voterUid != creator);
 });
 
 final reportsForMatchProvider = Provider.family<List<MatchReport>, String>((
@@ -225,7 +355,11 @@ class SpecificSeasonFilter extends SeasonFilter {
 
 class SeasonFilterNotifier extends Notifier<SeasonFilter> {
   @override
-  SeasonFilter build() => const ActiveSeasonFilter();
+  SeasonFilter build() {
+    // Otro servidor, otras temporadas: se vuelve a la activa.
+    ref.watch(currentClubProvider.select((c) => c?.id));
+    return const ActiveSeasonFilter();
+  }
 
   void set(SeasonFilter filter) => state = filter;
 }
@@ -275,29 +409,4 @@ final allTimeStatsProvider = Provider<StatsEngine>((ref) {
     votes: ref.watch(mvpVotesProvider).value ?? const [],
     attendance: ref.watch(attendanceProvider).value ?? const [],
   );
-});
-
-// ------------------------------------------------------------ sincronización
-
-class SyncStatus {
-  const SyncStatus({required this.fromCache, required this.pendingWrites});
-
-  final bool fromCache;
-  final bool pendingWrites;
-
-  bool get isOnline => !fromCache;
-}
-
-/// Estado de conexión inferido de los metadatos de Firestore.
-final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
-  return ref
-      .watch(repoProvider)
-      .matches
-      .snapshots(includeMetadataChanges: true)
-      .map(
-        (snap) => SyncStatus(
-          fromCache: snap.metadata.isFromCache,
-          pendingWrites: snap.metadata.hasPendingWrites,
-        ),
-      );
 });

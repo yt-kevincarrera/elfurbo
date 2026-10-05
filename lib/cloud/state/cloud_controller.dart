@@ -189,6 +189,18 @@ class CloudController {
     await store?.wipe();
   }
 
+  /// Borra la cuenta en el servidor (hace falta señal y la contraseña) y sale
+  /// borrando lo de esta cuenta en el teléfono. Su historial queda en cada
+  /// servidor como "Jugador eliminado".
+  Future<void> deleteAccount(String password) async {
+    await api.delete('/me', {'password': password});
+    _debounce?.cancel();
+    final store = _store;
+    await _closeSession();
+    api.token = null;
+    await store?.wipe();
+  }
+
   /// La sesión caducó (401): fuera, pero sin borrar nada. Si vuelve a entrar la misma
   /// persona, su carpeta sigue ahí y la cola se envía.
   Future<void> _expire() async {

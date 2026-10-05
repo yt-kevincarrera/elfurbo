@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
 import 'home_screens.dart';
 
-/// La app de la 1.0 (backend propio). Se arranca con `lib/main_cloud.dart`.
+/// La app (backend propio). Se arranca con `lib/main.dart`.
 class CloudApp extends StatelessWidget {
   const CloudApp({super.key});
 
@@ -17,6 +18,8 @@ class CloudApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'El Furbo',
+      navigatorKey: rootNavigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
@@ -73,6 +76,13 @@ class _CloudGateState extends ConsumerState<CloudGate>
 
   @override
   Widget build(BuildContext context) {
+    // Al cerrarse la sesión (salir, borrar la cuenta o un 401) se vuelve a la raíz:
+    // no puede quedar encima un diálogo o una pantalla de la sesión anterior.
+    ref.listen(sessionProvider, (prev, next) {
+      if (prev?.value != null && next.value == null) {
+        rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+      }
+    });
     final session = ref.watch(sessionProvider);
     if (session.isLoading && !session.hasValue) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));

@@ -32,18 +32,27 @@ void main() {
     expect(a.isPresent, isFalse);
   });
 
-  test('fromMap lee played y playedSetBy', () {
-    final a = Attendance.fromMap('m_u', {
-      'matchId': 'm',
-      'uid': 'u',
-      'status': 'yes',
+  test('fromCloud lee una fila de la vista local', () {
+    final a = Attendance.fromCloud({
+      'id': 'm:u',
+      'matchdayId': 'm',
+      'memberId': 'u',
+      'intent': 'yes',
       'played': true,
       'playedSetBy': 'u',
     });
+    expect(a.matchId, 'm');
+    expect(a.uid, 'u');
+    expect(a.status, AttendanceStatus.yes);
     expect(a.isPresent, isTrue);
     expect(a.playedSetBy, 'u');
-    final b = Attendance.fromMap('m_v', {'matchId': 'm', 'uid': 'v'});
+    final b = Attendance.fromCloud({
+      'matchdayId': 'm',
+      'memberId': 'v',
+      'intent': null,
+      'played': null,
+    });
     expect(b.presenceUnknown, isTrue);
-    expect(b.status, AttendanceStatus.maybe);
+    expect(b.status, isNull, reason: 'sin intención marcada no es quizás');
   });
 }

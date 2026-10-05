@@ -1,10 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+/// Rol de un miembro en su servidor.
+enum UserRole { owner, admin, scorer, player, guest }
 
-enum UserRole { admin, player }
+/// Estado de un miembro: activo, se fue o lo expulsaron.
+enum UserStatus { active, left, banned }
 
-enum UserStatus { pending, active, blocked }
-
-/// Perfil de un jugador del grupo (colección `users`).
+/// Un miembro de un servidor, con o sin cuenta. [uid] es su id de miembro
+/// (las estadísticas cuelgan de él, así que sobreviven a reclamar el perfil).
 class AppUser {
   const AppUser({
     required this.uid,
@@ -12,50 +13,45 @@ class AppUser {
     required this.role,
     required this.status,
     this.nickname,
-    this.photoUrl,
-    this.email,
-    this.fcmToken,
-    this.createdAt,
+    this.userId,
   });
 
   final String uid;
   final String displayName;
   final String? nickname;
-  final String? photoUrl;
-  final String? email;
   final UserRole role;
   final UserStatus status;
-  final String? fcmToken;
-  final DateTime? createdAt;
 
-  /// Nombre a mostrar: apodo si lo cargó, si no el nombre de Google.
+  /// Id de la cuenta, o null si es un jugador sin cuenta.
+  final String? userId;
+
+  /// Nombre a mostrar: el apodo si lo puso, si no el nombre.
   String get name {
     final nick = nickname?.trim() ?? '';
     return nick.isNotEmpty ? nick : displayName;
   }
 
-  bool get isAdmin => role == UserRole.admin;
-  bool get isActive => status == UserStatus.active;
-  bool get isPending => status == UserStatus.pending;
+  /// owner o admin.
+  bool get isAdmin => role == UserRole.owner || role == UserRole.admin;
 
-  factory AppUser.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? const <String, dynamic>{};
-    return AppUser(
-      uid: doc.id,
-      displayName: (d['displayName'] as String?) ?? 'Jugador',
-      nickname: d['nickname'] as String?,
-      photoUrl: d['photoUrl'] as String?,
-      email: d['email'] as String?,
-      role: UserRole.values.firstWhere(
-        (r) => r.name == d['role'],
-        orElse: () => UserRole.player,
-      ),
-      status: UserStatus.values.firstWhere(
-        (s) => s.name == d['status'],
-        orElse: () => UserStatus.pending,
-      ),
-      fcmToken: d['fcmToken'] as String?,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
-    );
-  }
+  /// owner, admin o anotador: pasa lista, pone goles por otros, arma equipos.
+  bool get isStaff => isAdmin || role == UserRole.scorer;
+  bool get isGuest => userId == null;
+  bool get isActive => status == UserStatus.active;
+
+  /// Una fila `member` de la vista local.
+  factory AppUser.fromCloud(Map<String, dynamic> d) => AppUser(
+    uid: '${d['id']}',
+    displayName: (d['displayName'] as String?) ?? 'Jugador',
+    nickname: d['nickname'] as String?,
+    userId: d['userId'] as String?,
+    role: UserRole.values.firstWhere(
+      (r) => r.name == d['role'],
+      orElse: () => UserRole.player,
+    ),
+    status: UserStatus.values.firstWhere(
+      (s) => s.name == d['status'],
+      orElse: () => UserStatus.active,
+    ),
+  );
 }

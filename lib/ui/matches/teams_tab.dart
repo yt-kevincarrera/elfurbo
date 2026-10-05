@@ -29,15 +29,16 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
   int _seed = 0;
 
   /// Antes de la jornada se reparten los que dijeron que van; una vez jugada,
-  /// los que confirmaron presencia.
+  /// los que confirmaron presencia. Solo miembros activos: el servidor no
+  /// acepta equipos con alguien que ya se fue o lo expulsaron.
   Iterable<String> _participants() {
     final attendance = ref.read(attendanceForMatchProvider(widget.match.id));
-    if (widget.match.isPlayed(DateTime.now())) {
-      return attendance.values.where((a) => a.isPresent).map((a) => a.uid);
-    }
+    final active = {for (final u in ref.read(activeUsersProvider)) u.uid};
+    final played = widget.match.isPlayed(DateTime.now());
     return attendance.values
-        .where((a) => a.status == AttendanceStatus.yes)
-        .map((a) => a.uid);
+        .where((a) => played ? a.isPresent : a.status == AttendanceStatus.yes)
+        .map((a) => a.uid)
+        .where(active.contains);
   }
 
   void _generate() {
@@ -63,7 +64,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
   @override
   Widget build(BuildContext context) {
     final users = ref.watch(usersByIdProvider);
-    final isAdmin = ref.watch(isAdminProvider);
+    final isStaff = ref.watch(isStaffProvider);
     final stats = ref.watch(allTimeStatsProvider);
     ref.watch(attendanceForMatchProvider(widget.match.id));
     final going = _participants().length;
@@ -109,7 +110,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
                   _proposal == null ? 'Armar equipos' : 'Mezclar de nuevo',
                 ),
               ),
-              if (isAdmin && _proposal != null && !closed)
+              if (isStaff && _proposal != null && !closed)
                 FilledButton.icon(
                   onPressed: () {
                     fireAndForget(
@@ -127,7 +128,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar'),
                 ),
-              if (isAdmin && saved && _proposal == null && !closed)
+              if (isStaff && saved && _proposal == null && !closed)
                 OutlinedButton.icon(
                   onPressed: () => fireAndForget(
                     ref.read(repoProvider).clearTeams(widget.match.id),
