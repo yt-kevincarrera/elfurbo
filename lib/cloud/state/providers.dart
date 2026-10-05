@@ -5,9 +5,9 @@ import '../sync/club_data.dart';
 import '../sync/sync_engine.dart';
 import 'cloud_controller.dart';
 
-/// El controlador de la cuenta. Se crea en `main_cloud.dart` (override).
+/// El controlador de la cuenta. Se crea en `main.dart` (override).
 final cloudProvider = Provider<CloudController>(
-  (ref) => throw UnimplementedError('Override en main_cloud.dart'),
+  (ref) => throw UnimplementedError('Override en main.dart'),
 );
 
 final sessionProvider = StreamProvider<Session?>((ref) async* {

@@ -1,7 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Temporada (colección `seasons`). Solo una puede estar activa. Una
-/// temporada cerrada congela todas sus jornadas.
+/// Temporada de un servidor. Solo una puede estar activa. Una temporada
+/// cerrada congela todas sus jornadas.
 class Season {
   const Season({
     required this.id,
@@ -9,7 +7,6 @@ class Season {
     required this.startDate,
     required this.isActive,
     this.isClosed = false,
-    this.createdAt,
   });
 
   final String id;
@@ -17,17 +14,13 @@ class Season {
   final DateTime startDate;
   final bool isActive;
   final bool isClosed;
-  final DateTime? createdAt;
 
-  factory Season.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? const <String, dynamic>{};
-    return Season(
-      id: doc.id,
-      name: (d['name'] as String?) ?? 'Temporada',
-      startDate: (d['startDate'] as Timestamp?)?.toDate() ?? DateTime(2000),
-      isActive: (d['isActive'] as bool?) ?? false,
-      isClosed: (d['isClosed'] as bool?) ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
-    );
-  }
+  /// Una fila `season` de la vista local (`startDate` es AAAA-MM-DD).
+  factory Season.fromCloud(Map<String, dynamic> d) => Season(
+    id: '${d['id']}',
+    name: (d['name'] as String?) ?? 'Temporada',
+    startDate: DateTime.tryParse('${d['startDate']}') ?? DateTime(2000),
+    isActive: d['isActive'] == true,
+    isClosed: d['isClosed'] == true,
+  );
 }

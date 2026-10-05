@@ -63,7 +63,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
   @override
   Widget build(BuildContext context) {
     final users = ref.watch(usersByIdProvider);
-    final isAdmin = ref.watch(isAdminProvider);
+    final isStaff = ref.watch(isStaffProvider);
     final stats = ref.watch(allTimeStatsProvider);
     ref.watch(attendanceForMatchProvider(widget.match.id));
     final going = _participants().length;
@@ -109,7 +109,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
                   _proposal == null ? 'Armar equipos' : 'Mezclar de nuevo',
                 ),
               ),
-              if (isAdmin && _proposal != null && !closed)
+              if (isStaff && _proposal != null && !closed)
                 FilledButton.icon(
                   onPressed: () {
                     fireAndForget(
@@ -127,7 +127,7 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar'),
                 ),
-              if (isAdmin && saved && _proposal == null && !closed)
+              if (isStaff && saved && _proposal == null && !closed)
                 OutlinedButton.icon(
                   onPressed: () => fireAndForget(
                     ref.read(repoProvider).clearTeams(widget.match.id),

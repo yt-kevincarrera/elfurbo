@@ -1,13 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
-import 'local_checks.dart';
 import 'local_notifications.dart';
 import 'update_service.dart';
 
 /// Trabajo periódico con la app cerrada (Android WorkManager, cada 12 h):
-/// busca versiones nuevas en GitHub Releases y hace los chequeos locales que
-/// reemplazan a las Cloud Functions cuando no hay plan Blaze.
+/// busca versiones nuevas en GitHub Releases.
 class UpdateWorker {
   static const uniqueName = 'app.elfurbo.updateCheck';
   static const taskName = 'updateCheck';
@@ -41,20 +39,13 @@ class UpdateWorker {
 @pragma('vm:entry-point')
 void updateWorkerDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    var ok = true;
     try {
       await _checkUpdate();
+      return true;
     } catch (e) {
       debugPrint('UpdateWorker: falló el chequeo de versión: $e');
-      ok = false;
+      return false; // WorkManager reintenta con backoff
     }
-    try {
-      await LocalChecks.run();
-    } catch (e) {
-      debugPrint('UpdateWorker: fallaron los chequeos locales: $e');
-      ok = false;
-    }
-    return ok; // false → WorkManager reintenta con backoff
   });
 }
 

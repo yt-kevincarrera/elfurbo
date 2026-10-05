@@ -6,10 +6,11 @@ import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import '../sync/command.dart';
 import '../sync/sync_engine.dart';
+import '../../app.dart';
 import 'clubs_screens.dart';
 
-/// Inicio con servidores: selector arriba, indicador de sync y el contenido del
-/// servidor elegido. Las jornadas, la tabla y el perfil llegan en el PR5.
+/// Inicio con sesión: sin servidores, cómo conseguir uno; con servidor, la
+/// app del servidor elegido (jornadas, tabla, perfil y admin).
 class CloudHome extends ConsumerWidget {
   const CloudHome({super.key});
 
@@ -23,44 +24,91 @@ class CloudHome extends ConsumerWidget {
       return meAsync.isLoading ? const _Loading() : const _NoConnection();
     }
     if (club == null) return const NoClubsScreen();
-    return Scaffold(
-      appBar: AppBar(
-        title: ClubSwitcher(clubs: me.clubs, current: club),
-        actions: [
-          const SyncIndicator(),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              switch (v) {
-                case 'join':
-                  showJoinWithCode(context);
-                case 'request':
-                  showRequestClub(context);
-                case 'rejected':
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const RejectedChangesScreen(),
-                    ),
-                  );
-                case 'logout':
-                  confirmAndLogout(context, ref);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'join', child: Text('Unirme con un código')),
-              PopupMenuItem(
-                value: 'request',
-                child: Text('Solicitar un servidor'),
+    return const ClubSession();
+  }
+}
+
+/// Barra de arriba del servidor: selector, indicador de sync y menú de la cuenta.
+class ClubBar extends ConsumerWidget {
+  const ClubBar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clubs = ref.watch(meProvider).value?.clubs ?? const [];
+    final club = ref.watch(currentClubProvider);
+    if (club == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Icon(Icons.sports_soccer, size: 20, color: scheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClubSwitcher(clubs: clubs, current: club),
+                  ),
+                  const SyncIndicator(),
+                  const _AccountMenu(),
+                ],
               ),
-              PopupMenuItem(
-                value: 'rejected',
-                child: Text('Cambios no aplicados'),
+            ),
+            if (club.status == 'suspended')
+              Container(
+                width: double.infinity,
+                color: scheme.errorContainer,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                child: Text(
+                  'Servidor suspendido: solo se puede consultar',
+                  style: TextStyle(color: scheme.onErrorContainer),
+                ),
               ),
-              PopupMenuItem(value: 'logout', child: Text('Cerrar sesión')),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
-      body: ClubOverview(club: club),
+    );
+  }
+}
+
+class _AccountMenu extends ConsumerWidget {
+  const _AccountMenu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<String>(
+      tooltip: 'Servidores y cuenta',
+      onSelected: (v) {
+        switch (v) {
+          case 'join':
+            showJoinWithCode(context);
+          case 'request':
+            showRequestClub(context);
+          case 'rejected':
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const RejectedChangesScreen(),
+              ),
+            );
+          case 'logout':
+            confirmAndLogout(context, ref);
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'join', child: Text('Unirme con un código')),
+        PopupMenuItem(value: 'request', child: Text('Solicitar un servidor')),
+        PopupMenuItem(value: 'rejected', child: Text('Cambios no aplicados')),
+        PopupMenuItem(value: 'logout', child: Text('Cerrar sesión')),
+      ],
     );
   }
 }
@@ -181,68 +229,8 @@ class SyncIndicator extends ConsumerWidget {
   }
 }
 
-/// Lo que ya se puede ver del servidor: temporada activa y miembros.
-class ClubOverview extends ConsumerWidget {
-  const ClubOverview({super.key, required this.club});
-
-  final MyClub club;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final view = ref.watch(clubViewProvider(club.id)).value;
-    final text = Theme.of(context).textTheme;
-    final members =
-        [...?view?.all('member').where((m) => m['status'] == 'active')]..sort(
-          (a, b) => '${a['displayName']}'.toLowerCase().compareTo(
-            '${b['displayName']}'.toLowerCase(),
-          ),
-        );
-    final season = view
-        ?.all('season')
-        .where((s) => s['isActive'] == true)
-        .firstOrNull;
-    return RefreshIndicator(
-      onRefresh: () => ref.read(cloudProvider).sync(),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (view?.club?['status'] == 'suspended')
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.pause_circle),
-                title: Text('Servidor suspendido: solo se puede consultar'),
-              ),
-            ),
-          ListTile(
-            leading: const Icon(Icons.emoji_events_outlined),
-            title: Text(
-              season == null
-                  ? 'Sin temporada activa'
-                  : 'Temporada ${season['name']}',
-            ),
-            subtitle: const Text(
-              'Las jornadas, la tabla y el perfil llegan en la próxima versión.',
-            ),
-          ),
-          const Divider(),
-          Text('Miembros (${members.length})', style: text.titleMedium),
-          for (final m in members)
-            ListTile(
-              leading: CircleAvatar(
-                child: Text(
-                  '${m['displayName']}'.characters.first.toUpperCase(),
-                ),
-              ),
-              title: Text('${m['displayName']}'),
-              subtitle: Text(_roleLabel('${m['role']}')),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-String _roleLabel(String role) => switch (role) {
+/// Nombre de un rol para la interfaz.
+String roleLabel(String role) => switch (role) {
   'owner' => 'Dueño',
   'admin' => 'Admin',
   'scorer' => 'Anotador',

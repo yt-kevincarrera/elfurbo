@@ -8,7 +8,8 @@ import '../../domain/matchday_rules.dart';
 import '../../models/match_day.dart';
 import '../../models/season.dart';
 
-/// Alta o edición de una jornada (solo admin).
+/// Alta o edición de una jornada. Crear la puede cualquier miembro (según el
+/// ajuste del servidor), también sin señal.
 Future<void> showMatchFormSheet(BuildContext context, {MatchDay? existing}) {
   return showModalBottomSheet(
     context: context,
@@ -108,30 +109,41 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
     final existing = widget.existing;
     var seasonId = _seasonId ?? ref.read(activeSeasonProvider)?.id;
     if (seasonId == null || seasonId.isEmpty) {
-      // Primera jornada del grupo (o todas las temporadas cerradas): creamos
-      // una temporada automáticamente.
-      seasonId = repo.newSeasonId();
+      if (!ref.read(isAdminProvider)) {
+        showError(
+          'No hay temporada abierta. Pídele a un admin del servidor que cree una.',
+        );
+        return;
+      }
+      // Primera jornada del servidor (o todas las temporadas cerradas): se
+      // crea una temporada sola.
+      seasonId = repo.newId();
       fireAndForget(
         repo.createSeason(
           id: seasonId,
           name: 'Temporada ${_date.year}',
           startDate: DateTime(_date.year),
           activate: true,
-          otherSeasonIds: (ref.read(seasonsProvider).value ?? const [])
-              .map((s) => s.id)
-              .toList(),
         ),
       );
     }
     if (existing != null) {
+      // Solo lo que cambió: al que creó la jornada el servidor no le deja
+      // moverla de fecha o de temporada si ya hay datos de otros.
       fireAndForget(
         repo.updateMatch(
           existing.id,
-          date: _date,
-          durationMinutes: _duration,
-          seasonId: seasonId,
-          place: _place.text,
-          notes: _notes.text,
+          date: _date == existing.date ? null : _date,
+          durationMinutes: _duration == existing.durationMinutes
+              ? null
+              : _duration,
+          seasonId: seasonId == existing.seasonId ? null : seasonId,
+          place: _place.text.trim() == (existing.place ?? '')
+              ? null
+              : _place.text,
+          notes: _notes.text.trim() == (existing.notes ?? '')
+              ? null
+              : _notes.text,
         ),
         success: 'Jornada actualizada',
       );
@@ -141,7 +153,6 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
         repo.createMatches(
           dates: dates,
           seasonId: seasonId,
-          createdBy: ref.read(myUidProvider),
           durationMinutes: _duration,
           place: _place.text,
           notes: _notes.text,

@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../cloud/ui/home_screens.dart';
 import '../../core/app_messenger.dart';
 import '../../data/providers.dart';
 import '../admin/admin_screen.dart';
 import '../matches/matches_screen.dart';
 import '../profile/player_profile_screen.dart';
 import '../stats/leaderboard_screen.dart';
-import '../widgets/common.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
-  /// Índice de la pestaña Admin (solo existe si el usuario es admin).
+  /// Índice de la pestaña Admin (solo para owner y admin del servidor).
   static const adminTab = 3;
 
   @override
@@ -47,7 +47,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
-    final pending = ref.watch(pendingUsersProvider).length;
     final myUid = ref.watch(myUidProvider);
 
     final pages = <Widget>[
@@ -61,9 +60,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return Scaffold(
       body: Column(
         children: [
-          const SyncBanner(),
+          const ClubBar(),
           Expanded(
-            child: IndexedStack(index: index, children: pages),
+            // La barra del servidor ya ocupa la zona de la barra de estado.
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: IndexedStack(index: index, children: pages),
+            ),
           ),
         ],
       ),
@@ -87,13 +91,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             label: 'Perfil',
           ),
           if (isAdmin)
-            NavigationDestination(
-              icon: Badge(
-                isLabelVisible: pending > 0,
-                label: Text('$pending'),
-                child: const Icon(Icons.admin_panel_settings_outlined),
-              ),
-              selectedIcon: const Icon(Icons.admin_panel_settings),
+            const NavigationDestination(
+              icon: Icon(Icons.admin_panel_settings_outlined),
+              selectedIcon: Icon(Icons.admin_panel_settings),
               label: 'Admin',
             ),
         ],

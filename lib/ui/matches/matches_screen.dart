@@ -17,12 +17,12 @@ class MatchesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final matchesAsync = ref.watch(matchesProvider);
-    final isAdmin = ref.watch(isAdminProvider);
+    final canCreate = ref.watch(canCreateMatchdayProvider);
     final now = DateTime.now();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Jornadas')),
-      floatingActionButton: isAdmin
+      floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => showMatchFormSheet(context),
               icon: const Icon(Icons.add),
@@ -41,7 +41,7 @@ class MatchesScreen extends ConsumerWidget {
             return EmptyState(
               icon: Icons.sports_soccer,
               title: 'Todavía no hay jornadas',
-              subtitle: isAdmin
+              subtitle: canCreate
                   ? 'Crea la primera con el botón de abajo.'
                   : 'Cuando alguien cree una jornada, sale aquí.',
             );
@@ -165,9 +165,7 @@ class _UpcomingMatchCard extends ConsumerWidget {
                     onSelectionChanged: (sel) {
                       if (sel.isEmpty) return;
                       fireAndForget(
-                        ref
-                            .read(repoProvider)
-                            .setAttendance(match.id, myUid, sel.first),
+                        ref.read(repoProvider).setIntent(match.id, sel.first),
                       );
                     },
                     segments: const [

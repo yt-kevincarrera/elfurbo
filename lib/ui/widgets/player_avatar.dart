@@ -19,14 +19,9 @@ class PlayerAvatar extends StatelessWidget {
         .take(2)
         .map((p) => p[0].toUpperCase())
         .join();
-    final photo = user?.photoUrl;
     return CircleAvatar(
       radius: radius,
       backgroundColor: scheme.primaryContainer,
-      foregroundImage: photo != null && photo.isNotEmpty
-          ? NetworkImage(photo)
-          : null,
-      onForegroundImageError: photo != null ? (_, __) {} : null,
       child: Text(
         initials.isEmpty ? '?' : initials,
         style: TextStyle(

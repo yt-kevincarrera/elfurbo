@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
 import 'home_screens.dart';
 
-/// La app de la 1.0 (backend propio). Se arranca con `lib/main_cloud.dart`.
+/// La app (backend propio). Se arranca con `lib/main.dart`.
 class CloudApp extends StatelessWidget {
   const CloudApp({super.key});
 
@@ -17,6 +18,8 @@ class CloudApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'El Furbo',
+      navigatorKey: rootNavigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

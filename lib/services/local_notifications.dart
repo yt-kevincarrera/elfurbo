@@ -212,3 +212,13 @@ class LocalNotifications {
     return NotificationPayload.decode(raw);
   }
 }
+
+/// Cancela los recordatorios sin fallar nunca (sin plugin en tests, o si el
+/// sistema no responde): salir de la cuenta no puede quedarse a medias por esto.
+Future<void> cancelRemindersQuietly() async {
+  try {
+    await LocalNotifications.cancelReminders();
+  } catch (e) {
+    debugPrint('Recordatorios: no se pudieron cancelar: $e');
+  }
+}

@@ -10,7 +10,11 @@ import '../../data/providers.dart';
 import '../../domain/achievements.dart';
 import '../../domain/stats_engine.dart';
 import '../../models/app_user.dart';
-import '../../services/session.dart';
+import '../../services/local_notifications.dart';
+import '../../cloud/state/providers.dart';
+import '../../cloud/ui/clubs_screens.dart';
+import '../../cloud/ui/errors.dart';
+import '../../cloud/ui/home_screens.dart';
 import '../matches/match_detail_screen.dart';
 import '../stats/leaderboard_screen.dart';
 import '../widgets/common.dart';
@@ -55,7 +59,7 @@ class PlayerProfileScreen extends ConsumerWidget {
         actions: [
           const SeasonSelector(),
           if (isMe)
-            _ProfileMenu(onSignOut: () => _confirmSignOut(context, ref)),
+            _ProfileMenu(onSignOut: () => confirmAndLogout(context, ref)),
         ],
       ),
       body: ListView(
@@ -88,7 +92,8 @@ class PlayerProfileScreen extends ConsumerWidget {
                         ),
                       Text(
                         [
-                          if (user?.isAdmin ?? false) 'Admin',
+                          if (user != null && user.role != UserRole.player)
+                            roleLabel(user.role.name),
                           '${Achievements.unlockedCount(lifetime)} logros',
                           if (lifetime.currentStreak > 1)
                             '🔥 ${lifetime.currentStreak} seguidos',
@@ -241,29 +246,6 @@ class PlayerProfileScreen extends ConsumerWidget {
       ref.read(repoProvider).updateNickname(uid, result),
       success: 'Apodo guardado',
     );
-  }
-
-  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Cerrar sesión?'),
-        content: const Text(
-          'Si tienes cambios sin sincronizar, espera a tener internet antes de salir.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Volver'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salir'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await signOutCompletely(ref);
   }
 }
 
@@ -593,12 +575,25 @@ class _ProfileMenu extends ConsumerWidget {
   final VoidCallback onSignOut;
 
   Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
+    final password = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('¿Eliminar tu cuenta?'),
-        content: const Text(
-          'Se borra tu perfil y tu acceso. Tus goles, asistencias y votos quedan en el historial del grupo a nombre de "Jugador". Puede que Google te pida volver a entrar para confirmar.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Se borra tu cuenta en todos los servidores. Tus goles, asistencias y votos se quedan en el historial como "Jugador eliminado". Si eres dueño de un servidor, primero pásaselo a otro.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: password,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Tu contraseña'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -616,12 +611,15 @@ class _ProfileMenu extends ConsumerWidget {
         ],
       ),
     );
+    final typed = password.text;
+    password.dispose();
     if (ok != true) return;
     try {
-      await deleteAccountCompletely(ref);
+      await ref.read(cloudProvider).deleteAccount(typed);
+      await cancelRemindersQuietly();
       showMessage('Cuenta eliminada');
     } catch (e) {
-      showError(e);
+      showError(describeError(e));
     }
   }
 

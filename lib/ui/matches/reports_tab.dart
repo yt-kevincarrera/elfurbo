@@ -33,6 +33,7 @@ class ReportsTab extends ConsumerWidget {
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
     final isAdmin = ref.watch(isAdminProvider);
+    final isStaff = ref.watch(isStaffProvider);
     final closed = ref.watch(matchClosedProvider(match.id));
     final iPlayed = ref.watch(iAmPresentProvider(match.id));
     final myReport = reports.where((r) => r.uid == myUid).firstOrNull;
@@ -83,8 +84,8 @@ class ReportsTab extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      'Falta que lo confirmen ${MatchReport.confirmationsNeeded - myReport.confirmations.length} '
-                      '${MatchReport.confirmationsNeeded - myReport.confirmations.length == 1 ? 'compañero' : 'compañeros'} o el admin.',
+                      'Falta que lo confirmen ${myReport.confirmationsMissing} '
+                      '${myReport.confirmationsMissing == 1 ? 'compañero' : 'compañeros'} o el admin.',
                       style: text.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -113,7 +114,7 @@ class ReportsTab extends ConsumerWidget {
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: () => fireAndForget(
-                          ref.read(repoProvider).deleteReport(myReport.id),
+                          ref.read(repoProvider).deleteReport(match.id),
                           success: 'Reporte borrado',
                         ),
                         child: const Text('Borrar'),
@@ -126,6 +127,18 @@ class ReportsTab extends ConsumerWidget {
           ),
         ),
         SectionTitle('Compañeros (${others.length})'),
+        if (isStaff && !closed)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _loadForOther(context, ref, reports),
+                icon: const Icon(Icons.person_add_alt),
+                label: const Text('Poner goles de otro'),
+              ),
+            ),
+          ),
         if (others.isEmpty)
           Padding(
             padding: const EdgeInsets.all(20),
@@ -154,12 +167,70 @@ class ReportsTab extends ConsumerWidget {
                 !r.confirmations.contains(myUid),
             alreadyConfirmed: r.confirmations.contains(myUid),
             isAdmin: isAdmin && !closed,
+            canLoadFor: isStaff && !closed,
             confirmerNames: r.confirmations
                 .map((u) => users[u]?.name ?? '?')
                 .toList(),
           ),
       ],
     );
+  }
+
+  /// El staff elige a quién le pone los goles (con o sin cuenta).
+  Future<void> _loadForOther(
+    BuildContext context,
+    WidgetRef ref,
+    List<MatchReport> reports,
+  ) async {
+    final withReport = reports.map((r) => r.uid).toSet();
+    final present = ref.read(presentUidsProvider(match.id));
+    final candidates =
+        ref
+            .read(activeUsersProvider)
+            .where((u) => !withReport.contains(u.uid))
+            .toList()
+          ..sort((a, b) {
+            // Primero los que jugaron.
+            final pa = present.contains(a.uid) ? 0 : 1;
+            final pb = present.contains(b.uid) ? 0 : 1;
+            return pa != pb ? pa - pb : a.name.compareTo(b.name);
+          });
+    if (candidates.isEmpty) {
+      showMessage('Ya todos tienen sus goles puestos');
+      return;
+    }
+    final chosen = await showModalBottomSheet<AppUser>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: Text(
+                '¿De quién?',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+            ),
+            for (final u in candidates)
+              ListTile(
+                leading: PlayerAvatar(user: u, radius: 16),
+                title: Text(u.name),
+                subtitle: Text(
+                  [
+                    if (present.contains(u.uid)) 'Jugó',
+                    if (u.isGuest) 'Sin cuenta',
+                  ].join(' · '),
+                ),
+                onTap: () => Navigator.pop(ctx, u),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !context.mounted) return;
+    await showReportFormSheet(context, match: match, forMember: chosen);
   }
 }
 
@@ -171,6 +242,7 @@ class _ReportTile extends ConsumerWidget {
     required this.canConfirm,
     required this.alreadyConfirmed,
     required this.isAdmin,
+    required this.canLoadFor,
     required this.confirmerNames,
   });
 
@@ -180,12 +252,12 @@ class _ReportTile extends ConsumerWidget {
   final bool canConfirm;
   final bool alreadyConfirmed;
   final bool isAdmin;
+  final bool canLoadFor;
   final List<String> confirmerNames;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.read(repoProvider);
-    final myUid = ref.watch(myUidProvider);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return Card(
@@ -238,7 +310,7 @@ class _ReportTile extends ConsumerWidget {
                 if (canConfirm)
                   FilledButton.tonalIcon(
                     onPressed: () => fireAndForget(
-                      repo.confirmReport(report.id, myUid),
+                      repo.confirmReport(report.matchId, report.uid),
                       success: 'Confirmaste a $name',
                     ),
                     icon: const Icon(Icons.thumb_up),
@@ -250,16 +322,37 @@ class _ReportTile extends ConsumerWidget {
                     label: const Text('Ya confirmaste'),
                     visualDensity: VisualDensity.compact,
                   ),
-                if (isAdmin) ...[
+                // El anotador vuelve a poner los números de otro (salvo que el
+                // admin ya los haya corregido o rechazado); el admin, corrige.
+                if (canLoadFor &&
+                    !isAdmin &&
+                    !report.isRejected &&
+                    !report.correctedByAdmin)
                   OutlinedButton.icon(
                     onPressed: () {
                       final match = ref.read(matchByIdProvider(report.matchId));
-                      if (match == null) return;
+                      if (match == null || user == null) return;
                       showReportFormSheet(
                         context,
                         match: match,
                         existing: report,
-                        correctFor: name,
+                        forMember: user,
+                      );
+                    },
+                    icon: const Icon(Icons.edit_note, size: 18),
+                    label: const Text('Cambiar'),
+                  ),
+                if (isAdmin) ...[
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final match = ref.read(matchByIdProvider(report.matchId));
+                      if (match == null || user == null) return;
+                      showReportFormSheet(
+                        context,
+                        match: match,
+                        existing: report,
+                        forMember: user,
+                        correction: true,
                       );
                     },
                     icon: const Icon(Icons.edit_note, size: 18),
@@ -268,8 +361,9 @@ class _ReportTile extends ConsumerWidget {
                   if (report.adminStatus != ReportStatus.confirmed)
                     OutlinedButton.icon(
                       onPressed: () => fireAndForget(
-                        repo.adminSetReportStatus(
-                          report.id,
+                        repo.decideReport(
+                          report.matchId,
+                          report.uid,
                           ReportStatus.confirmed,
                         ),
                       ),
@@ -279,8 +373,9 @@ class _ReportTile extends ConsumerWidget {
                   if (report.adminStatus != ReportStatus.rejected)
                     OutlinedButton.icon(
                       onPressed: () => fireAndForget(
-                        repo.adminSetReportStatus(
-                          report.id,
+                        repo.decideReport(
+                          report.matchId,
+                          report.uid,
                           ReportStatus.rejected,
                         ),
                       ),
@@ -293,7 +388,7 @@ class _ReportTile extends ConsumerWidget {
                   if (report.adminStatus != null)
                     TextButton(
                       onPressed: () => fireAndForget(
-                        repo.adminSetReportStatus(report.id, null),
+                        repo.decideReport(report.matchId, report.uid, null),
                       ),
                       child: const Text('Quitar decisión'),
                     ),
@@ -307,33 +402,45 @@ class _ReportTile extends ConsumerWidget {
   }
 }
 
-/// Formulario para cargar/editar goles y asistencias propios, o para que el
-/// admin corrija los de otro ([correctFor] = nombre del autor).
+/// Formulario de goles y asistencias: los míos; los de [forMember] cuando los
+/// pone alguien del staff; o, con [correction], la corrección de un admin
+/// (queda confirmado).
 Future<void> showReportFormSheet(
   BuildContext context, {
   required MatchDay match,
   MatchReport? existing,
-  String? correctFor,
+  AppUser? forMember,
+  bool correction = false,
 }) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) =>
-        _ReportForm(match: match, existing: existing, correctFor: correctFor),
+    builder: (_) => _ReportForm(
+      match: match,
+      existing: existing,
+      forMember: forMember,
+      correction: correction,
+    ),
   );
 }
 
 class _ReportForm extends ConsumerStatefulWidget {
-  const _ReportForm({required this.match, this.existing, this.correctFor});
+  const _ReportForm({
+    required this.match,
+    this.existing,
+    this.forMember,
+    this.correction = false,
+  });
 
   final MatchDay match;
   final MatchReport? existing;
 
-  /// Si no es null, el admin está corrigiendo el reporte de este jugador.
-  final String? correctFor;
+  /// De quién son los números, si no son míos.
+  final AppUser? forMember;
+  final bool correction;
 
-  bool get isCorrection => correctFor != null;
+  bool get isCorrection => correction && existing != null;
 
   @override
   ConsumerState<_ReportForm> createState() => _ReportFormState();
@@ -354,26 +461,39 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
 
   void _save() {
     final repo = ref.read(repoProvider);
-    final uid = ref.read(myUidProvider);
+    final other = widget.forMember;
     if (widget.isCorrection) {
       fireAndForget(
-        repo.adminCorrectReport(
-          widget.existing!.id,
+        repo.correctReport(
+          widget.match.id,
+          widget.existing!.uid,
           goals: _goals,
           assists: _assists,
-          correctedBy: uid,
         ),
-        success: 'Reporte de ${widget.correctFor} corregido y confirmado',
+        success:
+            'Reporte de ${other?.name ?? 'Jugador'} corregido y confirmado',
       );
       Navigator.of(context).pop();
       return;
     }
-    // Si reportas, jugaste: marcamos presencia para que puedas confirmar y votar.
-    fireAndForget(repo.setPresence(widget.match.id, uid, true, setBy: uid));
+    if (other != null) {
+      fireAndForget(
+        repo.loadReportFor(
+          matchId: widget.match.id,
+          memberId: other.uid,
+          goals: _goals,
+          assists: _assists,
+          note: _note.text,
+        ),
+        success: 'Listo, goles de ${other.name} puestos',
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+    // Reportar también me marca "Jugué" (lo hace el servidor con el reporte).
     fireAndForget(
       repo.submitReport(
         matchId: widget.match.id,
-        uid: uid,
         goals: _goals,
         assists: _assists,
         note: _note.text,
@@ -402,7 +522,9 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
         children: [
           Text(
             widget.isCorrection
-                ? 'Corregir reporte de ${widget.correctFor}'
+                ? 'Corregir reporte de ${widget.forMember?.name ?? 'Jugador'}'
+                : widget.forMember != null
+                ? 'Goles de ${widget.forMember!.name}'
                 : '¿Cómo te fue el ${Fmt.short(widget.match.date)}?',
             style: text.titleLarge,
           ),
@@ -433,6 +555,11 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
           if (widget.isCorrection)
             Text(
               'Queda confirmado por el admin con estos números.',
+              style: text.bodySmall?.copyWith(color: scheme.primary),
+            )
+          else if (widget.forMember != null)
+            Text(
+              'Lo que pone el staff cuenta al momento, sin confirmaciones.',
               style: text.bodySmall?.copyWith(color: scheme.primary),
             )
           else if (widget.existing != null && !widget.existing!.isPending)

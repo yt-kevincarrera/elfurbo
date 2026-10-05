@@ -27,7 +27,6 @@ class MatchDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final match = ref.watch(matchByIdProvider(matchId));
-    final isAdmin = ref.watch(isAdminProvider);
     if (match == null) {
       return Scaffold(
         appBar: AppBar(),
@@ -41,6 +40,7 @@ class MatchDetailScreen extends ConsumerWidget {
     final played = match.isPlayed(now);
     final closed = ref.watch(matchClosedProvider(matchId));
     final season = ref.watch(seasonByIdProvider(match.seasonId));
+    final (canEdit, canManage) = _permissions(ref, match);
     final scheme = Theme.of(context).colorScheme;
     // Antes de la jornada lo importante es la asistencia y los equipos;
     // después, cargar goles y votar.
@@ -71,18 +71,19 @@ class MatchDetailScreen extends ConsumerWidget {
             ],
           ),
           actions: [
-            if (isAdmin)
+            if (canEdit || canManage)
               PopupMenuButton<_AdminAction>(
                 onSelected: (a) => _onAdminAction(context, ref, match, a),
                 itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: _AdminAction.edit,
-                    child: ListTile(
-                      leading: Icon(Icons.edit),
-                      title: Text('Editar'),
+                  if (canEdit && !closed)
+                    const PopupMenuItem(
+                      value: _AdminAction.edit,
+                      child: ListTile(
+                        leading: Icon(Icons.edit),
+                        title: Text('Editar'),
+                      ),
                     ),
-                  ),
-                  if (!match.isCancelled)
+                  if (canManage && !match.isCancelled)
                     PopupMenuItem(
                       value: _AdminAction.toggleClose,
                       child: ListTile(
@@ -98,26 +99,28 @@ class MatchDetailScreen extends ConsumerWidget {
                         enabled: !(closed && (season?.isClosed ?? false)),
                       ),
                     ),
-                  PopupMenuItem(
-                    value: _AdminAction.toggleCancel,
-                    child: ListTile(
-                      leading: Icon(
-                        match.isCancelled
-                            ? Icons.event_available
-                            : Icons.event_busy,
-                      ),
-                      title: Text(
-                        match.isCancelled ? 'Reactivar' : 'Cancelar jornada',
+                  if (canManage)
+                    PopupMenuItem(
+                      value: _AdminAction.toggleCancel,
+                      child: ListTile(
+                        leading: Icon(
+                          match.isCancelled
+                              ? Icons.event_available
+                              : Icons.event_busy,
+                        ),
+                        title: Text(
+                          match.isCancelled ? 'Reactivar' : 'Cancelar jornada',
+                        ),
                       ),
                     ),
-                  ),
-                  const PopupMenuItem(
-                    value: _AdminAction.delete,
-                    child: ListTile(
-                      leading: Icon(Icons.delete_outline),
-                      title: Text('Eliminar'),
+                  if (canManage)
+                    const PopupMenuItem(
+                      value: _AdminAction.delete,
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Eliminar'),
+                      ),
                     ),
-                  ),
                 ],
               ),
           ],
@@ -146,7 +149,7 @@ class MatchDetailScreen extends ConsumerWidget {
                 content: Text(
                   (season?.isClosed ?? false)
                       ? 'Temporada cerrada: esta jornada ya no acepta cambios.'
-                      : 'Jornada cerrada: ya no se pueden cargar goles, confirmar ni votar.',
+                      : 'Jornada cerrada: ya no se pueden poner goles, confirmar ni votar.',
                 ),
                 leading: const Icon(Icons.lock_outline),
                 actions: const [SizedBox.shrink()],
@@ -236,24 +239,36 @@ class MatchDetailScreen extends ConsumerWidget {
           ),
         );
         if (ok == true && context.mounted) {
-          final attendance = ref.read(attendanceForMatchProvider(match.id));
-          final reports = ref.read(reportsForMatchProvider(match.id));
-          final votes = ref.read(votesForMatchProvider(match.id));
           fireAndForget(
-            repo.deleteMatchCascade(
-              match.id,
-              attendanceIds: attendance.values.map(
-                (a) => '${a.matchId}_${a.uid}',
-              ),
-              reportIds: reports.map((r) => r.id),
-              voteIds: votes.map((v) => '${v.matchId}_${v.voterUid}'),
-            ),
+            repo.deleteMatch(match.id),
             success: 'Jornada eliminada',
           );
           Navigator.of(context).pop();
         }
     }
   }
+}
+
+/// Lo mismo que decide el servidor (`canEditMatchday` y `canManageMatchday`):
+/// el staff, siempre; quien la creó, editarla, y cancelarla, cerrarla o
+/// borrarla mientras no haya datos de nadie más.
+(bool, bool) _permissions(WidgetRef ref, MatchDay match) {
+  if (ref.watch(clubReadOnlyProvider)) return (false, false);
+  if (ref.watch(isStaffProvider)) return (true, true);
+  final creator = match.createdBy;
+  if (ref.watch(myUidProvider) != creator) return (false, false);
+  final othersData =
+      ref
+          .watch(attendanceForMatchProvider(match.id))
+          .keys
+          .any((u) => u != creator) ||
+      ref
+          .watch(reportsForMatchProvider(match.id))
+          .any((r) => r.uid != creator) ||
+      ref
+          .watch(votesForMatchProvider(match.id))
+          .any((v) => v.voterUid != creator);
+  return (true, !othersData);
 }
 
 enum _AdminAction { edit, toggleClose, toggleCancel, delete }

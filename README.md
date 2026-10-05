@@ -191,12 +191,11 @@ npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrang
   - El plazo cuenta con la hora del teléfono, acotada, para no perder lo hecho sin señal.
   - Las reglas puras viven en `backend/src/rules/matchday.ts`, y sus casos en
     `shared-fixtures/matchday-rules.json`, que también ejecutará la app.
-- App 1.0 (en construcción, PR4 en adelante): vive en `lib/cloud/` y arranca con
-  `flutter run -t lib/main_cloud.dart` (por defecto contra staging; otro backend con
-  `--dart-define=API_URL=https://...`).
-  - Convive con la app actual (`lib/main.dart`, Firebase) hasta el corte a la 1.0.
-  - Ojo: usa el mismo paquete (`app.elfurbo`), así que instalarla en un teléfono reemplaza la app
-    actual.
+- App 1.0: el núcleo vive en `lib/cloud/` (sesión, cola, sync, vista local) y las pantallas de la
+  pachanga en `lib/ui/` leen esa vista y escriben comandos (`lib/data/club_repo.dart`). Arranca con
+  `flutter run` (por defecto contra staging; otro backend con `--dart-define=API_URL=https://...`).
+  - Firebase ya no se usa en ninguna pantalla; los paquetes y las Cloud Functions se quitan en el corte
+    (PR7).
 
 ## Tests y CI
 

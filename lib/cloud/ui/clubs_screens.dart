@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../services/local_notifications.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import 'errors.dart';
@@ -57,6 +58,8 @@ Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
     ),
   );
   await cloud.logout();
+  // Que otra cuenta que entre después no reciba recordatorios de esta.
+  await cancelRemindersQuietly();
   if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
 }
 

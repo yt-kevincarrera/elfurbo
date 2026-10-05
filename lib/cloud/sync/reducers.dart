@@ -86,6 +86,145 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
       if (p['closed'] == true) s['isActive'] = false;
     case 'season.delete':
       d.table('season').remove('${p['seasonId']}');
+    default:
+      _applyPachanga(d, c, myMemberId);
+  }
+}
+
+/// Jornadas, asistencia, reportes, confirmaciones y votos. Los ids son los
+/// del servidor: `jornada:miembro` (y `jornada:autor:confirmador`).
+void _applyPachanga(ClubData d, Command c, String? me) {
+  final p = c.payload;
+  final mdId = '${p['matchdayId']}';
+  Row? matchday() => d.one('matchday', mdId);
+  String key(Object? member) => '$mdId:$member';
+
+  Row attendance(Object? member) => d
+      .table('attendance')
+      .putIfAbsent(
+        key(member),
+        () => {
+          'id': key(member),
+          'matchdayId': mdId,
+          'memberId': '$member',
+          'intent': null,
+          'played': null,
+          'playedSetBy': null,
+        },
+      );
+
+  void clearConfirmations(Object? member) => d
+      .table('confirmation')
+      .removeWhere(
+        (_, r) => r['matchdayId'] == mdId && r['memberId'] == '$member',
+      );
+
+  void writeReport(Object? member) {
+    clearConfirmations(member);
+    d.table('report')[key(member)] = {
+      'id': key(member),
+      'matchdayId': mdId,
+      'memberId': '$member',
+      'goals': p['goals'],
+      'assists': p['assists'],
+      'note': p['note'],
+      'loadedBy': me,
+      'decision': null,
+      'correctedBy': null,
+    };
+    attendance(member)
+      ..['played'] = true
+      ..['playedSetBy'] = me;
+  }
+
+  switch (c.type) {
+    case 'matchday.create':
+      final active = d.all('season').where((s) => s['isActive'] == true);
+      d.table('matchday')['${p['id']}'] = {
+        'id': p['id'],
+        'seasonId': p['seasonId'] ?? active.firstOrNull?['id'],
+        'startsAt': p['startsAt'],
+        'durationMinutes': p['durationMinutes'] ?? 120,
+        'place': p['place'],
+        'notes': p['notes'],
+        'status': 'scheduled',
+        'teams': null,
+        'createdBy': me,
+      };
+    case 'matchday.update':
+      final md = matchday();
+      if (md == null) return;
+      for (final f in const [
+        'startsAt',
+        'durationMinutes',
+        'place',
+        'notes',
+        'seasonId',
+      ]) {
+        if (p.containsKey(f)) md[f] = p[f];
+      }
+    case 'matchday.setStatus':
+      matchday()?['status'] = p['status'];
+    case 'matchday.delete':
+      d.table('matchday').remove(mdId);
+      for (final t in const ['attendance', 'report', 'confirmation', 'vote']) {
+        d.table(t).removeWhere((_, r) => r['matchdayId'] == mdId);
+      }
+    case 'teams.save':
+      matchday()?['teams'] = p['teams'];
+    case 'attendance.setIntent':
+      if (me != null) attendance(me)['intent'] = p['intent'];
+    case 'attendance.setPlayed':
+      if (me != null) {
+        attendance(me)
+          ..['played'] = p['played']
+          ..['playedSetBy'] = me;
+      }
+    case 'attendance.rollCall':
+      for (final e in (p['entries'] as List? ?? const [])) {
+        attendance((e as Map)['memberId'])
+          ..['played'] = e['played']
+          ..['playedSetBy'] = me;
+      }
+    case 'report.upsert':
+      if (me != null) writeReport(me);
+    case 'report.loadFor':
+      writeReport(p['memberId']);
+    case 'report.delete':
+      if (me == null) return;
+      clearConfirmations(me);
+      d.table('report').remove(key(me));
+    case 'report.confirm':
+      if (me == null) return;
+      final id = '${key(p['memberId'])}:$me';
+      d.table('confirmation')[id] = {
+        'id': id,
+        'matchdayId': mdId,
+        'memberId': p['memberId'],
+        'confirmerId': me,
+      };
+    case 'report.unconfirm':
+      d.table('confirmation').remove('${key(p['memberId'])}:$me');
+    case 'report.decide':
+      d.one('report', key(p['memberId']))?['decision'] = p['decision'];
+    case 'report.correct':
+      final r = d.one('report', key(p['memberId']));
+      if (r == null) return;
+      r
+        ..['goals'] = p['goals']
+        ..['assists'] = p['assists']
+        ..['decision'] = 'confirmed'
+        ..['correctedBy'] = me;
+    case 'vote.cast':
+      if (me == null) return;
+      d.table('vote')[key(me)] = {
+        'id': key(me),
+        'matchdayId': mdId,
+        'voterId': me,
+        'votedFor': p['votedFor'],
+      };
+    case 'vote.clear':
+      d.table('vote').remove(key(me));
   }
 }
 

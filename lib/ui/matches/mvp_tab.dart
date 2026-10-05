@@ -115,9 +115,7 @@ class MvpTab extends ConsumerWidget {
               if (closed || uid == null) return;
               final name = users[uid]?.name ?? 'Jugador';
               fireAndForget(
-                ref
-                    .read(repoProvider)
-                    .voteMvp(matchId: match.id, voterUid: myUid, votedFor: uid),
+                ref.read(repoProvider).castVote(match.id, uid),
                 success: 'Votaste a $name',
               );
             },
@@ -139,7 +137,7 @@ class MvpTab extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: TextButton(
                   onPressed: () => fireAndForget(
-                    ref.read(repoProvider).removeMvpVote(match.id, myUid),
+                    ref.read(repoProvider).clearVote(match.id),
                     success: 'Voto retirado',
                   ),
                   child: const Text('Quitar mi voto'),
