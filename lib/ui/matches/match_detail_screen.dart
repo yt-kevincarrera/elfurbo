@@ -14,9 +14,12 @@ import 'summary_tab.dart';
 import 'teams_tab.dart';
 
 class MatchDetailScreen extends ConsumerWidget {
-  const MatchDetailScreen({super.key, required this.matchId});
+  const MatchDetailScreen({super.key, required this.matchId, this.initialTab});
 
   final String matchId;
+
+  /// Pestaña con la que abre; si no, Asistencia antes de jugarse y Goles después.
+  final int? initialTab;
 
   static Future<void> open(BuildContext context, String matchId) {
     return Navigator.of(context).push(
@@ -44,7 +47,7 @@ class MatchDetailScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     // Antes de la jornada lo importante es la asistencia y los equipos;
     // después, cargar goles y votar.
-    final initialTab = played ? 1 : 0;
+    final initialTab = this.initialTab ?? (played ? 1 : 0);
 
     return DefaultTabController(
       length: 5,

@@ -55,7 +55,8 @@ class PlayerProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isMe ? 'Mi perfil' : (user?.name ?? 'Jugador')),
+        // El nombre ya va grande en la cabecera.
+        title: Text(isMe ? 'Mi perfil' : 'Perfil'),
         actions: [
           const SeasonSelector(),
           if (isMe)

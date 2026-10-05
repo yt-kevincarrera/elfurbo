@@ -285,42 +285,133 @@ class _ReportTile extends ConsumerWidget {
     final repo = ref.read(repoProvider);
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    // El anotador vuelve a poner los números de otro (salvo que el admin ya los
+    // haya corregido o rechazado); el admin corrige y decide.
+    final canChange =
+        canLoadFor &&
+        !isAdmin &&
+        !report.isRejected &&
+        !report.correctedByAdmin;
+    final actions = <_ReportAction>[
+      if (canChange) _ReportAction.change,
+      if (isAdmin) _ReportAction.correct,
+      if (isAdmin && report.adminStatus != ReportStatus.confirmed)
+        _ReportAction.confirm,
+      if (isAdmin && report.adminStatus != ReportStatus.rejected)
+        _ReportAction.reject,
+      if (isAdmin && report.adminStatus != null) _ReportAction.clear,
+    ];
+
+    void openForm({required bool correction}) {
+      final match = ref.read(matchByIdProvider(report.matchId));
+      if (match == null || user == null) return;
+      showReportFormSheet(
+        context,
+        match: match,
+        existing: report,
+        forMember: user,
+        correction: correction,
+      );
+    }
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                PlayerAvatar(user: user, radius: 18),
-                const SizedBox(width: 12),
+                PlayerAvatar(user: user, radius: 20),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: text.titleMedium),
                       Text(
-                        '${Fmt.goals(report.goals)} · ${Fmt.assists(report.assists)}',
-                        style: text.bodyMedium,
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
+                      const SizedBox(height: 4),
+                      ReportStatusChip(report: report, compact: true),
                     ],
                   ),
                 ),
-                ReportStatusChip(report: report),
+                _Numbers(goals: report.goals, assists: report.assists),
+                if (actions.isNotEmpty)
+                  PopupMenuButton<_ReportAction>(
+                    tooltip: 'Más acciones',
+                    onSelected: (a) {
+                      switch (a) {
+                        case _ReportAction.change:
+                          openForm(correction: false);
+                        case _ReportAction.correct:
+                          openForm(correction: true);
+                        case _ReportAction.confirm:
+                          fireAndForget(
+                            repo.decideReport(
+                              report.matchId,
+                              report.uid,
+                              ReportStatus.confirmed,
+                            ),
+                          );
+                        case _ReportAction.reject:
+                          fireAndForget(
+                            repo.decideReport(
+                              report.matchId,
+                              report.uid,
+                              ReportStatus.rejected,
+                            ),
+                          );
+                        case _ReportAction.clear:
+                          fireAndForget(
+                            repo.decideReport(report.matchId, report.uid, null),
+                          );
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      for (final a in actions)
+                        PopupMenuItem(
+                          value: a,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              a.icon,
+                              color: a == _ReportAction.reject
+                                  ? scheme.error
+                                  : null,
+                            ),
+                            title: Text(
+                              a.label,
+                              style: a == _ReportAction.reject
+                                  ? TextStyle(color: scheme.error)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                else
+                  const SizedBox(width: 8),
               ],
             ),
             if (report.note != null)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.fromLTRB(54, 8, 8, 0),
                 child: Text(
                   '“${report.note}”',
-                  style: text.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                  style: text.bodyMedium?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             if (confirmerNames.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.fromLTRB(54, 6, 8, 0),
                 child: Text(
                   'Confirman: ${confirmerNames.join(', ')}',
                   style: text.bodySmall?.copyWith(
@@ -328,101 +419,85 @@ class _ReportTile extends ConsumerWidget {
                   ),
                 ),
               ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                if (canConfirm)
-                  FilledButton.tonalIcon(
-                    onPressed: () => fireAndForget(
-                      repo.confirmReport(report.matchId, report.uid),
-                      success: 'Confirmaste a $name',
-                    ),
-                    icon: const Icon(Icons.thumb_up),
-                    label: const Text('Es verdad'),
-                  ),
-                if (alreadyConfirmed && report.isPending)
-                  Chip(
-                    avatar: const Icon(Icons.check, size: 16),
-                    label: const Text('Ya confirmaste'),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                // El anotador vuelve a poner los números de otro (salvo que el
-                // admin ya los haya corregido o rechazado); el admin, corrige.
-                if (canLoadFor &&
-                    !isAdmin &&
-                    !report.isRejected &&
-                    !report.correctedByAdmin)
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      final match = ref.read(matchByIdProvider(report.matchId));
-                      if (match == null || user == null) return;
-                      showReportFormSheet(
-                        context,
-                        match: match,
-                        existing: report,
-                        forMember: user,
-                      );
-                    },
-                    icon: const Icon(Icons.edit_note, size: 18),
-                    label: const Text('Cambiar'),
-                  ),
-                if (isAdmin) ...[
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      final match = ref.read(matchByIdProvider(report.matchId));
-                      if (match == null || user == null) return;
-                      showReportFormSheet(
-                        context,
-                        match: match,
-                        existing: report,
-                        forMember: user,
-                        correction: true,
-                      );
-                    },
-                    icon: const Icon(Icons.edit_note, size: 18),
-                    label: const Text('Corregir'),
-                  ),
-                  if (report.adminStatus != ReportStatus.confirmed)
-                    OutlinedButton.icon(
-                      onPressed: () => fireAndForget(
-                        repo.decideReport(
-                          report.matchId,
-                          report.uid,
-                          ReportStatus.confirmed,
+            if (canConfirm || (alreadyConfirmed && report.isPending))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(54, 10, 8, 0),
+                child: canConfirm
+                    ? FilledButton.tonalIcon(
+                        onPressed: () => fireAndForget(
+                          repo.confirmReport(report.matchId, report.uid),
+                          success: 'Confirmaste a $name',
                         ),
+                        icon: const Icon(Icons.thumb_up_alt_outlined),
+                        label: const Text('Es verdad'),
+                      )
+                    : Row(
+                        children: [
+                          Icon(Icons.check, size: 18, color: scheme.confirmed),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Ya confirmaste',
+                            style: text.labelLarge?.copyWith(
+                              color: scheme.confirmed,
+                            ),
+                          ),
+                        ],
                       ),
-                      icon: const Icon(Icons.verified, size: 18),
-                      label: const Text('Confirmar (admin)'),
-                    ),
-                  if (report.adminStatus != ReportStatus.rejected)
-                    OutlinedButton.icon(
-                      onPressed: () => fireAndForget(
-                        repo.decideReport(
-                          report.matchId,
-                          report.uid,
-                          ReportStatus.rejected,
-                        ),
-                      ),
-                      icon: const Icon(Icons.block, size: 18),
-                      label: const Text('Rechazar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: scheme.error,
-                      ),
-                    ),
-                  if (report.adminStatus != null)
-                    TextButton(
-                      onPressed: () => fireAndForget(
-                        repo.decideReport(report.matchId, report.uid, null),
-                      ),
-                      child: const Text('Quitar decisión'),
-                    ),
-                ],
-              ],
-            ),
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+enum _ReportAction {
+  change('Cambiar los números', Icons.edit_note),
+  correct('Corregir', Icons.edit_note),
+  confirm('Confirmar', Icons.verified_outlined),
+  reject('Rechazar', Icons.block),
+  clear('Quitar decisión', Icons.undo);
+
+  const _ReportAction(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+/// Goles y asistencias en grande, como en un marcador.
+class _Numbers extends StatelessWidget {
+  const _Numbers({required this.goals, required this.assists});
+
+  final int goals;
+  final int assists;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    Widget cell(int n, String label) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Text(
+            '$n',
+            style: text.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            label,
+            style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        cell(goals, goals == 1 ? 'gol' : 'goles'),
+        cell(assists, 'asist.'),
+      ],
     );
   }
 }

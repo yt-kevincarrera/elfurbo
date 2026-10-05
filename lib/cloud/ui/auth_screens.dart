@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../state/providers.dart';
 import 'errors.dart';
+import '../../ui/widgets/expressive.dart';
 
 /// Primera pantalla sin sesión: entrar, crear cuenta o empezar con una invitación.
 class WelcomeScreen extends StatelessWidget {
@@ -15,45 +17,126 @@ class WelcomeScreen extends StatelessWidget {
     void open(Widget screen) => Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => screen));
+    const big = ButtonStyle(
+      minimumSize: WidgetStatePropertyAll(Size.fromHeight(56)),
+    );
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.sports_soccer, size: 96, color: scheme.primary),
-              const SizedBox(height: 16),
+              const Spacer(),
+              const Center(child: _Hero()),
+              const SizedBox(height: 40),
               Text(
                 'El Furbo',
-                textAlign: TextAlign.center,
-                style: text.displaySmall?.copyWith(fontWeight: FontWeight.bold),
+                style: text.displayMedium?.copyWith(color: scheme.onSurface),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                'Goles, asistencias y MVP de tu grupo.\nPincha sin internet y se sincroniza solo cuando hay conexión.',
-                textAlign: TextAlign.center,
+                'Goles, asistencias y MVP de tu grupo. Pincha sin internet y se sincroniza solo cuando hay conexión.',
                 style: text.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 48),
+              const Spacer(),
               FilledButton(
+                style: big,
                 onPressed: () => open(const LoginScreen()),
                 child: const Text('Entrar'),
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
+              FilledButton.tonal(
+                style: big,
                 onPressed: () => open(const RegisterScreen()),
                 child: const Text('Crear cuenta'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               TextButton(
+                style: big,
                 onPressed: () => open(const RegisterScreen(fromInvite: true)),
                 child: const Text('Tengo un código de invitación'),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Formas de Material que entran girando con rebote alrededor de la pelota y
+/// se quedan quietas (una animación sin fin gastaría batería en la portada).
+class _Hero extends StatefulWidget {
+  const _Hero();
+
+  @override
+  State<_Hero> createState() => _HeroState();
+}
+
+class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..forward();
+  late final Animation<double> _spin = Tween<double>(
+    begin: -0.2,
+    end: 0,
+  ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
+  late final Animation<double> _grow = CurvedAnimation(
+    parent: _c,
+    curve: const Interval(0, 0.7, curve: Curves.elasticOut),
+  );
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox.square(
+      dimension: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            top: 4,
+            right: 6,
+            child: RotationTransition(
+              turns: ReverseAnimation(_spin),
+              child: ShapeBadge(
+                shape: MaterialShapes.sunny,
+                color: scheme.tertiaryContainer,
+                size: 64,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 10,
+            left: 4,
+            child: ShapeBadge(
+              shape: MaterialShapes.pill,
+              color: scheme.secondaryContainer,
+              size: 56,
+            ),
+          ),
+          RotationTransition(
+            turns: _spin,
+            child: ScaleTransition(
+              scale: _grow,
+              child: ShapeBadge(
+                shape: MaterialShapes.cookie12Sided,
+                color: scheme.primaryContainer,
+                size: 160,
+              ),
+            ),
+          ),
+          Icon(Icons.sports_soccer, size: 72, color: scheme.onPrimaryContainer),
+        ],
       ),
     );
   }
@@ -102,19 +185,28 @@ class _AuthFormState extends State<_AuthForm> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           children: [
+            Text(
+              widget.title,
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 28),
             ...widget.fields.expand((f) => [f, const SizedBox(height: 16)]),
+            const SizedBox(height: 8),
             FilledButton(
+              style: const ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(Size.fromHeight(56)),
+              ),
               onPressed: _busy ? null : _submit,
               child: _busy
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      width: 28,
+                      height: 28,
+                      child: AppLoading(size: 28),
                     )
                   : Text(widget.submitLabel),
             ),

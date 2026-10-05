@@ -10,6 +10,7 @@ import '../../models/app_user.dart';
 import '../../models/match_day.dart';
 import '../../services/share_service.dart';
 import '../widgets/common.dart';
+import '../widgets/expressive.dart';
 
 /// Resumen del partido como tarjeta para compartir por WhatsApp.
 class SummaryTab extends ConsumerStatefulWidget {
@@ -102,9 +103,9 @@ class _SummaryTabState extends ConsumerState<SummaryTab> {
           onPressed: _sharing ? null : _share,
           icon: _sharing
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  width: 24,
+                  height: 24,
+                  child: AppLoading(size: 24),
                 )
               : const Icon(Icons.share),
           label: const Text('Compartir por WhatsApp'),

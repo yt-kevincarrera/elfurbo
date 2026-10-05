@@ -4,6 +4,7 @@ import '../../core/app_messenger.dart';
 import '../../core/network_hints.dart';
 import '../../domain/app_update.dart';
 import '../../services/update_service.dart';
+import 'expressive.dart';
 
 /// Diálogo "hay una versión nueva": muestra las notas y descarga e instala el
 /// APK sin salir de la app.
@@ -102,7 +103,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             ),
             if (progress != null) ...[
               const SizedBox(height: 20),
-              LinearProgressIndicator(value: progress < 0 ? null : progress),
+              WavyProgressBar(value: progress < 0 ? null : progress),
               const SizedBox(height: 8),
               Text(
                 progress < 0

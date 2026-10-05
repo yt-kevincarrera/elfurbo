@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:material_new_shapes/material_new_shapes.dart';
+
 import '../../core/theme.dart';
 import '../../models/match_report.dart';
+import 'expressive.dart';
 
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -20,31 +23,46 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: scheme.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                subtitle!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.85, end: 1),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutBack,
+          builder: (context, t, child) => Opacity(
+            opacity: ((t - 0.85) / 0.15).clamp(0, 1),
+            child: Transform.scale(scale: t, child: child),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ShapeBadge(
+                shape: MaterialShapes.softBurst,
+                color: scheme.primaryContainer,
+                size: 120,
+                child: Icon(icon, size: 48, color: scheme.onPrimaryContainer),
               ),
+              const SizedBox(height: 24),
+              Text(
+                title,
+                style: text.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: text.bodyLarge?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              if (action != null) ...[const SizedBox(height: 24), action!],
             ],
-            if (action != null) ...[const SizedBox(height: 16), action!],
-          ],
+          ),
         ),
       ),
     );
@@ -60,16 +78,15 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(20, 24, 12, 8),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              text.toUpperCase(),
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.bold,
+              text,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -111,10 +128,13 @@ class ReportStatusChip extends StatelessWidget {
       ),
     };
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 3 : 5,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -123,9 +143,9 @@ class ReportStatusChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: color,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -156,27 +176,48 @@ class CounterField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        if (icon != null) ...[Icon(icon), const SizedBox(width: 12)],
-        Expanded(child: Text(label, style: text.titleMedium)),
-        IconButton.outlined(
-          onPressed: value > min ? () => onChanged(value - 1) : null,
-          icon: const Icon(Icons.remove),
-        ),
-        SizedBox(
-          width: 44,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: scheme.primary),
+            const SizedBox(width: 12),
+          ],
+          Expanded(child: Text(label, style: text.titleMedium)),
+          IconButton.filledTonal(
+            iconSize: 22,
+            onPressed: value > min ? () => onChanged(value - 1) : null,
+            icon: const Icon(Icons.remove),
           ),
-        ),
-        IconButton.filled(
-          onPressed: value < max ? () => onChanged(value + 1) : null,
-          icon: const Icon(Icons.add),
-        ),
-      ],
+          SizedBox(
+            width: 52,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, a) =>
+                  ScaleTransition(scale: a, child: child),
+              child: Text(
+                '$value',
+                key: ValueKey(value),
+                textAlign: TextAlign.center,
+                style: text.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          IconButton.filled(
+            iconSize: 22,
+            onPressed: value < max ? () => onChanged(value + 1) : null,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -200,27 +241,34 @@ class StatTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           if (icon != null)
-            Icon(icon, size: 18, color: color ?? scheme.primary),
-          Text(
-            value,
-            style: text.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
+            Icon(icon, size: 20, color: color ?? scheme.primary),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: text.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color ?? scheme.onSurface,
+                height: 1.1,
+              ),
             ),
           ),
           Text(
             label,
-            style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: text.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
