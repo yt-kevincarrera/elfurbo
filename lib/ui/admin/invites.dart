@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../cloud/api/admin_api.dart';
@@ -10,10 +9,12 @@ import '../../cloud/ui/errors.dart';
 import '../../cloud/ui/home_screens.dart';
 import '../../core/app_messenger.dart';
 import '../../core/formatters.dart';
+import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/club_roles.dart';
 import '../../models/app_user.dart';
 import '../widgets/common.dart';
+import '../widgets/chalk.dart';
 import '../widgets/expressive.dart';
 
 /// Comparte una invitación por WhatsApp (o lo que elija): el código y el enlace.
@@ -98,23 +99,19 @@ class InvitesSection extends ConsumerWidget {
                   children: [
                     for (final i in list)
                       ListTile(
-                        leading: ShapeBadge(
-                          shape: MaterialShapes.cookie4Sided,
-                          color: scheme.tertiaryContainer,
-                          size: 40,
-                          child: Icon(
-                            i.targetMemberId == null
-                                ? Icons.mail_outline
-                                : Icons.how_to_reg,
-                            size: 20,
-                            color: scheme.onTertiaryContainer,
-                          ),
+                        leading: Icon(
+                          i.targetMemberId == null
+                              ? Icons.mail_outline
+                              : Icons.how_to_reg,
+                          color: Chalk.yellow,
                         ),
                         title: Text(
                           i.code,
-                          style: text.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
+                          style: AppTheme.mono(
+                            size: 17,
+                            weight: 800,
+                            spacing: 2,
+                            color: Chalk.white,
                           ),
                         ),
                         subtitle: Text(
@@ -389,4 +386,39 @@ Future<void> showRecoveryCode(
       );
     },
   );
+}
+
+/// Invitación para que un jugador sin cuenta reclame su perfil (con todo su
+/// historial): una sola persona, la manda por WhatsApp quien la crea.
+Future<void> inviteToClaim(WidgetRef ref, AppUser guest) async {
+  final club = ref.read(currentClubProvider);
+  if (club == null) return;
+  try {
+    final invite = await ref
+        .read(clubAdminApiProvider)
+        .createInvite(club.id, targetMemberId: guest.uid);
+    ref.invalidate(invitesProvider(club.id));
+    await shareInvite(ref, invite, clubName: club.name, claimName: guest.name);
+  } catch (e) {
+    showError(describeError(e));
+  }
+}
+
+/// Código de recuperación para un miembro (se ve una sola vez).
+Future<void> issueRecoveryCode(
+  BuildContext context,
+  WidgetRef ref,
+  AppUser member,
+) async {
+  final club = ref.read(currentClubProvider);
+  if (club == null) return;
+  try {
+    final code = await ref
+        .read(clubAdminApiProvider)
+        .recoveryCode(club.id, member.uid);
+    if (!context.mounted) return;
+    await showRecoveryCode(context, forName: member.name, code: code);
+  } catch (e) {
+    showError(describeError(e));
+  }
 }

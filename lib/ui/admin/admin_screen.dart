@@ -12,6 +12,9 @@ import '../../models/season.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
 import '../widgets/guest_dialog.dart';
+import 'audit_screen.dart';
+import 'invites.dart';
+import 'settings.dart';
 import '../widgets/player_avatar.dart';
 
 /// Admin del servidor (owner y admin): temporadas, miembros y jugadores sin
@@ -34,10 +37,21 @@ class AdminScreen extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin')),
+      appBar: AppBar(
+        title: const Text('Admin'),
+        actions: [
+          IconButton(
+            tooltip: 'Quién hizo qué',
+            icon: const Icon(Icons.history),
+            onPressed: () => AuditScreen.open(context),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
+          if (canManageInvites(myRole)) const InvitesSection(),
+          if (canManageClub(myRole)) const ClubSettingsSection(),
           SectionTitle(
             'Temporadas',
             trailing: readOnly
@@ -489,7 +503,12 @@ class _PlayerMenu extends ConsumerWidget {
         if (r != u.role && canSetRole(myRole, u.role, r)) r,
     ];
     final ban = canBan(myRole, u.role);
-    if (roles.isEmpty && !ban) return const SizedBox.shrink();
+    final claim = u.isGuest && canInviteAs(myRole, UserRole.player);
+    final code = !u.isGuest && canIssueRecoveryCode(myRole, u.role);
+    final transfer = canManageClub(myRole) && !u.isGuest;
+    if (roles.isEmpty && !ban && !claim && !code && !transfer) {
+      return const SizedBox.shrink();
+    }
     return PopupMenuButton<Object>(
       onSelected: (a) {
         if (a is UserRole) {
@@ -499,13 +518,34 @@ class _PlayerMenu extends ConsumerWidget {
           );
         } else if (a == 'ban') {
           _confirmBan(context, ref);
+        } else if (a == 'claim') {
+          inviteToClaim(ref, u);
+        } else if (a == 'code') {
+          issueRecoveryCode(context, ref, u);
+        } else if (a == 'transfer') {
+          _confirmTransfer(context, ref);
         }
       },
       itemBuilder: (_) => [
+        if (claim)
+          const PopupMenuItem(
+            value: 'claim',
+            child: Text('Invitar a reclamar su perfil'),
+          ),
+        if (code)
+          const PopupMenuItem(
+            value: 'code',
+            child: Text('Código de recuperación'),
+          ),
         for (final r in roles)
           PopupMenuItem(
             value: r,
             child: Text('Hacer ${roleLabel(r.name).toLowerCase()}'),
+          ),
+        if (transfer)
+          const PopupMenuItem(
+            value: 'transfer',
+            child: Text('Pasarle el servidor'),
           ),
         if (ban)
           PopupMenuItem(
@@ -517,6 +557,34 @@ class _PlayerMenu extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _confirmTransfer(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('¿Pasarle el servidor a ${user.name}?'),
+        content: const Text(
+          'Pasa a ser el dueño y tú te quedas de admin. Solo él podrá devolvértelo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pasárselo'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      fireAndForget(
+        ref.read(repoProvider).transferOwnership(user.uid),
+        success: 'Listo, ${user.name} es el dueño',
+      );
+    }
   }
 
   Future<void> _confirmBan(BuildContext context, WidgetRef ref) async {
