@@ -209,7 +209,9 @@ class UpdateService {
       final apk = (res.headers['content-type'] ?? '').contains('android');
       if ((res.statusCode != 200 && !resumed) || !apk) {
         await res.stream.drain<void>().catchError((Object _) {});
-        if (res.statusCode == 416) await part.delete(); // el .part no cuadra
+        // El .part no cuadra con lo que manda el servidor: de cero la próxima vez
+        // (si no, cada intento pediría lo mismo y fallaría igual).
+        if (res.statusCode == 416 || res.statusCode == 206) await part.delete();
         // Sin el tipo de un APK suele ser el portal de un wifi: no se guarda.
         throw HttpException('Descarga falló (${res.statusCode})');
       }

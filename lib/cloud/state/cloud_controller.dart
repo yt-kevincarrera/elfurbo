@@ -130,8 +130,13 @@ class CloudController {
   Stream<Me?> get meChanges => _meChanges.stream;
 
   /// Los archivos de una cuenta (también los usa el sync de segundo plano).
-  static LocalStore storeFor(Directory dataRoot, String userId) => LocalStore(
+  static LocalStore storeFor(
+    Directory dataRoot,
+    String userId, {
+    bool createsRoot = true,
+  }) => LocalStore(
     Directory('${dataRoot.path}${Platform.pathSeparator}u-$userId'),
+    createsRoot: createsRoot,
   );
 
   void _openStore(String userId) {

@@ -84,17 +84,20 @@ void main() {
     expect(part().existsSync(), isFalse);
   });
 
-  test('un 206 que no empieza donde se quedó no se pega al trozo', () async {
-    await part().writeAsBytes(_bytes.sublist(0, 40));
-    await expectLater(
-      service(
-        (_) async =>
-            ok(_bytes.sublist(30), status: 206, range: 'bytes 30-99/100'),
-      ).download(_asset()),
-      throwsA(isA<HttpException>()),
-    );
-    expect(await part().readAsBytes(), _bytes.sublist(0, 40));
-  });
+  test(
+    'un 206 que no empieza donde se quedó no se pega al trozo: la próxima, de cero',
+    () async {
+      await part().writeAsBytes(_bytes.sublist(0, 40));
+      await expectLater(
+        service(
+          (_) async =>
+              ok(_bytes.sublist(30), status: 206, range: 'bytes 30-99/100'),
+        ).download(_asset()),
+        throwsA(isA<HttpException>()),
+      );
+      expect(part().existsSync(), isFalse);
+    },
+  );
 
   test(
     'si la huella no coincide (bytes mezclados), se borra y no se instala',

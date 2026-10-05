@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:elfurbo/cloud/api/api_client.dart';
 import 'package:elfurbo/cloud/state/cloud_controller.dart';
+import 'package:elfurbo/cloud/sync/club_data.dart';
 import 'package:elfurbo/cloud/sync/command.dart';
 import 'package:elfurbo/cloud/sync/local_store.dart';
 import 'package:elfurbo/cloud/sync/sync_engine.dart';
@@ -125,6 +126,70 @@ void main() {
       await store.removeRejected(first.command.id);
       expect((await store.readRejected()).map((r) => r.message), ['dos']);
     });
+  });
+
+  group('casos raros', () {
+    test(
+      'si el reloj del teléfono se atrasa, la cola no cambia de orden',
+      () async {
+        // Un cambio hecho con el reloj adelantado (y la app reiniciada después).
+        final future = (DateTime.now().microsecondsSinceEpoch * 2)
+            .toString()
+            .padLeft(20, '0');
+        final early = _guest('antes');
+        await Directory('${dir.path}/outbox').create();
+        await File(
+          '${dir.path}/outbox/$future-${early.id}.json',
+        ).writeAsString(jsonEncode(early.toJson()));
+        await LocalStore(dir).addToOutbox(_guest('despues'));
+        expect(
+          (await LocalStore(dir).readOutbox()).map((c) => c.payload['id']),
+          ['antes', 'despues'],
+        );
+      },
+    );
+
+    test(
+      'al cerrar sesión, el segundo plano no resucita la carpeta borrada',
+      () async {
+        final account = Directory('${dir.path}/u-1');
+        final app = LocalStore(account);
+        final background = LocalStore(account, createsRoot: false);
+        await app.addToOutbox(_guest('a'));
+        await app.wipe();
+        await background.writeClub(ClubData(clubId: 'c1', cursor: 9));
+        await background.addRejected([
+          RejectedChange(command: _guest('a'), code: 'c', message: 'm'),
+        ]);
+        expect(account.existsSync(), isFalse);
+        expect(dir.listSync(), isEmpty); // ni la papelera queda
+      },
+    );
+
+    test(
+      'un pull más viejo que lo guardado por el otro isolate no lo pisa',
+      () async {
+        await store.writeClub(ClubData(clubId: 'c1', cursor: 20));
+        server.pulls = [
+          {
+            'clubs': {
+              'c1': {
+                'cursor': 15,
+                'hasMore': false,
+                'snapshot': false,
+                'upserts': {},
+                'deletes': {},
+              },
+            },
+            'removed': [],
+          },
+        ];
+        final e = engine();
+        // Mientras el pull de esta app viaja, el otro guarda uno más nuevo.
+        await e.sync();
+        expect((await store.readClub('c1'))!.cursor, 20);
+      },
+    );
   });
 
   group('versión vieja', () {

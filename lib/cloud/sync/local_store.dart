@@ -21,9 +21,13 @@ import 'command.dart';
 /// pasa es que los dos envíen el mismo cambio, y el servidor lo reconoce como
 /// duplicado.
 class LocalStore {
-  LocalStore(this.root);
+  LocalStore(this.root, {this.createsRoot = true});
 
   final Directory root;
+
+  /// false en el sync de segundo plano: si la carpeta no está (se cerró la
+  /// sesión y se borró), lo que escriba se descarta en vez de volver a crearla.
+  final bool createsRoot;
   static final _random = Random();
 
   Future<void> _queue = Future.value();
@@ -54,8 +58,16 @@ class LocalStore {
   Future<void> _write(String name, Object? value) =>
       _serial(() => _writeNow(name, value));
 
+  /// Prepara la carpeta para escribir; false si no hay que escribir (ver [createsRoot]).
+  Future<bool> _ready([String? sub]) async {
+    if (!createsRoot && !await root.exists()) return false;
+    // Sin [createsRoot], nunca recursivo: si la carpeta desaparece justo ahora, falla.
+    await (sub == null ? root : _dir(sub)).create(recursive: createsRoot);
+    return true;
+  }
+
   Future<void> _writeNow(String name, Object? value) async {
-    await root.create(recursive: true);
+    if (!await _ready()) return;
     // Un temporal distinto por escritura: dos escrituras a la vez no se mezclan.
     final tmp = _file(
       '$name.${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 30)}.tmp',
@@ -124,15 +136,25 @@ class LocalStore {
   Directory _dir(String name) =>
       Directory('${root.path}${Platform.pathSeparator}$name');
 
-  /// Orden de los archivos: microsegundos (crecientes dentro de este isolate) y
-  /// el id. Los que venían de la versión de un solo archivo van primero.
-  static int _lastStamp = 0;
-  static String _stamp() {
-    var now = DateTime.now().microsecondsSinceEpoch;
-    if (now <= _lastStamp) now = _lastStamp + 1;
-    _lastStamp = now;
-    return now.toString().padLeft(20, '0');
+  /// Orden de los archivos: un número que crece siempre (microsegundos, pero
+  /// nunca por debajo del último que hay en la carpeta, por si el reloj del
+  /// teléfono se atrasó) y el id. Los que venían de la versión de un solo
+  /// archivo van primero. Solo la app abierta añade a la cola.
+  Future<String> _stamp(Directory d) async {
+    var last = 0;
+    await for (final e in d.list()) {
+      final name = e.uri.pathSegments.last;
+      if (_idOf(name) == null) continue;
+      final n = int.tryParse(name.substring(0, name.indexOf('-'))) ?? 0;
+      if (n > last) last = n;
+    }
+    final now = DateTime.now().microsecondsSinceEpoch;
+    return (now > last ? now : last + 1).toString().padLeft(20, '0');
   }
+
+  /// Lo ya leído de la cola y los rechazados, por archivo: cada uno se escribe
+  /// una vez (rename) y no cambia, así que no hace falta volver a leerlo.
+  final _cache = <String, Object?>{};
 
   static String? _idOf(String fileName) {
     if (!fileName.endsWith('.json')) return null; // temporales
@@ -143,11 +165,9 @@ class LocalStore {
   Future<void> _addEntry(String dir, String id, Object? value) =>
       _serial(() async {
         await _migrateLegacy(dir);
-        await _dir(dir).create(recursive: true);
-        await _writeNow(
-          '$dir${Platform.pathSeparator}${_stamp()}-$id.json',
-          value,
-        );
+        if (!await _ready(dir)) return;
+        final stamp = await _stamp(_dir(dir));
+        await _writeNow('$dir${Platform.pathSeparator}$stamp-$id.json', value);
       });
 
   Future<List<Object?>> _readEntries(String dir) => _serial(() async {
@@ -166,12 +186,19 @@ class LocalStore {
     names.sort();
     final out = <Object?>[];
     final seen = <String>{};
+    final listed = <String>{};
     for (final name in names) {
       // Un mismo cambio dos veces (la migración en dos isolates): una sola.
       if (!seen.add(_idOf(name)!)) continue;
-      final j = await _readNow('$dir${Platform.pathSeparator}$name');
-      if (j != null) out.add(j);
+      final key = '$dir${Platform.pathSeparator}$name';
+      listed.add(key);
+      final j = _cache.containsKey(key) ? _cache[key] : await _readNow(key);
+      if (j != null) {
+        _cache[key] = j;
+        out.add(j);
+      }
     }
+    _cache.removeWhere((k, _) => k.startsWith(dir) && !listed.contains(k));
     return out;
   });
 
@@ -181,9 +208,13 @@ class LocalStore {
     final d = _dir(dir);
     if (!await d.exists()) return;
     final files = <File>[];
-    await for (final e in d.list()) {
-      final id = _idOf(e.uri.pathSegments.last);
-      if (e is File && id != null && ids.contains(id)) files.add(e);
+    try {
+      await for (final e in d.list()) {
+        final id = _idOf(e.uri.pathSegments.last);
+        if (e is File && id != null && ids.contains(id)) files.add(e);
+      }
+    } on FileSystemException {
+      return; // se borró mientras tanto (al cerrar sesión)
     }
     for (final f in files) {
       try {
@@ -200,8 +231,7 @@ class LocalStore {
     final legacy = _file('$dir.json');
     if (!await legacy.exists()) return;
     final j = await _readNow('$dir.json');
-    if (j is List) {
-      await _dir(dir).create(recursive: true);
+    if (j is List && await _ready(dir)) {
       for (var i = 0; i < j.length; i++) {
         final item = j[i] as Map<String, dynamic>;
         final id = dir == _outbox
@@ -228,11 +258,22 @@ class LocalStore {
   Future<void> writeMe(Map<String, dynamic> me) => _write('me.json', me);
 
   /// Borra todo lo de esta cuenta en el teléfono (al cerrar sesión).
+  /// Primero se aparta (rename, atómico): el sync de segundo plano, si estaba
+  /// escribiendo, ya no encuentra la carpeta y no la vuelve a crear.
   Future<void> wipe() => _serial(() async {
+    _cache.clear();
     try {
-      await root.delete(recursive: true);
-    } on PathNotFoundException {
-      // Ya no existía.
+      final trash = await root.rename(
+        '${root.path}.borrar-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await trash.delete(recursive: true);
+    } on FileSystemException {
+      // Ya no existía, o algo quedó a medias: lo que importa es que se apartó.
+      try {
+        if (await root.exists()) await root.delete(recursive: true);
+      } on FileSystemException {
+        // Se reintenta en el próximo cierre de sesión.
+      }
     }
   });
 }

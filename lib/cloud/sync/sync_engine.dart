@@ -238,6 +238,12 @@ class SyncEngine {
       for (final e in pulled.entries) {
         final data = clubs[e.key] ?? ClubData(clubId: e.key);
         data.applyPull(e.value as Map<String, dynamic>);
+        // El otro isolate pudo guardar mientras tanto algo más nuevo: no se pisa
+        // (una foto completa sí, puede venir de una base restaurada).
+        if ((e.value as Map)['snapshot'] != true) {
+          final stored = await store.readClub(e.key);
+          if (stored != null && stored.cursor > data.cursor) continue;
+        }
         await store.writeClub(data);
         if ((e.value as Map)['hasMore'] == true) more = true;
       }

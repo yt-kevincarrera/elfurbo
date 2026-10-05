@@ -84,6 +84,8 @@ Future<bool> runBackgroundSync() async {
       store: CloudController.storeFor(
         await getApplicationSupportDirectory(),
         session.user.id,
+        // Si la app cerró la sesión mientras tanto, no se resucita la carpeta.
+        createsRoot: false,
       ),
       isOutdated: UpdateService.isOutdated,
     );
