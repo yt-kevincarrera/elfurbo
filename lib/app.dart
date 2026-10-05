@@ -52,7 +52,7 @@ class _ClubSessionState extends ConsumerState<ClubSession>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Al volver a la app (como mucho cada 12 h pregunta a GitHub).
+    // Al volver a la app (como mucho cada 12 h pregunta al servidor).
     if (state == AppLifecycleState.resumed) {
       unawaited(
         ref.read(updateProvider.notifier).check().catchError((Object _) {}),

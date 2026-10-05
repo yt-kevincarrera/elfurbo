@@ -65,7 +65,7 @@ if [[ -n "$NOTES" ]]; then
 fi
 gh release create "v${NEW_VERSION}" \
   --repo yt-kevincarrera/elfurbo \
-  --title "El Furbo ${NEW_VERSION}" \
+  --title "El Furbo ${NEW_VERSION} (build ${NEW_BUILD})" \
   "${NOTES_ARGS[@]}" \
   "$OUT"/app-*-release.apk
 

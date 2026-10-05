@@ -5,6 +5,8 @@ declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
     ENVIRONMENT: string;
+    MIN_SUPPORTED_BUILD?: string;
+    GITHUB_TOKEN?: string;
     TEST_MIGRATIONS: import("cloudflare:test").D1Migration[];
   }
 }

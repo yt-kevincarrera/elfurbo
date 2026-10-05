@@ -17,7 +17,6 @@ const _release = AppRelease(
   tag: 'v0.4.0',
   title: 'El Furbo 0.4.0',
   notes: 'Cosas nuevas',
-  htmlUrl: '',
   assets: [_asset],
 );
 

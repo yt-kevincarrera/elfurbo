@@ -10,6 +10,7 @@ import 'cloud/auth/session.dart';
 import 'cloud/state/cloud_controller.dart';
 import 'cloud/state/providers.dart';
 import 'cloud/ui/cloud_app.dart';
+import 'services/update_service.dart';
 import 'services/update_worker.dart';
 
 /// El Furbo 1.0, con el backend propio (sin Firebase Auth ni Firestore).
@@ -21,14 +22,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es');
   tzdata.initializeTimeZones();
-  // Chequeo periódico de nuevas versiones (GitHub Releases) con la app cerrada.
-  await UpdateWorker.initialize();
+  // Con la app cerrada: versiones nuevas y la cola de cambios (WorkManager).
+  await BackgroundWork.initialize();
   final prefs = await SharedPreferences.getInstance();
   final dir = await getApplicationSupportDirectory();
   final cloud = CloudController(
-    api: ApiClient(),
+    api: ApiClient(build: await UpdateService.installedBuild()),
     sessions: SessionStore(prefs),
     dataRoot: dir,
+    isOutdated: UpdateService.isOutdated,
   );
   runApp(
     ProviderScope(

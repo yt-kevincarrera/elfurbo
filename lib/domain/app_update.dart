@@ -1,5 +1,5 @@
-/// Lógica pura de actualización: qué publica GitHub Releases y si es más nuevo
-/// que lo instalado. Sin dependencias de Flutter para poder testearla.
+/// Lógica pura de actualización: qué release publica nuestro servidor
+/// (`GET /app/latest`, que la lee de GitHub) y si es más nueva que lo instalado. Sin dependencias de Flutter para poder testearla.
 library;
 
 /// Compara dos versiones "x.y.z" (acepta prefijo `v` y sufijo `+build`, que
@@ -32,11 +32,23 @@ class ReleaseAsset {
     required this.name,
     required this.url,
     required this.size,
+    this.tag = '',
+    this.sha256,
   });
 
   final String name;
   final String url;
   final int size;
+
+  /// La versión a la que pertenece (los APK se llaman igual en todas).
+  final String tag;
+
+  /// Huella del APK (hex), si GitHub la da: se comprueba al terminar de bajarlo.
+  final String? sha256;
+
+  /// Nombre del archivo en el teléfono: con la versión, para que una descarga
+  /// a medias de una versión no se continúe con los bytes de otra.
+  String get fileName => tag.isEmpty ? name : '$tag-$name';
 }
 
 class AppRelease {
@@ -44,27 +56,28 @@ class AppRelease {
     required this.tag,
     required this.title,
     required this.notes,
-    required this.htmlUrl,
     required this.assets,
   });
 
-  /// Construye desde el JSON de `GET /repos/{owner}/{repo}/releases/latest`.
-  /// Solo conserva los assets `.apk`.
-  factory AppRelease.fromGitHubJson(Map<String, dynamic> json) {
+  /// Construye desde `release` de `GET /app/latest`. Los APK se bajan de
+  /// nuestro servidor (desde Cuba GitHub no abre).
+  factory AppRelease.fromServerJson(Map<String, dynamic> json) {
+    final tag = json['tag'] as String? ?? '';
     final rawAssets = (json['assets'] as List<dynamic>? ?? const [])
         .cast<Map<String, dynamic>>();
     return AppRelease(
-      tag: json['tag_name'] as String? ?? '',
-      title: json['name'] as String? ?? '',
-      notes: (json['body'] as String? ?? '').trim(),
-      htmlUrl: json['html_url'] as String? ?? '',
+      tag: tag,
+      title: json['title'] as String? ?? '',
+      notes: (json['notes'] as String? ?? '').trim(),
       assets: [
         for (final a in rawAssets)
           if ((a['name'] as String? ?? '').toLowerCase().endsWith('.apk'))
             ReleaseAsset(
               name: a['name'] as String,
-              url: a['browser_download_url'] as String? ?? '',
+              url: a['url'] as String? ?? '',
               size: (a['size'] as num?)?.toInt() ?? 0,
+              tag: tag,
+              sha256: a['sha256'] as String?,
             ),
       ],
     );
@@ -73,7 +86,6 @@ class AppRelease {
   final String tag;
   final String title;
   final String notes;
-  final String htmlUrl;
   final List<ReleaseAsset> assets;
 
   /// Versión sin el prefijo `v` (lo que muestra la UI).

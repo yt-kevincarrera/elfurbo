@@ -375,7 +375,14 @@ comandos.
   el cursor (agrupadas y sin repetir), las bajas como tombstones, el nuevo
   cursor y `hasMore`. Máximo 500 cambios por respuesta.
 - Cursor `0`, o un cursor más viejo que la purga de `changes` (90 días):
-  **snapshot** completo de ese servidor y el cursor actual.
+  **snapshot** completo de ese servidor y el cursor actual. Los cursores son
+  ids globales de `changes`: sin cambios nuevos en un servidor, su cursor
+  avanza hasta el último id que existe, así uno tranquilo nunca cae por
+  debajo de la purga. La purga diaria (08:00 UTC, en el cron de cada hora)
+  guarda en `kv` hasta qué id borró; un pull que coincide con ella la vuelve
+  a leer al final y repite como foto completa lo que pudo perderse. La misma
+  purga borra `applied_commands` de más de 30 días, sesiones caducadas hace
+  más de 7, intentos de login viejos y códigos de recuperación caducados.
 - También informa de los servidores a los que el usuario ya no pertenece, para
   que la app borre sus datos locales.
 
@@ -386,7 +393,13 @@ comandos.
 - Cada 2 minutos con la app en primer plano.
 - Al recibir un push (todos los push llevan `sync: 1`).
 - En segundo plano con WorkManager (el intervalo mínimo de Android, ~15 min,
-  cuando el sistema lo permite).
+  cuando el sistema lo permite) y, si al salir de la app quedan cambios por
+  enviar, en cuanto haya conexión. La app abierta y el sync de segundo plano
+  pueden coincidir (isolates distintos, mismos archivos): la cola y los
+  rechazados son un archivo por cambio, nunca un archivo que se reescribe, así
+  que lo peor es enviar un cambio dos veces (el servidor lo ve duplicado).
+- Tras un fallo con cambios por enviar, reintentos a 5 s, 10 s, 20 s… hasta
+  5 min.
 
 Las respuestas viajan comprimidas (Cloudflare comprime JSON).
 
@@ -480,13 +493,22 @@ servidores y miembros:
 
 GitHub no abre desde Cuba. El Worker hace de intermediario:
 
-- `GET /app/latest` → `{version, build, notes, minSupportedBuild}`, leído de
-  la última release de GitHub y guardado en caché 1 hora.
-- `GET /app/apk/<abi>` → transmite el APK de la release de GitHub. El
-  Worker lo pide a GitHub desde Cloudflare, así que el teléfono nunca toca
-  GitHub. No se almacena nada en Cloudflare.
-- `minSupportedBuild` permite forzar la actualización si un cambio del
-  protocolo de sync lo exige. La app muestra "Actualiza para seguir
+- `GET /app/latest` → `{minSupportedBuild, release}`. `release` es
+  `{tag, version, build, title, notes, publishedAt, assets: [{abi, name, size,
+  url}]}` o null. Se lee de la última release de GitHub y se guarda 1 hora en
+  la tabla `kv`. Si GitHub falla (o el límite de 60 consultas por hora de la
+  IP de Cloudflare), se sirve la última que se vio. Un secreto opcional
+  `GITHUB_TOKEN` sube ese límite.
+- `GET /app/apk/<tag>/<abi>` → transmite el APK de esa release. El Worker lo
+  pide a GitHub desde Cloudflare, así que el teléfono nunca toca GitHub. No se
+  almacena nada en Cloudflare. Respeta `Range`: una descarga cortada sigue
+  donde se quedó (el `.part` en el teléfono lleva la versión en el nombre).
+- `minSupportedBuild` (variable `MIN_SUPPORTED_BUILD` del Worker) permite
+  forzar la actualización si un cambio del protocolo de sync lo exige. La app
+  manda su build en `x-app-build` y `/sync/*` responde 426 `app_outdated` a
+  las más viejas (y a las que no lo mandan).
+- Cada APK lleva el sha256 que da GitHub; la app lo comprueba antes de darlo
+  por descargado. La app muestra "Actualiza para seguir
   sincronizando" y sigue funcionando sin conexión.
 - `release.sh` sigue publicando en GitHub Releases. No cambia nada para el
   dueño.

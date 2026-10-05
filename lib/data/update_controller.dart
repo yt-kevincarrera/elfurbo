@@ -78,7 +78,7 @@ class UpdateController extends Notifier<UpdateState> {
   UpdateAlerts get _alerts => ref.read(updateAlertsProvider);
 
   /// Mira si hay versión nueva: primero lo último que se supo (al instante y
-  /// sin red) y, si toca o con [force], pregunta a GitHub. Con [force] los
+  /// sin red) y, si toca o con [force], pregunta al servidor. Con [force] los
   /// errores de red llegan a quien llama.
   Future<void> check({bool force = false}) async {
     if (state.phase == UpdatePhase.downloading) return;

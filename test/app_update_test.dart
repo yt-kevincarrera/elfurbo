@@ -16,40 +16,39 @@ void main() {
     });
   });
 
-  group('AppRelease.fromGitHubJson', () {
+  group('AppRelease.fromServerJson', () {
+    // Lo que manda `GET /app/latest` en `release`.
     final json = <String, dynamic>{
-      'tag_name': 'v0.2.0',
-      'name': 'El Furbo 0.2.0',
-      'body': 'Notas de la versión',
-      'html_url': 'https://github.com/x/y/releases/tag/v0.2.0',
-      'draft': false,
-      'prerelease': false,
+      'tag': 'v0.2.0',
+      'version': '0.2.0',
+      'build': 4,
+      'title': 'El Furbo 0.2.0',
+      'notes': ' Notas de la versión ',
+      'publishedAt': '2026-10-05T12:00:00Z',
       'assets': [
         {
+          'abi': 'arm64-v8a',
           'name': 'app-arm64-v8a-release.apk',
-          'browser_download_url': 'https://dl/arm64.apk',
+          'url': 'https://api/app/apk/v0.2.0/arm64-v8a',
           'size': 100,
         },
         {
+          'abi': 'armeabi-v7a',
           'name': 'app-armeabi-v7a-release.apk',
-          'browser_download_url': 'https://dl/v7a.apk',
+          'url': 'https://api/app/apk/v0.2.0/armeabi-v7a',
           'size': 90,
         },
         {
+          'abi': 'x86_64',
           'name': 'app-x86_64-release.apk',
-          'browser_download_url': 'https://dl/x64.apk',
+          'url': 'https://api/app/apk/v0.2.0/x86_64',
           'size': 110,
-        },
-        {
-          'name': 'app-release.apk.sha1',
-          'browser_download_url': 'https://dl/sha',
-          'size': 1,
         },
       ],
     };
 
-    test('parsea versión, notas y solo assets .apk', () {
-      final r = AppRelease.fromGitHubJson(json);
+    test('parsea versión, notas y los APK', () {
+      final r = AppRelease.fromServerJson(json);
       expect(r.version, '0.2.0');
       expect(r.notes, 'Notas de la versión');
       expect(r.assets.map((a) => a.name), [
@@ -59,44 +58,41 @@ void main() {
       ]);
     });
 
+    test(
+      'el archivo en el teléfono lleva la versión (los APK se llaman igual)',
+      () {
+        final a = AppRelease.fromServerJson(json).assets.first;
+        expect(a.tag, 'v0.2.0');
+        expect(a.fileName, 'v0.2.0-app-arm64-v8a-release.apk');
+      },
+    );
+
     test('isNewerThan compara con la versión instalada', () {
-      final r = AppRelease.fromGitHubJson(json);
+      final r = AppRelease.fromServerJson(json);
       expect(r.isNewerThan('0.1.0+1'), isTrue);
       expect(r.isNewerThan('0.2.0+3'), isFalse);
       expect(r.isNewerThan('0.3.0'), isFalse);
     });
 
     test('elige el APK de la primera ABI soportada que exista', () {
-      final r = AppRelease.fromGitHubJson(json);
+      final r = AppRelease.fromServerJson(json);
       expect(
         r.assetFor(['arm64-v8a', 'armeabi-v7a'])?.url,
-        'https://dl/arm64.apk',
+        'https://api/app/apk/v0.2.0/arm64-v8a',
       );
-      expect(r.assetFor(['armeabi-v7a'])?.url, 'https://dl/v7a.apk');
-      expect(r.assetFor(['x86_64', 'x86'])?.url, 'https://dl/x64.apk');
+      expect(
+        r.assetFor(['armeabi-v7a'])?.url,
+        'https://api/app/apk/v0.2.0/armeabi-v7a',
+      );
+      expect(
+        r.assetFor(['x86_64', 'x86'])?.url,
+        'https://api/app/apk/v0.2.0/x86_64',
+      );
     });
 
-    test(
-      'si no hay APK para la ABI usa el universal, y si no hay nada null',
-      () {
-        final universal = AppRelease.fromGitHubJson({
-          ...json,
-          'assets': [
-            {
-              'name': 'app-release.apk',
-              'browser_download_url': 'https://dl/universal.apk',
-              'size': 300,
-            },
-          ],
-        });
-        expect(
-          universal.assetFor(['arm64-v8a'])?.url,
-          'https://dl/universal.apk',
-        );
-
-        final none = AppRelease.fromGitHubJson({...json, 'assets': []});
-        expect(none.assetFor(['arm64-v8a']), isNull);
-      },
-    );
+    test('sin APK para la ABI, null', () {
+      final none = AppRelease.fromServerJson({...json, 'assets': []});
+      expect(none.assetFor(['arm64-v8a']), isNull);
+    });
   });
 }

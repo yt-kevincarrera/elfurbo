@@ -5,7 +5,9 @@
   "compatibility_date": "2026-08-15",
   "workers_dev": true,
   "observability": { "enabled": true },
-  "vars": { "ENVIRONMENT": "local" },
+  "vars": { "ENVIRONMENT": "local", "MIN_SUPPORTED_BUILD": "0" },
+  // Cada hora: la purga diaria y, más adelante, los recordatorios.
+  "triggers": { "crons": ["0 * * * *"] },
   // Base local para `wrangler dev` y los tests. Los entornos remotos van en "env".
   "d1_databases": [
     {
@@ -18,7 +20,8 @@
   "env": {
     "staging": {
       "name": "furbo-api-staging",
-      "vars": { "ENVIRONMENT": "staging" },
+      "vars": { "ENVIRONMENT": "staging", "MIN_SUPPORTED_BUILD": "0" },
+      "triggers": { "crons": ["0 * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
 import '../../ui/widgets/chalk.dart';
+import '../../services/sync_worker.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
 import 'home_screens.dart';
@@ -40,7 +41,9 @@ class CloudApp extends StatelessWidget {
 }
 
 /// Sin sesión: bienvenida. Con sesión: el inicio, y sincroniza al abrir, al volver
-/// a la app y cada 2 minutos mientras está abierta (spec §5).
+/// a la app y cada 2 minutos mientras está abierta (spec §5). Con la app cerrada
+/// sigue WorkManager: cada ~15 min y, si quedan cambios por enviar al salir, en
+/// cuanto haya conexión.
 class CloudGate extends ConsumerStatefulWidget {
   const CloudGate({super.key});
 
@@ -70,11 +73,22 @@ class _CloudGateState extends ConsumerState<CloudGate>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _sync();
+    if (state == AppLifecycleState.paused) unawaited(_flushLater());
   }
 
   void _sync() {
     final cloud = ref.read(cloudProvider);
-    if (cloud.session != null) unawaited(cloud.sync());
+    if (cloud.session == null) return;
+    unawaited(cloud.sync());
+    unawaited(ref.read(syncWorkerProvider).schedule());
+  }
+
+  /// Al salir con cambios por enviar: que salgan en cuanto haya conexión.
+  Future<void> _flushLater() async {
+    final engine = ref.read(cloudProvider).engine;
+    final worker = ref.read(syncWorkerProvider);
+    if (engine == null || (await engine.store.readOutbox()).isEmpty) return;
+    await worker.flushWhenOnline();
   }
 
   @override
