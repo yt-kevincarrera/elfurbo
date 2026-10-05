@@ -23,7 +23,7 @@ class LocalNotifications {
 
   static const idUpdate = 4242;
 
-  static const _color = Color(0xFFD4AF37);
+  static const _color = Color(0xFFF5E663);
   static const _icon = '@drawable/ic_notification';
 
   static final _plugin = FlutterLocalNotificationsPlugin();

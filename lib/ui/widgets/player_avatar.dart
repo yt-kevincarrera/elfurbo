@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../../models/app_user.dart';
+import 'chalk.dart';
 import 'expressive.dart';
 
-/// Iniciales del jugador sobre una forma de Material. El mismo jugador
-/// siempre tiene la misma forma y el mismo color.
+/// El jugador como ficha de pizarra: un aro de tiza con sus iniciales. El
+/// mismo jugador siempre tiene el mismo color de tiza.
 class PlayerAvatar extends StatelessWidget {
   const PlayerAvatar({
     super.key,
     required this.user,
     this.radius = 20,
-    this.avoid,
+    this.filled = false,
   });
 
   final AppUser? user;
   final double radius;
 
-  /// Color de fondo sobre el que va: si coincide con el suyo, usa otro para
-  /// no desaparecer.
-  final Color? avoid;
+  /// Ficha llena (los que van, el que destaca).
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final name = user?.name ?? '?';
     final initials = name
         .trim()
@@ -32,25 +31,12 @@ class PlayerAvatar extends StatelessWidget {
         .map((p) => p[0].toUpperCase())
         .join();
     final id = user?.uid ?? name;
-    final palettes = [
-      (scheme.primaryContainer, scheme.onPrimaryContainer),
-      (scheme.secondaryContainer, scheme.onSecondaryContainer),
-      (scheme.tertiaryContainer, scheme.onTertiaryContainer),
-    ];
-    var (bg, fg) = palettes[AppShapes.hashOf(id) % palettes.length];
-    if (bg == avoid) (bg, fg) = (scheme.surface, scheme.onSurface);
-    return ShapeBadge(
-      shape: AppShapes.forId(id),
-      color: bg,
-      size: radius * 2.2,
-      child: Text(
-        initials.isEmpty ? '?' : initials,
-        style: TextStyle(
-          color: fg,
-          fontSize: radius * 0.8,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+    return ChalkToken(
+      label: initials.isEmpty ? '?' : initials,
+      color: Chalk.tokens[AppShapes.hashOf(id) % Chalk.tokens.length],
+      size: radius * 2.1,
+      filled: filled,
+      dashed: user?.isGuest ?? false,
     );
   }
 }

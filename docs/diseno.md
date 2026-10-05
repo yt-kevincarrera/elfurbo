@@ -1,55 +1,73 @@
-# Diseño de El Furbo
+# Diseño de El Furbo: la pizarra táctica
 
-La app va en la línea de **Material 3 Expressive**: seria y cuidada en lo visual,
-aunque el texto hable cubano (ver `docs/tono.md`). El tema vive en
-`lib/core/theme.dart` y las piezas propias en `lib/ui/widgets/expressive.dart`.
+La app es la **pizarra del vestidor**: verde-negra, con tiza, la jornada
+dibujada como una cancha y los jugadores como fichas. El texto habla cubano
+(ver `docs/tono.md`).
 
-## Color
+- El tema vive en `lib/core/theme.dart`.
+- Las piezas de la pizarra, en `lib/ui/widgets/chalk.dart`.
 
-- Toda la paleta sale de `AppTheme.seed` (verde terreno), con variante tonal.
-  Cambiar ese valor recolorea la app entera.
-- El **dorado** (`tertiary`, `scheme.mvpGold`) es solo para lo que se celebra:
-  MVP, el primero de la tabla, logros, trofeos.
-- Nada de colores sueltos en las pantallas. Se usan roles del esquema
-  (`primaryContainer`, `secondaryContainer`, `surfaceContainer*`…).
-  Los estados de reportes salen de `StatusColors`.
-- Superficies por capas en vez de bordes: las tarjetas no llevan contorno.
+## Color: tizas sobre pizarra
 
-## Forma
+| Uso | Tiza |
+|---|---|
+| Texto | Blanca (`Chalk.white`; lo secundario, `Chalk.dim`) |
+| Lo importante: botón principal, lo seleccionado, "los que van" | Amarilla (`Chalk.yellow`) |
+| Títulos de sección, lo secundario, confirmado | Verde (`Chalk.green`) |
+| Rechazado, errores, avisos | Rosa (`Chalk.pink`) |
+| Lo que se celebra: MVP, el primero de la tabla, logros | Naranja (`Chalk.orange`) |
+| Más fichas | Azul (`Chalk.blue`) |
 
-- Tarjetas con esquinas de 24. Diálogos y hojas inferiores con 28.
-- Botones en píldora que se aprietan a esquinas de 12 al pulsar (lo hace el tema).
-- **Listas agrupadas**: filas tonales seguidas, con esquinas grandes arriba y
-  abajo del grupo y pequeñas entre filas.
-  - `GroupedTile` para filas propias.
-  - `GroupedSection` para envolver `ListTile`s.
-- **Formas de Material** (`material_new_shapes`):
-  - Avatares (`PlayerAvatar`): la misma forma y el mismo color para el mismo jugador.
-  - Servidor y podio.
-  - Fondos de estados vacíos (`ShapeBadge`).
-  - Siempre las formas de `AppShapes` o `MaterialShapes`, nunca dibujadas a mano.
+- Fondo: `Chalk.board`, con capas `boardRaised` / `boardHigh` para diálogos y hojas.
+- Encima de toda la app va `ChalkDust`: polvo y borrones muy tenues.
+- La app va **siempre en pizarra**: no hay modo claro.
+- En las pantallas nada de colores sueltos: siempre las tizas o los roles del esquema.
 
-## Tipografía
+## Letras
 
-- Títulos con más peso (escala "enfatizada" del tema).
-- Los números importantes (goles, puestos, fechas) van grandes y en negrita, como un marcador.
-- Las secciones usan `SectionTitle` (sin mayúsculas).
+- **Marker** (Permanent Marker): títulos de pantalla y de sección, el
+  "cuándo" de la jornada, números grandes (marcadores, puestos).
+- **Kalam**: todo el texto, a mano.
+- **Mono** (JetBrains Mono, `AppTheme.mono()`): datos, como fechas
+  ("MIÉ 7 · 10:00"), contadores, etiquetas de la barra inferior y chips de estado.
+- Las fuentes van **dentro de la app** (`assets/fonts`, con sus licencias):
+  Google Fonts no carga en Cuba.
+
+## Trazos
+
+- **`ChalkBorder`**: el borde de todo.
+  - Doble pasada (el grano de la tiza) en tarjetas, diálogos y menús.
+  - **Discontinuo** en botones secundarios, segmentados, chips y estados vacíos.
+- **Listas**:
+  - Filas sin recuadro separadas por una raya discontinua (`GroupedTile`, `GroupedSection`).
+  - Tu fila va resaltada con un toque de amarillo.
+- **Jugadores** (`PlayerAvatar` → `ChalkToken`):
+  - Aro de tiza con iniciales; el mismo jugador, el mismo color.
+  - Ficha llena: "los que van".
+  - Discontinua: "quizás" o "sin cuenta".
+- **La cancha** (`ChalkPitch`, `ChalkArrow`): la próxima jornada se dibuja
+  con los que van en formación en nuestro campo, los "quizás" enfrente y una
+  flecha táctica.
+- **Podio**: un círculo de tiza alrededor del puesto, el primero en naranja.
 
 ## Movimiento y carga
 
-- **Cargas**:
-  - `AppLoading`: el indicador que cambia de forma.
-  - `LoadingView`: para pantalla completa.
-  - Nunca `CircularProgressIndicator`.
-- **Progreso o sincronización**: `WavyProgressBar` (ondulada).
-- **Tarjetas que se tocan**: van dentro de `Pressable` (se encogen y vuelven con rebote).
-- **Animaciones**:
-  - De entrada y que terminen.
-  - Nada en bucle infinito salvo los indicadores de carga.
-  - Si no, `pumpAndSettle` no termina en los tests y además gasta batería.
+- Cargas con `AppLoading` / `LoadingView` (el indicador que cambia de forma, en tiza amarilla).
+- Progreso con `WavyProgressBar`.
+- Tarjetas que se tocan, dentro de `Pressable` (rebote).
+- Animaciones de entrada que terminan; en bucle, solo los indicadores de carga.
+
+## Ícono
+
+`tool/icon_test.dart` lo dibuja: la ficha amarilla con la F a rotulador sobre
+el círculo central y una flecha de tiza. Se regenera con:
+
+```bash
+flutter test tool/icon_test.dart && dart run flutter_launcher_icons
+```
 
 ## Pantallas
 
-- La acción principal queda a la vista (`FilledButton`, alto 48–56).
-- Las secundarias van en un menú `⋯` de la propia fila o tarjeta.
-- Lo que el servidor rechazaría no se enseña (ver los providers de permisos en `lib/data/providers.dart`).
+- La acción principal queda a la vista (botón amarillo, alto 48–56).
+- Las secundarias van discontinuas o en un menú `⋯`.
+- Lo que el servidor rechazaría no se enseña (ver los permisos en `lib/data/providers.dart`).

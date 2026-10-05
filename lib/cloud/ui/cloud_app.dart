@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
+import '../../ui/widgets/chalk.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
 import 'home_screens.dart';
@@ -24,7 +25,8 @@ class CloudApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
+      builder: (context, child) => ChalkDust(child: child!),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es')],
       localizationsDelegates: const [

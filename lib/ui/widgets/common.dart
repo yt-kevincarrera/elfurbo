@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'package:material_new_shapes/material_new_shapes.dart';
-
 import '../../core/theme.dart';
 import '../../models/match_report.dart';
-import 'expressive.dart';
+import 'chalk.dart';
 
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -38,11 +36,18 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ShapeBadge(
-                shape: MaterialShapes.softBurst,
-                color: scheme.primaryContainer,
-                size: 120,
-                child: Icon(icon, size: 48, color: scheme.onPrimaryContainer),
+              SizedBox.square(
+                dimension: 116,
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    shape: ChalkBorder(
+                      side: BorderSide(color: Chalk.line(.7), width: 2.4),
+                      radius: 999,
+                      dashed: true,
+                    ),
+                  ),
+                  child: Icon(icon, size: 50, color: Chalk.yellow),
+                ),
               ),
               const SizedBox(height: 24),
               Text(
@@ -84,10 +89,9 @@ class SectionTitle extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(color: Chalk.green),
             ),
           ),
           if (trailing != null) trailing!,
@@ -112,11 +116,7 @@ class ReportStatusChip extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final (label, color, icon) = switch (report.status) {
       ReportStatus.confirmed => (
-        report.correctedByAdmin
-            ? 'Corregido (admin)'
-            : report.confirmedByAdmin
-            ? 'Confirmado (staff)'
-            : 'Confirmado',
+        report.correctedByAdmin ? 'Corregido' : 'Confirmado',
         scheme.confirmed,
         Icons.verified,
       ),
@@ -132,20 +132,24 @@ class ReportStatusChip extends StatelessWidget {
         horizontal: compact ? 8 : 10,
         vertical: compact ? 3 : 5,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(8),
+      decoration: ShapeDecoration(
+        shape: ChalkBorder(
+          side: BorderSide(color: color.withValues(alpha: .8), width: 1.4),
+          radius: 8,
+          dashed: true,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.mono(size: 11, weight: 700, color: color),
             ),
           ),
         ],
