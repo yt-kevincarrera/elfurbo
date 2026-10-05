@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../../app.dart';
 import '../../data/update_controller.dart';
 import '../../ui/widgets/update_dialog.dart';
+import '../../ui/widgets/chalk.dart';
 import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
@@ -69,17 +69,11 @@ class ClubBar extends ConsumerWidget {
                         padding: const EdgeInsets.all(4),
                         child: Row(
                           children: [
-                            ShapeBadge(
-                              shape: MaterialShapes.cookie9Sided,
-                              color: scheme.primaryContainer,
+                            ChalkToken(
+                              label: _initials(club.name),
+                              color: Chalk.yellow,
+                              filled: true,
                               size: 44,
-                              child: Text(
-                                _initials(club.name),
-                                style: text.titleSmall?.copyWith(
-                                  color: scheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -262,17 +256,11 @@ class ClubBar extends ConsumerWidget {
               ListTile(
                 selected: c.id == current.id,
                 selectedTileColor: scheme.secondaryContainer,
-                leading: ShapeBadge(
-                  shape: MaterialShapes.cookie9Sided,
-                  color: scheme.primaryContainer,
+                leading: ChalkToken(
+                  label: _initials(c.name),
+                  color: Chalk.yellow,
+                  filled: true,
                   size: 40,
-                  child: Text(
-                    _initials(c.name),
-                    style: TextStyle(
-                      color: scheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
                 ),
                 title: Text(c.name),
                 subtitle: Text(roleLabel(c.role)),

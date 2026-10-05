@@ -7,12 +7,11 @@ import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../models/attendance.dart';
-import '../../models/app_user.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
-import '../widgets/player_avatar.dart';
 import 'match_detail_screen.dart';
 import 'match_form_sheet.dart';
+import '../widgets/chalk.dart';
 import '../widgets/expressive.dart';
 
 class MatchesScreen extends ConsumerWidget {
@@ -63,7 +62,10 @@ class MatchesScreen extends ConsumerWidget {
               if (upcoming.isNotEmpty) ...[
                 const SectionTitle('Próximas'),
                 for (final (i, m) in upcoming.indexed)
-                  _UpcomingMatchCard(match: m, highlight: i == 0),
+                  if (i == 0 && !m.isCancelled)
+                    _PitchCard(match: m)
+                  else
+                    _UpcomingMatchCard(match: m),
               ],
               if (played.isNotEmpty) ...[
                 const SectionTitle('Jugadas'),
@@ -77,84 +79,278 @@ class MatchesScreen extends ConsumerWidget {
   }
 }
 
-/// Próxima jornada. La primera va destacada (color de contenedor, fecha grande
-/// y las caras de los que van).
-class _UpcomingMatchCard extends ConsumerWidget {
-  const _UpcomingMatchCard({required this.match, this.highlight = false});
+/// La próxima jornada dibujada en la pizarra: cuándo es a rotulador, la
+/// cancha con los que van como fichas en formación (y los "quizás" en el otro
+/// campo) y los botones para decir si vas.
+class _PitchCard extends ConsumerWidget {
+  const _PitchCard({required this.match});
 
   final MatchDay match;
-  final bool highlight;
+
+  // Dónde caen las fichas (fracciones de la cancha): los que van en nuestro
+  // campo, los "quizás" en el de enfrente.
+  static const _going = [
+    Offset(.08, .5),
+    Offset(.21, .25),
+    Offset(.21, .75),
+    Offset(.31, .5),
+    Offset(.41, .2),
+    Offset(.41, .8),
+    Offset(.44, .5),
+  ];
+  static const _maybe = [
+    Offset(.6, .3),
+    Offset(.6, .7),
+    Offset(.71, .5),
+    Offset(.82, .27),
+    Offset(.82, .73),
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final users = ref.watch(usersByIdProvider);
     final myUid = ref.watch(myUidProvider);
-    final mine = attendance[myUid]?.status;
     final closed = ref.watch(matchClosedProvider(match.id));
-    final goingIds = [
+    final mine = attendance[myUid]?.status;
+    final going = [
       for (final a in attendance.values)
         if (a.status == AttendanceStatus.yes) a.uid,
     ];
+    final maybe = [
+      for (final a in attendance.values)
+        if (a.status == AttendanceStatus.maybe) a.uid,
+    ];
+    final now = DateTime.now();
+    final text = Theme.of(context).textTheme;
+
+    String initials(String uid) {
+      final name = users[uid]?.name ?? '?';
+      return name
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((p) => p.isNotEmpty)
+          .take(2)
+          .map((p) => p[0].toUpperCase())
+          .join();
+    }
+
+    return Pressable(
+      child: Card(
+        child: InkWell(
+          onTap: () => MatchDetailScreen.open(context, match.id),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Transform.rotate(
+                  angle: -.035,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    match.isInProgress(now)
+                        ? '¡Se está jugando!'
+                        : _whenLabel(match.date, now),
+                    style: text.displaySmall?.copyWith(
+                      color: Chalk.yellow,
+                      fontSize: 34,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text.rich(
+                  TextSpan(
+                    style: AppTheme.mono(size: 13, color: Chalk.white),
+                    children: [
+                      TextSpan(
+                        text:
+                            '${_weekdayShort(match.date)} ${match.date.day} · ${Fmt.time(match.date)}',
+                      ),
+                      if (match.place != null) ...[
+                        const TextSpan(text: ' · '),
+                        TextSpan(
+                          text: match.place,
+                          style: const TextStyle(color: Chalk.green),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AspectRatio(
+                  aspectRatio: 1.5,
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final w = box.maxWidth;
+                      final h = box.maxHeight;
+                      const t = 30.0;
+                      Offset at(Offset f) => Offset(f.dx * w, f.dy * h);
+                      final shownGoing = going.take(_going.length).toList();
+                      final shownMaybe = maybe.take(_maybe.length).toList();
+                      return ChalkPitch(
+                        children: [
+                          if (shownGoing.length >= 2 && shownMaybe.isNotEmpty)
+                            Positioned.fill(
+                              child: ChalkArrow(
+                                from: at(_going[3]) + const Offset(t / 2, 0),
+                                to: at(_maybe[0]) - const Offset(t / 2, 4),
+                              ),
+                            ),
+                          for (final (i, uid) in shownGoing.indexed)
+                            Positioned(
+                              left: at(_going[i]).dx - t / 2,
+                              top: at(_going[i]).dy - t / 2,
+                              child: ChalkToken(
+                                label: initials(uid),
+                                color: Chalk.yellow,
+                                filled: true,
+                                size: t,
+                              ),
+                            ),
+                          for (final (i, uid) in shownMaybe.indexed)
+                            Positioned(
+                              left: at(_maybe[i]).dx - t / 2,
+                              top: at(_maybe[i]).dy - t / 2,
+                              child: ChalkToken(
+                                label: initials(uid),
+                                color: Chalk.green,
+                                dashed: true,
+                                size: t,
+                              ),
+                            ),
+                          Positioned(
+                            right: 10,
+                            bottom: 6,
+                            child: Transform.rotate(
+                              angle: -.06,
+                              child: Text.rich(
+                                TextSpan(
+                                  style: text.titleMedium?.copyWith(
+                                    color: Chalk.yellow,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: going.isEmpty && maybe.isEmpty
+                                          ? 'Nadie ha dicho nada todavía'
+                                          : '${going.length} van'
+                                                '${maybe.isEmpty ? '' : ' · ${maybe.length} quizás'} ',
+                                    ),
+                                    if (going.isNotEmpty || maybe.isNotEmpty)
+                                      TextSpan(
+                                        text: '→',
+                                        style: AppTheme.mono(
+                                          size: 16,
+                                          color: Chalk.yellow,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<AttendanceStatus>(
+                    emptySelectionAllowed: true,
+                    showSelectedIcon: false,
+                    selected: {if (mine != null) mine},
+                    onSelectionChanged: closed
+                        ? null
+                        : (sel) {
+                            if (sel.isEmpty) return;
+                            fireAndForget(
+                              ref
+                                  .read(repoProvider)
+                                  .setIntent(match.id, sel.first),
+                            );
+                          },
+                    segments: const [
+                      ButtonSegment(
+                        value: AttendanceStatus.yes,
+                        label: Text('Voy'),
+                      ),
+                      ButtonSegment(
+                        value: AttendanceStatus.maybe,
+                        label: Text('Quizás'),
+                      ),
+                      ButtonSegment(
+                        value: AttendanceStatus.no,
+                        label: Text('No voy'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Las demás próximas: compactas, con su bloque de fecha.
+class _UpcomingMatchCard extends ConsumerWidget {
+  const _UpcomingMatchCard({required this.match});
+
+  final MatchDay match;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attendance = ref.watch(attendanceForMatchProvider(match.id));
+    final myUid = ref.watch(myUidProvider);
+    final mine = attendance[myUid]?.status;
+    final closed = ref.watch(matchClosedProvider(match.id));
+    final going = attendance.values
+        .where((a) => a.status == AttendanceStatus.yes)
+        .length;
     final maybe = attendance.values
         .where((a) => a.status == AttendanceStatus.maybe)
         .length;
     final now = DateTime.now();
-    final inProgress = match.isInProgress(now);
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final hero = highlight && !match.isCancelled;
-    final fg = hero ? scheme.onPrimaryContainer : scheme.onSurface;
-    final fgSoft = hero
-        ? scheme.onPrimaryContainer.withValues(alpha: 0.8)
-        : scheme.onSurfaceVariant;
 
     return Pressable(
       child: Card(
-        color: hero ? scheme.primaryContainer : null,
         child: InkWell(
           onTap: () => MatchDetailScreen.open(context, match.id),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    _DateBlock(
-                      date: match.date,
-                      background: hero
-                          ? scheme.primary
-                          : scheme.surfaceContainerHighest,
-                      foreground: hero ? scheme.onPrimary : scheme.onSurface,
-                      large: hero,
-                    ),
-                    const SizedBox(width: 16),
+                    _DateBlock(date: match.date),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            inProgress
-                                ? 'En curso'
-                                : _whenLabel(match.date, now),
-                            style: (hero ? text.headlineSmall : text.titleLarge)
-                                ?.copyWith(
-                                  color: fg,
-                                  fontWeight: FontWeight.w800,
-                                  decoration: match.isCancelled
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                ),
+                            _whenLabel(match.date, now),
+                            style: text.titleLarge?.copyWith(
+                              decoration: match.isCancelled
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
                           ),
-                          const SizedBox(height: 2),
                           Text(
                             [
-                              _weekday(match.date),
                               Fmt.time(match.date),
                               if (match.place != null) match.place!,
                             ].join(' · '),
-                            style: text.bodyMedium?.copyWith(color: fgSoft),
+                            style: AppTheme.mono(
+                              size: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -164,57 +360,23 @@ class _UpcomingMatchCard extends ConsumerWidget {
                         text: 'Cancelada',
                         color: scheme.onSurfaceVariant,
                         icon: Icons.event_busy,
-                      )
-                    else if (inProgress)
-                      _Hint(
-                        text: 'En curso',
-                        color: hero
-                            ? scheme.onPrimaryContainer
-                            : scheme.primary,
-                        icon: Icons.play_circle_outline,
                       ),
                   ],
                 ),
                 if (!match.isCancelled) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _Faces(
-                        users: [for (final id in goingIds.take(5)) users[id]],
-                        ring: hero
-                            ? scheme.primaryContainer
-                            : scheme.surfaceContainerLow,
-                      ),
-                      if (goingIds.isNotEmpty) const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          goingIds.isEmpty && maybe == 0
-                              ? 'Nadie ha dicho nada todavía'
-                              : '${goingIds.length} van${maybe > 0 ? ' · $maybe quizás' : ''}',
-                          style: text.labelLarge?.copyWith(color: fg),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 10),
+                  Text(
+                    going == 0 && maybe == 0
+                        ? 'Nadie ha dicho nada todavía'
+                        : '$going van${maybe > 0 ? ' · $maybe quizás' : ''}',
+                    style: text.labelLarge?.copyWith(color: Chalk.yellow),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: SegmentedButton<AttendanceStatus>(
                       emptySelectionAllowed: true,
                       showSelectedIcon: false,
-                      style: hero
-                          ? ButtonStyle(
-                              foregroundColor: WidgetStatePropertyAll(fg),
-                              side: WidgetStatePropertyAll(
-                                BorderSide(color: fg.withValues(alpha: 0.3)),
-                              ),
-                              backgroundColor: WidgetStateProperty.resolveWith(
-                                (st) => st.contains(WidgetState.selected)
-                                    ? scheme.surface.withValues(alpha: 0.85)
-                                    : Colors.transparent,
-                              ),
-                            )
-                          : null,
                       selected: {if (mine != null) mine},
                       onSelectionChanged: closed
                           ? null
@@ -230,17 +392,14 @@ class _UpcomingMatchCard extends ConsumerWidget {
                         ButtonSegment(
                           value: AttendanceStatus.yes,
                           label: Text('Voy'),
-                          icon: Icon(Icons.check),
                         ),
                         ButtonSegment(
                           value: AttendanceStatus.maybe,
                           label: Text('Quizás'),
-                          icon: Icon(Icons.question_mark),
                         ),
                         ButtonSegment(
                           value: AttendanceStatus.no,
                           label: Text('No voy'),
-                          icon: Icon(Icons.close),
                         ),
                       ],
                     ),
@@ -255,89 +414,41 @@ class _UpcomingMatchCard extends ConsumerWidget {
   }
 }
 
-/// Día de la semana y número, en un bloque redondeado.
+/// Día de la semana y número, en un recuadro de tiza.
 class _DateBlock extends StatelessWidget {
-  const _DateBlock({
-    required this.date,
-    required this.background,
-    required this.foreground,
-    this.large = false,
-  });
+  const _DateBlock({required this.date, this.dim = false});
 
   final DateTime date;
-  final Color background;
-  final Color foreground;
-  final bool large;
+  final bool dim;
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final weekday = DateFormat.E('es').format(date).replaceAll('.', '');
+    final color = dim ? Chalk.dim : Chalk.white;
     return Container(
-      width: large ? 64 : 56,
-      height: large ? 72 : 60,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(large ? 20 : 16),
+      width: 54,
+      height: 58,
+      decoration: ShapeDecoration(
+        shape: ChalkBorder(
+          side: BorderSide(color: Chalk.line(dim ? .35 : .6), width: 1.6),
+          radius: 12,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            weekday.toUpperCase(),
-            style: text.labelSmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-            ),
+            _weekdayShort(date),
+            style: AppTheme.mono(size: 10.5, weight: 700, color: Chalk.green),
           ),
           Text(
             '${date.day}',
-            style: (large ? text.headlineMedium : text.titleLarge)?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w800,
+            style: TextStyle(
+              fontFamily: 'Marker',
+              fontSize: 24,
               height: 1.05,
+              color: color,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Caras de los que van, montadas una encima de otra.
-class _Faces extends StatelessWidget {
-  const _Faces({required this.users, required this.ring});
-
-  final List<AppUser?> users;
-
-  /// Color del fondo: cada cara lleva un aro de ese color para separarla.
-  final Color ring;
-
-  @override
-  Widget build(BuildContext context) {
-    if (users.isEmpty) return const SizedBox.shrink();
-    const size = 34.0;
-    const step = 24.0;
-    return SizedBox(
-      width: size + step * (users.length - 1),
-      height: size,
-      child: Stack(
-        children: [
-          for (final (i, u) in users.indexed)
-            Positioned(
-              left: step * i,
-              child: ShapeBadge(
-                shape: AppShapes.forId(u?.uid ?? '?'),
-                color: ring,
-                size: size,
-                child: PlayerAvatar(
-                  user: u,
-                  radius: (size - 6) / 2.2,
-                  avoid: ring,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -375,15 +486,7 @@ class _PlayedMatchCard extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _DateBlock(
-                  date: match.date,
-                  background: match.isCancelled
-                      ? scheme.surfaceContainerHighest
-                      : scheme.secondaryContainer,
-                  foreground: match.isCancelled
-                      ? scheme.onSurfaceVariant
-                      : scheme.onSecondaryContainer,
-                ),
+                _DateBlock(date: match.date, dim: match.isCancelled),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -527,8 +630,6 @@ String _whenLabel(DateTime date, DateTime now) {
   };
 }
 
-/// "Miércoles", con mayúscula.
-String _weekday(DateTime d) {
-  final w = DateFormat.EEEE('es').format(d);
-  return w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}';
-}
+/// "MIÉ", para los bloques de fecha.
+String _weekdayShort(DateTime d) =>
+    DateFormat.E('es').format(d).replaceAll('.', '').toUpperCase();

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
@@ -8,6 +7,7 @@ import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
 import '../profile/player_profile_screen.dart';
 import '../widgets/common.dart';
+import '../widgets/chalk.dart';
 import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
 
@@ -132,9 +132,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                         child: GroupedTile(
                           index: i,
                           count: ranking.length,
-                          color: isMe
-                              ? scheme.secondaryContainer
-                              : scheme.surfaceContainerLow,
+                          // Solo tu fila, resaltada.
+                          color: isMe ? Chalk.yellow : null,
                           onTap: () => PlayerProfileScreen.open(context, s.uid),
                           child: Row(
                             children: [
@@ -252,7 +251,8 @@ class SeasonSelector extends ConsumerWidget {
   }
 }
 
-/// Puesto en la tabla: el podio va en formas (el primero, dorado).
+/// Puesto en la tabla: el podio, encerrado en un círculo de tiza (el primero,
+/// en naranja, como lo marcaría el entrenador).
 class _Rank extends StatelessWidget {
   const _Rank({required this.position});
 
@@ -260,29 +260,36 @@ class _Rank extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final color = switch (position) {
+      1 => Chalk.orange,
+      2 || 3 => Chalk.white,
+      _ => Chalk.dim,
+    };
     final label = Text(
       '$position',
-      style: text.titleMedium?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: switch (position) {
-          1 => scheme.onTertiaryContainer,
-          2 || 3 => scheme.onSecondaryContainer,
-          _ => scheme.onSurfaceVariant,
-        },
+      style: TextStyle(
+        fontFamily: 'Marker',
+        fontSize: 18,
+        height: 1,
+        color: color,
       ),
     );
-    if (position > 3) {
-      return SizedBox(width: 32, child: Center(child: label));
-    }
-    return ShapeBadge(
-      shape: position == 1 ? MaterialShapes.sunny : MaterialShapes.cookie7Sided,
-      color: position == 1
-          ? scheme.tertiaryContainer
-          : scheme.surfaceContainerHighest,
-      size: 32,
-      child: label,
+    return SizedBox.square(
+      dimension: 34,
+      child: position > 3
+          ? Center(child: label)
+          : DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: ChalkBorder(
+                  side: BorderSide(
+                    color: color.withValues(alpha: position == 1 ? 1 : .6),
+                    width: position == 1 ? 2.2 : 1.6,
+                  ),
+                  radius: 999,
+                ),
+              ),
+              child: Center(child: label),
+            ),
     );
   }
 }

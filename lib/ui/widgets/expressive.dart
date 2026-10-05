@@ -4,6 +4,8 @@ import 'package:expressive_loading_indicator/expressive_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
+import 'chalk.dart';
+
 // Piezas de Material 3 Expressive que Flutter todavía no trae: el indicador de
 // carga que cambia de forma, las formas de Material (de androidx.graphics.shapes),
 // la barra de progreso ondulada y la respuesta al pulsar con rebote.
@@ -292,8 +294,8 @@ class _PressableState extends State<Pressable> {
   }
 }
 
-/// Fila de una lista agrupada (Material 3 Expressive): el grupo tiene las
-/// esquinas grandes arriba y abajo, y las filas de dentro, pequeñas.
+/// Fila de una lista en la pizarra: sin recuadro, separada de la siguiente
+/// por una raya de tiza discontinua. [color] la resalta (por ejemplo, tu fila).
 class GroupedTile extends StatelessWidget {
   const GroupedTile({
     super.key,
@@ -303,7 +305,7 @@ class GroupedTile extends StatelessWidget {
     this.color,
     this.onTap,
     this.onLongPress,
-    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
   });
 
   final int index;
@@ -314,29 +316,50 @@ class GroupedTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final EdgeInsetsGeometry padding;
 
-  static const _outer = Radius.circular(24);
-  static const _inner = Radius.circular(6);
-
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.vertical(
-      top: index == 0 ? _outer : _inner,
-      bottom: index == count - 1 ? _outer : _inner,
-    );
-    return Material(
-      color: color ?? Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Padding(padding: padding, child: child),
+    final last = index == count - 1;
+    return CustomPaint(
+      foregroundPainter: last ? null : const _DashedRule(),
+      child: Material(
+        color: color == null
+            ? Colors.transparent
+            : Chalk.yellow.withValues(alpha: .09),
+        shape: color == null ? null : const ChalkBorder(radius: 12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }
 }
 
-/// Varias filas (por ejemplo `ListTile`) como una lista agrupada.
+class _DashedRule extends CustomPainter {
+  const _DashedRule();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = Chalk.line(.28)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (var x = 6.0; x < size.width - 6; x += 11) {
+      canvas.drawLine(
+        Offset(x, size.height - .7),
+        Offset(math.min(x + 6, size.width - 6), size.height - .7),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRule old) => false;
+}
+
+/// Varias filas (por ejemplo `ListTile`) como una lista de la pizarra.
 class GroupedSection extends StatelessWidget {
   const GroupedSection({super.key, required this.children});
 
@@ -344,25 +367,19 @@ class GroupedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerLow;
-    return Column(
-      children: [
-        for (final (i, child) in children.indexed)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1.5),
-            child: Material(
-              color: color,
-              clipBehavior: Clip.antiAlias,
-              borderRadius: BorderRadius.vertical(
-                top: i == 0 ? GroupedTile._outer : GroupedTile._inner,
-                bottom: i == children.length - 1
-                    ? GroupedTile._outer
-                    : GroupedTile._inner,
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          for (final (i, child) in children.indexed)
+            CustomPaint(
+              foregroundPainter: i == children.length - 1
+                  ? null
+                  : const _DashedRule(),
               child: child,
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

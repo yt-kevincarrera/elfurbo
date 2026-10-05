@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../core/formatters.dart';
+import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
@@ -69,7 +70,7 @@ class MatchDetailScreen extends ConsumerWidget {
                   Fmt.time(match.date),
                   if (match.place != null) match.place!,
                 ].join(' · '),
-                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                style: AppTheme.mono(size: 12, color: scheme.onSurfaceVariant),
               ),
             ],
           ),

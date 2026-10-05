@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../state/providers.dart';
 import 'errors.dart';
+import '../../ui/widgets/chalk.dart';
 import '../../ui/widgets/expressive.dart';
 
 /// Primera pantalla sin sesión: entrar, crear cuenta o empezar con una invitación.
@@ -46,7 +46,7 @@ class WelcomeScreen extends StatelessWidget {
                 child: const Text('Entrar'),
               ),
               const SizedBox(height: 12),
-              FilledButton.tonal(
+              OutlinedButton(
                 style: big,
                 onPressed: () => open(const RegisterScreen()),
                 child: const Text('Crear cuenta'),
@@ -66,8 +66,8 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-/// Formas de Material que entran girando con rebote alrededor de la pelota y
-/// se quedan quietas (una animación sin fin gastaría batería en la portada).
+/// Una jugada dibujada a tiza: la cancha, tres fichas y la flecha. Entra
+/// con un rebote y se queda quieta.
 class _Hero extends StatefulWidget {
   const _Hero();
 
@@ -78,15 +78,11 @@ class _Hero extends StatefulWidget {
 class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1800),
+    duration: const Duration(milliseconds: 1200),
   )..forward();
-  late final Animation<double> _spin = Tween<double>(
-    begin: -0.2,
-    end: 0,
-  ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
-  late final Animation<double> _grow = CurvedAnimation(
+  late final Animation<double> _in = CurvedAnimation(
     parent: _c,
-    curve: const Interval(0, 0.7, curve: Curves.elasticOut),
+    curve: Curves.easeOutBack,
   );
 
   @override
@@ -97,46 +93,47 @@ class _HeroState extends State<_Hero> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox.square(
-      dimension: 220,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            top: 4,
-            right: 6,
-            child: RotationTransition(
-              turns: ReverseAnimation(_spin),
-              child: ShapeBadge(
-                shape: MaterialShapes.sunny,
-                color: scheme.tertiaryContainer,
-                size: 64,
-              ),
-            ),
+    const t = 34.0;
+    return ScaleTransition(
+      scale: _in,
+      child: Transform.rotate(
+        angle: -.04,
+        child: SizedBox(
+          width: 300,
+          height: 196,
+          child: LayoutBuilder(
+            builder: (context, box) {
+              Offset at(double x, double y) =>
+                  Offset(x * box.maxWidth, y * box.maxHeight);
+              Widget token(double x, double y, String l, Color c, bool fill) =>
+                  Positioned(
+                    left: at(x, y).dx - t / 2,
+                    top: at(x, y).dy - t / 2,
+                    child: ChalkToken(
+                      label: l,
+                      color: c,
+                      filled: fill,
+                      dashed: !fill,
+                      size: t,
+                    ),
+                  );
+              return ChalkPitch(
+                children: [
+                  Positioned.fill(
+                    child: ChalkArrow(
+                      from: at(.3, .5) + const Offset(t / 2, 0),
+                      to: at(.74, .4) - const Offset(t / 2, 2),
+                    ),
+                  ),
+                  token(.1, .5, '1', Chalk.yellow, true),
+                  token(.3, .5, '10', Chalk.yellow, true),
+                  token(.24, .2, '7', Chalk.yellow, true),
+                  token(.74, .4, '9', Chalk.green, false),
+                ],
+              );
+            },
           ),
-          Positioned(
-            bottom: 10,
-            left: 4,
-            child: ShapeBadge(
-              shape: MaterialShapes.pill,
-              color: scheme.secondaryContainer,
-              size: 56,
-            ),
-          ),
-          RotationTransition(
-            turns: _spin,
-            child: ScaleTransition(
-              scale: _grow,
-              child: ShapeBadge(
-                shape: MaterialShapes.cookie12Sided,
-                color: scheme.primaryContainer,
-                size: 160,
-              ),
-            ),
-          ),
-          Icon(Icons.sports_soccer, size: 72, color: scheme.onPrimaryContainer),
-        ],
+        ),
       ),
     );
   }
