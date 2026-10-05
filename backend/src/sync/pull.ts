@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { PublicUser } from "../auth/users";
 import type { SyncEntity } from "./changes";
+import { PURGED_THROUGH_KEY } from "../cron";
+import { kvGet } from "../kv";
 import { ENTITY_NAMES, readRows } from "./entities";
 
 export const pullSchema = z.object({
@@ -24,6 +26,7 @@ type ClubPull = {
  * Lo que cambió en cada servidor del usuario desde su cursor. Cursor 0 (o un servidor nuevo para la
  * app) = foto completa. Los servidores que la app tiene pero a los que ya no pertenece van en
  * `removed`, para que borre sus datos locales. El superadmin puede pedir cualquier servidor.
+ * Un cursor más viejo que la purga de `changes` (90 días) también recibe la foto completa.
  */
 export async function pull(db: D1Database, user: PublicUser, cursors: Record<string, number>) {
   const { results } = await db
@@ -46,34 +49,39 @@ export async function pull(db: D1Database, user: PublicUser, cursors: Record<str
     }
   }
 
+  const purged = Number((await kvGet(db, PURGED_THROUGH_KEY))?.value ?? 0);
   const clubs: Record<string, ClubPull> = {};
   for (const clubId of allowed) {
     const cursor = cursors[clubId] ?? 0;
-    clubs[clubId] = cursor === 0 ? await snapshot(db, clubId) : await incremental(db, clubId, cursor);
+    clubs[clubId] =
+      cursor === 0 || cursor < purged
+        ? await snapshot(db, clubId, purged)
+        : await incremental(db, clubId, cursor, purged);
   }
   const removed = Object.keys(cursors).filter((id) => !allowed.has(id));
   return { clubs, removed };
 }
 
-async function lastChangeId(db: D1Database, clubId: string) {
+/** El último cambio del servidor; si se purgaron todos, la marca de la purga (nunca vuelve a 0). */
+async function lastChangeId(db: D1Database, clubId: string, purged: number) {
   const row = await db
     .prepare("SELECT COALESCE(MAX(id), 0) AS id FROM changes WHERE club_id = ?")
     .bind(clubId)
     .first<{ id: number }>();
-  return row!.id;
+  return Math.max(row!.id, purged);
 }
 
-async function snapshot(db: D1Database, clubId: string): Promise<ClubPull> {
+async function snapshot(db: D1Database, clubId: string, purged: number): Promise<ClubPull> {
   // El cursor se toma antes de leer: si algo cambia mientras tanto, llegará otra vez (es inocuo).
-  const cursor = await lastChangeId(db, clubId);
+  const cursor = await lastChangeId(db, clubId, purged);
   const upserts: ClubPull["upserts"] = {};
   for (const entity of ENTITY_NAMES) upserts[entity] = await readRows(db, clubId, entity, null);
   return { cursor, hasMore: false, snapshot: true, upserts, deletes: {} };
 }
 
-async function incremental(db: D1Database, clubId: string, cursor: number): Promise<ClubPull> {
+async function incremental(db: D1Database, clubId: string, cursor: number, purged: number): Promise<ClubPull> {
   // Un cursor por delante del servidor solo pasa si la base se restauró (Time Travel): foto completa.
-  if (cursor > (await lastChangeId(db, clubId))) return snapshot(db, clubId);
+  if (cursor > (await lastChangeId(db, clubId, purged))) return snapshot(db, clubId, purged);
   const { results } = await db
     .prepare(
       `SELECT entity, entity_key, MAX(id) AS last FROM changes

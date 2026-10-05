@@ -6,7 +6,16 @@ import 'command.dart';
 import 'local_store.dart';
 
 /// Cómo terminó una sincronización, para el indicador de la barra superior.
-enum SyncState { idle, syncing, offline, error, unauthorized }
+enum SyncState {
+  idle,
+  syncing,
+  offline,
+  error,
+  unauthorized,
+
+  /// Esta versión de la app es más vieja que la que admite el servidor.
+  outdated,
+}
 
 class SyncStatus {
   const SyncStatus({
@@ -35,16 +44,27 @@ class SyncStatus {
 /// - Envío demasiado grande (413) o mal formado (400): se parte en tandas más
 ///   pequeñas; un único comando que el servidor no admite pasa a rechazados.
 /// - 401: la sesión caducó; la cola se conserva para cuando vuelva a entrar.
+/// - Versión vieja ([isOutdated]): no se envía ni se trae nada hasta actualizar;
+///   la cola se conserva.
 class SyncEngine {
   SyncEngine({
     required this.api,
     required this.store,
     DateTime Function()? clock,
+    this.isOutdated,
+    this.gate,
   }) : _clock = clock ?? DateTime.now;
 
   final ApiClient api;
   final LocalStore store;
   final DateTime Function() _clock;
+
+  /// true si hay que actualizar la app para seguir sincronizando.
+  final Future<bool> Function()? isOutdated;
+
+  /// Se espera antes de tocar la cola o sincronizar: si el sync de segundo plano
+  /// estaba en marcha con estos mismos archivos, primero termina.
+  final Future<void> Function()? gate;
 
   /// Máximo de comandos por envío (lo que admite el servidor).
   static const batchSize = 200;
@@ -98,6 +118,7 @@ class SyncEngine {
 
   /// Añade un cambio a la cola (y lo deja visible al instante en la vista).
   Future<void> enqueue(Command c) async {
+    await gate?.call();
     await _withOutbox((outbox) => store.writeOutbox([...outbox, c]));
     _notify();
   }
@@ -118,6 +139,7 @@ class SyncEngine {
   }
 
   Future<void> _loop() async {
+    await gate?.call();
     do {
       _again = false;
       await _once();
@@ -125,6 +147,10 @@ class SyncEngine {
   }
 
   Future<void> _once() async {
+    if (await isOutdated?.call() ?? false) {
+      await _emit(SyncState.outdated);
+      return;
+    }
     await _emit(SyncState.syncing);
     try {
       await _push();

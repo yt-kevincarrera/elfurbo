@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
-import '../../core/network_hints.dart';
 import '../../data/update_controller.dart';
 import 'expressive.dart';
 
@@ -98,16 +97,14 @@ class _UpdateDialog extends ConsumerWidget {
                 [
                   if ((s.asset?.size ?? 0) > 0)
                     'Pesa ${(s.asset!.size / (1024 * 1024)).round()} MB.',
-                  'La descarga viene de GitHub. $vpnHint',
+                  'Mejor con wifi; si se corta, sigue donde se quedó.',
                 ].join(' '),
                 style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
             if (s.phase == UpdatePhase.failed) ...[
               const SizedBox(height: 8),
               Text(
-                looksLikeBlockedNetwork(s.error ?? '')
-                    ? 'No se pudo descargar. $vpnHint'
-                    : 'No se pudo descargar. Dale otra vez.',
+                'No se pudo descargar. Cuando haya señal, dale otra vez: sigue donde se quedó.',
                 style: text.bodySmall?.copyWith(color: scheme.error),
               ),
             ],

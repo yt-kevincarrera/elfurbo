@@ -245,13 +245,7 @@ class _PendingUpdate extends UpdateController {
   @override
   UpdateState build() => const UpdateState(
     phase: UpdatePhase.available,
-    release: AppRelease(
-      tag: 'v9.0.0',
-      title: '',
-      notes: '',
-      htmlUrl: '',
-      assets: [],
-    ),
+    release: AppRelease(tag: 'v9.0.0', title: '', notes: '', assets: []),
   );
 
   @override

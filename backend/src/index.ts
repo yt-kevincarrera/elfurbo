@@ -1,13 +1,15 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { appRoutes } from "./app/routes";
 import { authRoutes } from "./auth/routes";
 import { clubRoutes } from "./clubs/routes";
+import { scheduled } from "./cron";
 import { errorResponse, errors, handleError } from "./http/errors";
 import { invitePageRoutes, inviteRoutes } from "./invites/routes";
 import { meRoutes } from "./me/routes";
 import { superadminRoutes } from "./superadmin/routes";
 import { syncRoutes } from "./sync/routes";
-import type { AppEnv } from "./types";
+import type { AppEnv, Env } from "./types";
 
 const app = new Hono<AppEnv>();
 
@@ -23,8 +25,9 @@ app.route("/invites", inviteRoutes);
 app.route("/i", invitePageRoutes);
 app.route("/admin", superadminRoutes);
 app.route("/sync", syncRoutes);
+app.route("/app", appRoutes);
 
 app.notFound((c) => errorResponse(c, errors.notFound()));
 app.onError(handleError);
 
-export default app;
+export default { fetch: app.fetch, scheduled } satisfies ExportedHandler<Env>;

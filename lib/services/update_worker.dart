@@ -2,10 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'local_notifications.dart';
+import 'sync_worker.dart';
 import 'update_service.dart';
 
-/// Trabajo con la app cerrada (Android WorkManager):
-/// - Cada 12 h, con cualquier conexión, mira si hay versión nueva en GitHub.
+/// Actualizaciones con la app cerrada (Android WorkManager):
+/// - Cada 12 h, con cualquier conexión, mira si hay versión nueva.
 ///   Si la hay, avisa y encarga la descarga.
 /// - La descarga espera a una red sin medidor (wifi): bajar 20 MB solo, con
 ///   datos móviles, saldría caro. Al terminar avisa "lista para instalar" y
@@ -15,11 +16,6 @@ class UpdateWorker {
   static const taskName = 'updateCheck';
   static const downloadName = 'app.elfurbo.updateDownload';
   static const downloadTask = 'updateDownload';
-
-  /// Llamar una vez en `main()` (isolate principal) antes de `runApp`.
-  static Future<void> initialize() async {
-    await Workmanager().initialize(updateWorkerDispatcher);
-  }
 
   /// Programa (o mantiene) el chequeo periódico. Idempotente.
   static Future<void> schedule() async {
@@ -50,12 +46,21 @@ class UpdateWorker {
   );
 }
 
+/// Todo el trabajo de segundo plano entra por aquí (actualizaciones y sync).
+abstract final class BackgroundWork {
+  /// Llamar una vez en `main()` (isolate principal) antes de `runApp`.
+  static Future<void> initialize() async {
+    await Workmanager().initialize(backgroundDispatcher);
+  }
+}
+
 /// Punto de entrada del isolate de segundo plano. Debe ser función top-level
 /// y conservarse tras tree-shaking (por eso el pragma).
 @pragma('vm:entry-point')
-void updateWorkerDispatcher() {
+void backgroundDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
+      if (SyncWorker.handles(task)) return await runBackgroundSync();
       if (task == UpdateWorker.downloadTask) {
         await _downloadUpdate();
       } else {
@@ -63,7 +68,7 @@ void updateWorkerDispatcher() {
       }
       return true;
     } catch (e) {
-      debugPrint('UpdateWorker: falló $task: $e');
+      debugPrint('Segundo plano: falló $task: $e');
       return false; // WorkManager reintenta con backoff
     }
   });

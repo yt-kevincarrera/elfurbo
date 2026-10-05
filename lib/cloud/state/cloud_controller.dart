@@ -100,6 +100,8 @@ class CloudController {
     required this.api,
     required this.sessions,
     required this.dataRoot,
+    this.isOutdated,
+    this.gate,
   }) {
     _session = sessions.read();
     api.token = _session?.token;
@@ -111,6 +113,10 @@ class CloudController {
 
   /// Carpeta privada de la app; dentro, una subcarpeta por cuenta.
   final Directory dataRoot;
+
+  /// Ver [SyncEngine.isOutdated] y [SyncEngine.gate].
+  final Future<bool> Function()? isOutdated;
+  final Future<void> Function()? gate;
 
   Session? _session;
   Session? get session => _session;
@@ -125,11 +131,19 @@ class CloudController {
   final _meChanges = StreamController<Me?>.broadcast();
   Stream<Me?> get meChanges => _meChanges.stream;
 
+  /// Los archivos de una cuenta (también los usa el sync de segundo plano).
+  static LocalStore storeFor(Directory dataRoot, String userId) => LocalStore(
+    Directory('${dataRoot.path}${Platform.pathSeparator}u-$userId'),
+  );
+
   void _openStore(String userId) {
-    _store = LocalStore(
-      Directory('${dataRoot.path}${Platform.pathSeparator}u-$userId'),
+    _store = storeFor(dataRoot, userId);
+    _engine = SyncEngine(
+      api: api,
+      store: _store!,
+      isOutdated: isOutdated,
+      gate: gate,
     );
-    _engine = SyncEngine(api: api, store: _store!);
   }
 
   AuthApi get _auth => AuthApi(api);
@@ -177,6 +191,7 @@ class CloudController {
 
   Future<void> _doLogout() async {
     _debounce?.cancel();
+    _retry?.cancel();
     final store = _store;
     // Primero se para el sync en marcha: si no, volvería a escribir archivos tras borrarlos.
     await _closeSession();
@@ -195,6 +210,7 @@ class CloudController {
   Future<void> deleteAccount(String password) async {
     await api.delete('/me', {'password': password});
     _debounce?.cancel();
+    _retry?.cancel();
     final store = _store;
     await _closeSession();
     api.token = null;
@@ -205,6 +221,7 @@ class CloudController {
   /// persona, su carpeta sigue ahí y la cola se envía.
   Future<void> _expire() async {
     _debounce?.cancel();
+    _retry?.cancel();
     await _closeSession();
     api.token = null;
   }
@@ -331,12 +348,38 @@ class CloudController {
       await _closing;
       return;
     }
-    if (engine.last.state == SyncState.unauthorized) {
+    final state = engine.last.state;
+    _scheduleRetry(state, engine.last.pending);
+    if (state == SyncState.unauthorized) {
       await _expire();
-    } else if (engine.last.state == SyncState.idle) {
+    } else if (state == SyncState.idle) {
       // Servidores nuevos, aprobados o de los que me echaron: el selector al día.
       await loadMe();
     }
+  }
+
+  /// Reintentos con espera creciente (5 s, 10 s, 20 s… hasta 5 min) mientras
+  /// haya cambios por enviar y no se pueda: en cuanto vuelva la señal, salen.
+  static const retryBase = Duration(seconds: 5);
+  static const retryMax = Duration(minutes: 5);
+  Timer? _retry;
+  int _failures = 0;
+
+  /// La espera tras [failures] fallos seguidos (1 = el primero).
+  static Duration retryDelay(int failures) {
+    final ms = retryBase.inMilliseconds * (1 << (failures - 1).clamp(0, 16));
+    return Duration(milliseconds: ms.clamp(0, retryMax.inMilliseconds));
+  }
+
+  void _scheduleRetry(SyncState state, int pending) {
+    _retry?.cancel();
+    final failed = state == SyncState.offline || state == SyncState.error;
+    if (!failed || pending == 0 || _engine == null) {
+      _failures = 0;
+      return;
+    }
+    _failures++;
+    _retry = Timer(retryDelay(_failures), () => unawaited(sync()));
   }
 
   /// La vista de un servidor: lo último del servidor con mis cambios pendientes encima.
@@ -357,6 +400,7 @@ class CloudController {
 
   void dispose() {
     _debounce?.cancel();
+    _retry?.cancel();
     _engine?.dispose();
     _sessionChanges.close();
     _meChanges.close();

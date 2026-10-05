@@ -111,8 +111,8 @@ class ClubBar extends ConsumerWidget {
                                       style: text.labelMedium?.copyWith(
                                         color: switch (sync?.state) {
                                           SyncState.error ||
-                                          SyncState.unauthorized =>
-                                            scheme.error,
+                                          SyncState.unauthorized ||
+                                          SyncState.outdated => scheme.error,
                                           _ => scheme.onSurfaceVariant,
                                         },
                                       ),
@@ -410,6 +410,7 @@ String syncLabel(SyncStatus s) {
     SyncState.offline => 'Sin conexión$when',
     SyncState.error => 'No se pudo sincronizar$when',
     SyncState.unauthorized => 'Sesión caducada',
+    SyncState.outdated => 'Actualiza para seguir sincronizando',
     SyncState.idle when s.pending > 0 =>
       s.pending == 1
           ? '1 cambio por enviar'
@@ -429,6 +430,7 @@ class SyncIndicator extends ConsumerWidget {
       SyncState.syncing => Icons.sync,
       SyncState.offline => Icons.cloud_off,
       SyncState.error || SyncState.unauthorized => Icons.sync_problem,
+      SyncState.outdated => Icons.system_update,
       SyncState.idle => s.pending > 0 ? Icons.cloud_upload : Icons.cloud_done,
     };
     return IconButton(
