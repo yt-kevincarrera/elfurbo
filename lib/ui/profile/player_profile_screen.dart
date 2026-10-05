@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/achievements.dart';
 import '../../domain/stats_engine.dart';
+import '../../data/update_controller.dart';
 import '../../models/app_user.dart';
 import '../../services/local_notifications.dart';
 import '../../cloud/state/providers.dart';
@@ -631,16 +632,20 @@ class _ProfileMenu extends ConsumerWidget {
   }
 
   Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
-    final service = ref.read(updateServiceProvider);
+    // Si ya se sabe que hay una, directo a ella.
+    if (ref.read(updateProvider).pending) {
+      await openUpdate(context, ref);
+      return;
+    }
     showMessage('Buscando actualizaciones…');
     try {
-      final release = await service.checkForUpdate(force: true);
+      await ref.read(updateProvider.notifier).check(force: true);
       if (!context.mounted) return;
-      if (release == null) {
+      if (!ref.read(updateProvider).pending) {
         showMessage('Ya tienes la última versión');
         return;
       }
-      await showUpdateDialog(context, release: release, service: service);
+      await openUpdate(context, ref);
     } catch (e) {
       showError(
         looksLikeBlockedNetwork(e)
@@ -653,8 +658,15 @@ class _ProfileMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final version = ref.watch(appVersionProvider).value;
+    final update = ref.watch(updateProvider);
     return PopupMenuButton<String>(
       tooltip: 'Más opciones',
+      // El punto avisa que hay versión nueva sin tener que abrir el menú.
+      icon: Badge(
+        isLabelVisible: update.pending,
+        smallSize: 9,
+        child: const Icon(Icons.more_vert),
+      ),
       onSelected: (value) {
         switch (value) {
           case 'update':
@@ -671,11 +683,19 @@ class _ProfileMenu extends ConsumerWidget {
           child: Text('El Furbo ${version ?? ''}'.trim()),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'update',
           child: ListTile(
-            leading: Icon(Icons.system_update),
-            title: Text('Buscar actualizaciones'),
+            leading: Badge(
+              isLabelVisible: update.pending,
+              smallSize: 9,
+              child: const Icon(Icons.system_update),
+            ),
+            title: Text(
+              update.pending
+                  ? 'Actualizar a la ${update.release!.version}'
+                  : 'Buscar actualizaciones',
+            ),
             contentPadding: EdgeInsets.zero,
           ),
         ),

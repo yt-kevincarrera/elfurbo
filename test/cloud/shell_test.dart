@@ -6,7 +6,11 @@ import 'package:elfurbo/cloud/auth/session.dart';
 import 'package:elfurbo/cloud/state/cloud_controller.dart';
 import 'package:elfurbo/cloud/state/providers.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
+import 'package:elfurbo/data/update_controller.dart';
+import 'package:elfurbo/domain/app_update.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -146,11 +150,15 @@ void main() {
     return c;
   }
 
-  Future<void> pump(WidgetTester tester, CloudController cloud) async {
+  Future<void> pump(
+    WidgetTester tester,
+    CloudController cloud, {
+    List<Override> overrides = const [],
+  }) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [cloudProvider.overrideWithValue(cloud)],
+          overrides: [cloudProvider.overrideWithValue(cloud), ...overrides],
           child: const CloudApp(),
         ),
       );
@@ -208,4 +216,44 @@ void main() {
       expect(find.text('Cerrando sesión…'), findsNothing);
     },
   );
+
+  testWidgets(
+    'con una versión nueva: botón en la barra y punto en Perfil, sin entrar al menú',
+    (tester) async {
+      final cloud = await tester.runAsync(() => loggedIn('player'));
+      await pump(
+        tester,
+        cloud!,
+        overrides: [updateProvider.overrideWith(_PendingUpdate.new)],
+      );
+      expect(find.byTooltip('Hay una versión nueva'), findsOneWidget);
+      final perfil = find.ancestor(
+        of: find.text('Perfil'),
+        matching: find.byType(NavigationDestination),
+      );
+      final dot = find.descendant(of: perfil, matching: find.byType(Badge));
+      expect(
+        tester.widgetList<Badge>(dot).any((b) => b.isLabelVisible),
+        isTrue,
+      );
+    },
+  );
+}
+
+/// Una versión nueva ya conocida (y que no pregunta a nadie).
+class _PendingUpdate extends UpdateController {
+  @override
+  UpdateState build() => const UpdateState(
+    phase: UpdatePhase.available,
+    release: AppRelease(
+      tag: 'v9.0.0',
+      title: '',
+      notes: '',
+      htmlUrl: '',
+      assets: [],
+    ),
+  );
+
+  @override
+  Future<void> check({bool force = false}) async {}
 }

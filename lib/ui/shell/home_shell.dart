@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../cloud/ui/home_screens.dart';
 import '../../core/app_messenger.dart';
 import '../../data/providers.dart';
+import '../../data/update_controller.dart';
 import '../admin/admin_screen.dart';
 import '../matches/matches_screen.dart';
 import '../profile/player_profile_screen.dart';
@@ -47,6 +48,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
+    final updatePending = ref.watch(updateProvider.select((u) => u.pending));
     final myUid = ref.watch(myUidProvider);
 
     final pages = <Widget>[
@@ -85,9 +87,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             selectedIcon: Icon(Icons.leaderboard),
             label: 'Tabla',
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+          // El punto: hay una versión nueva (se actualiza desde Perfil o la barra).
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: updatePending,
+              smallSize: 9,
+              child: const Icon(Icons.person_outline),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: updatePending,
+              smallSize: 9,
+              child: const Icon(Icons.person),
+            ),
             label: 'Perfil',
           ),
           if (isAdmin)

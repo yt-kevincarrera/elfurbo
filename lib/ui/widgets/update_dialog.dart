@@ -1,115 +1,125 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../core/network_hints.dart';
-import '../../domain/app_update.dart';
-import '../../services/update_service.dart';
+import '../../data/update_controller.dart';
 import 'expressive.dart';
 
-/// Diálogo "hay una versión nueva": muestra las notas y descarga e instala el
-/// APK sin salir de la app.
-Future<void> showUpdateDialog(
-  BuildContext context, {
-  required AppRelease release,
-  required UpdateService service,
-}) {
+/// Diálogo de la versión nueva: las notas, descargar e instalar. La descarga
+/// es del `UpdateController`: cerrar el diálogo no la para.
+Future<void> showUpdateDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
-    barrierDismissible: false,
-    builder: (_) => _UpdateDialog(release: release, service: service),
+    builder: (_) => const _UpdateDialog(),
   );
 }
 
-class _UpdateDialog extends StatefulWidget {
-  const _UpdateDialog({required this.release, required this.service});
-
-  final AppRelease release;
-  final UpdateService service;
-
-  @override
-  State<_UpdateDialog> createState() => _UpdateDialogState();
+/// Instala si ya está descargada; si no, abre el diálogo.
+Future<void> openUpdate(BuildContext context, WidgetRef ref) async {
+  if (ref.read(updateProvider).phase == UpdatePhase.ready) {
+    try {
+      await ref.read(updateProvider.notifier).install();
+    } catch (e) {
+      showError(e);
+    }
+    return;
+  }
+  await showUpdateDialog(context);
 }
 
-class _UpdateDialogState extends State<_UpdateDialog> {
-  double? _progress; // null = sin empezar; -1 = tamaño desconocido
-  bool _busy = false;
+class _UpdateDialog extends ConsumerWidget {
+  const _UpdateDialog();
 
-  Future<void> _update() async {
-    setState(() {
-      _busy = true;
-      _progress = 0;
-    });
+  Future<void> _install(WidgetRef ref) async {
     try {
-      final abis = await UpdateService.supportedAbis();
-      final asset = widget.release.assetFor(abis);
-      if (asset == null) {
-        throw Exception('La release no tiene un APK para este teléfono.');
-      }
-      final file = await widget.service.download(
-        asset,
-        onProgress: (p) {
-          if (mounted) setState(() => _progress = p);
-        },
-      );
-      await widget.service.install(file);
-      if (mounted) Navigator.of(context).pop();
+      await ref.read(updateProvider.notifier).install();
     } catch (e) {
-      showError(
-        looksLikeBlockedNetwork(e)
-            ? 'No se pudo descargar la actualización. $vpnHint'
-            : e,
-      );
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _progress = null;
-        });
-      }
+      showError(e);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final r = widget.release;
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Si termina de descargarse con el diálogo abierto, al instalador directo.
+    ref.listen(updateProvider, (prev, next) {
+      if (prev?.phase == UpdatePhase.downloading &&
+          next.phase == UpdatePhase.ready) {
+        Navigator.of(context).pop();
+        _install(ref);
+      }
+    });
+    final s = ref.watch(updateProvider);
+    final r = s.release;
     final text = Theme.of(context).textTheme;
-    final progress = _progress;
+    final scheme = Theme.of(context).colorScheme;
+    if (r == null) {
+      return AlertDialog(
+        title: const Text('Estás al día'),
+        content: const Text('Ya tienes la última versión.'),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Dale'),
+          ),
+        ],
+      );
+    }
+    final progress = s.progress;
+    final downloading = s.phase == UpdatePhase.downloading;
 
     return AlertDialog(
       icon: const Icon(Icons.system_update),
-      title: Text('Nueva versión ${r.version}'),
+      title: Text('Versión ${r.version}'),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 320),
+        constraints: const BoxConstraints(maxHeight: 340),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (r.notes.isNotEmpty)
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Text(r.notes, style: text.bodyMedium),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Text(
+                  r.notes.isNotEmpty
+                      ? r.notes
+                      : 'Hay una versión nueva de El Furbo lista para instalar.',
+                  style: text.bodyMedium,
                 ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (s.phase == UpdatePhase.ready)
+              Text(
+                'Ya está descargada: solo falta instalarla.',
+                style: text.bodySmall?.copyWith(color: scheme.primary),
               )
             else
               Text(
-                'Hay una versión nueva de El Furbo lista para instalar.',
-                style: text.bodyMedium,
+                [
+                  if ((s.asset?.size ?? 0) > 0)
+                    'Pesa ${(s.asset!.size / (1024 * 1024)).round()} MB.',
+                  'La descarga viene de GitHub. $vpnHint',
+                ].join(' '),
+                style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
-            const SizedBox(height: 12),
-            Text(
-              'La descarga viene de GitHub. $vpnHint',
-              style: text.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (progress != null) ...[
-              const SizedBox(height: 20),
-              WavyProgressBar(value: progress < 0 ? null : progress),
+            if (s.phase == UpdatePhase.failed) ...[
               const SizedBox(height: 8),
               Text(
-                progress < 0
+                looksLikeBlockedNetwork(s.error ?? '')
+                    ? 'No se pudo descargar. $vpnHint'
+                    : 'No se pudo descargar. Dale otra vez.',
+                style: text.bodySmall?.copyWith(color: scheme.error),
+              ),
+            ],
+            if (downloading) ...[
+              const SizedBox(height: 20),
+              WavyProgressBar(
+                value: progress == null || progress < 0 ? null : progress,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                progress == null || progress < 0
                     ? 'Descargando…'
-                    : progress >= 1
-                    ? 'Abriendo el instalador…'
                     : 'Descargando… ${(progress * 100).round()}%',
                 style: text.bodySmall,
                 textAlign: TextAlign.center,
@@ -120,14 +130,30 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('Más tarde'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(downloading ? 'Seguir en segundo plano' : 'Más tarde'),
         ),
-        FilledButton.icon(
-          onPressed: _busy ? null : _update,
-          icon: const Icon(Icons.download),
-          label: const Text('Actualizar'),
-        ),
+        if (!downloading)
+          FilledButton.icon(
+            onPressed: s.phase == UpdatePhase.ready
+                ? () {
+                    Navigator.of(context).pop();
+                    _install(ref);
+                  }
+                : () => ref.read(updateProvider.notifier).download(),
+            icon: Icon(
+              s.phase == UpdatePhase.ready
+                  ? Icons.install_mobile
+                  : Icons.download,
+            ),
+            label: Text(
+              s.phase == UpdatePhase.ready
+                  ? 'Instalar'
+                  : s.phase == UpdatePhase.failed
+                  ? 'Reintentar'
+                  : 'Actualizar',
+            ),
+          ),
       ],
     );
   }
