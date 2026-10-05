@@ -65,11 +65,29 @@ describe("purga diaria", () => {
     expect((await pullAll(other.owner.token)).clubs[other.clubId]!.cursor).toBeGreaterThan(latest);
   });
 
+  it("un servidor tranquilo no recibe una foto completa cada día: su cursor avanza con los demás", async () => {
+    const quiet = await activeClub();
+    const busy = await activeClub("otro", "Otro");
+    let cursor = (await pullAll(quiet.owner.token)).clubs[quiet.clubId]!.cursor;
+    for (let day = 0; day < 3; day++) {
+      // En el otro servidor pasan cosas; todo lo anterior ya es viejo y se purga.
+      await apply(busy.owner.token, cmd(busy.clubId, "member.createGuest", guest()));
+      await env.DB.prepare("UPDATE changes SET at = ? WHERE id < (SELECT MAX(id) FROM changes)").bind(ago(100)).run();
+      const before = (await pullAll(quiet.owner.token, { [quiet.clubId]: cursor })).clubs[quiet.clubId]!;
+      expect(before.snapshot, `día ${day}, antes de la purga`).toBe(false);
+      await purge(env.DB, new Date());
+      const after = (await pullAll(quiet.owner.token, { [quiet.clubId]: before.cursor })).clubs[quiet.clubId]!;
+      expect(after.snapshot, `día ${day}`).toBe(false);
+      cursor = after.cursor;
+    }
+  });
+
   it("el cron de cada hora solo purga a su hora", async () => {
     const { clubId, owner } = await activeClub();
     await apply(owner.token, cmd(clubId, "member.createGuest", guest()));
     await env.DB.prepare("UPDATE applied_commands SET at = ?").bind(ago(40)).run();
-    const at = (h: number) => new Date(Date.UTC(2026, 9, 5, h));
+    const today = new Date();
+    const at = (h: number) => new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), h));
     await hourly(env, at((PURGE_HOUR_UTC + 1) % 24));
     expect(await count("applied_commands")).toBe(1);
     await hourly(env, at(PURGE_HOUR_UTC));

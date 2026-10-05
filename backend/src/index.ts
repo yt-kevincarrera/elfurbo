@@ -24,6 +24,14 @@ app.route("/clubs", clubRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/i", invitePageRoutes);
 app.route("/admin", superadminRoutes);
+// Una versión de la app más vieja que la que admite el protocolo de sync no envía ni trae nada
+// (spec §8). La app manda su build en `x-app-build`; las que no lo mandan son anteriores a la 0.6.
+app.use("/sync/*", async (c, next) => {
+  const min = Number(c.env.MIN_SUPPORTED_BUILD ?? 0) || 0;
+  const build = Number.parseInt(c.req.header("x-app-build") ?? "0", 10);
+  if (min > 0 && !(build >= min)) throw errors.appOutdated();
+  await next();
+});
 app.route("/sync", syncRoutes);
 app.route("/app", appRoutes);
 

@@ -1,17 +1,19 @@
-import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
-import 'dart:ui' show IsolateNameServer;
 
 import 'package:elfurbo/cloud/api/api_client.dart';
 import 'package:elfurbo/cloud/state/cloud_controller.dart';
 import 'package:elfurbo/cloud/sync/command.dart';
 import 'package:elfurbo/cloud/sync/local_store.dart';
 import 'package:elfurbo/cloud/sync/sync_engine.dart';
-import 'package:elfurbo/cloud/sync/sync_handoff.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'sync_test.dart' show FakeServer;
+
+Command _guest(String id) =>
+    Command.create('c1', 'member.createGuest', {'id': id});
 
 void main() {
   late Directory dir;
@@ -23,26 +25,112 @@ void main() {
     server = FakeServer();
     store = LocalStore(dir);
   });
-  tearDown(() async {
-    IsolateNameServer.removePortNameMapping(SyncHandoff.foregroundName);
-    IsolateNameServer.removePortNameMapping(SyncHandoff.backgroundName);
-    await dir.delete(recursive: true);
-  });
+  tearDown(() => dir.delete(recursive: true));
 
-  SyncEngine engine({
-    Future<bool> Function()? isOutdated,
-    Future<void> Function()? gate,
-  }) => SyncEngine(
-    api: ApiClient(baseUrl: 'https://api.test', client: server.client),
-    store: store,
-    isOutdated: isOutdated,
-    gate: gate,
-  );
+  SyncEngine engine({LocalStore? on, Future<bool> Function()? isOutdated}) =>
+      SyncEngine(
+        api: ApiClient(baseUrl: 'https://api.test', client: server.client),
+        store: on ?? store,
+        isOutdated: isOutdated,
+      );
+
+  group('la app abierta y el sync de segundo plano a la vez', () {
+    test(
+      'un cambio añadido mientras el otro vacía la cola no se pierde',
+      () async {
+        // Cada isolate tiene su propio LocalStore sobre la misma carpeta.
+        final app = LocalStore(dir);
+        final background = LocalStore(dir);
+        await app.addToOutbox(_guest('a'));
+        await app.addToOutbox(_guest('b'));
+        final seen = await background.readOutbox();
+        await Future.wait([
+          app.addToOutbox(_guest('c')),
+          background.removeFromOutbox(seen.map((c) => c.id)),
+        ]);
+        expect((await app.readOutbox()).map((c) => c.payload['id']), ['c']);
+      },
+    );
+
+    test(
+      'dos sincronizaciones a la vez: todo sale, nada se pierde ni se repite en la cola',
+      () async {
+        final app = engine(on: LocalStore(dir));
+        final background = engine(on: LocalStore(dir));
+        for (final id in ['a', 'b', 'c']) {
+          await app.enqueue(_guest(id));
+        }
+        await Future.wait([
+          app.sync(),
+          background.sync(),
+          app.enqueue(_guest('d')),
+        ]);
+        await app.sync();
+        expect(await store.readOutbox(), isEmpty);
+        final sent = {
+          for (final batch in server.pushed)
+            for (final c in batch) (c['payload'] as Map)['id'],
+        };
+        expect(sent, {'a', 'b', 'c', 'd'});
+        expect(await store.readRejected(), isEmpty);
+      },
+    );
+
+    test('la cola sigue en el orden en que se hicieron los cambios', () async {
+      for (final id in ['1', '2', '3', '4', '5']) {
+        await store.addToOutbox(_guest(id));
+      }
+      await store.removeFromOutbox([(await store.readOutbox())[2].id]);
+      expect((await LocalStore(dir).readOutbox()).map((c) => c.payload['id']), [
+        '1',
+        '2',
+        '4',
+        '5',
+      ]);
+    });
+
+    test(
+      'la cola de un solo archivo (hasta la 0.5) se pasa sin perder nada ni el orden',
+      () async {
+        final old = [_guest('x'), _guest('y')];
+        await File(
+          '${dir.path}/outbox.json',
+        ).writeAsString(jsonEncode([for (final c in old) c.toJson()]));
+        await File('${dir.path}/rejected.json').writeAsString(
+          jsonEncode([
+            RejectedChange(
+              command: _guest('z'),
+              code: 'c',
+              message: 'm',
+            ).toJson(),
+          ]),
+        );
+        await store.addToOutbox(_guest('nuevo'));
+        expect((await store.readOutbox()).map((c) => c.payload['id']), [
+          'x',
+          'y',
+          'nuevo',
+        ]);
+        expect((await store.readRejected()).single.message, 'm');
+        expect(File('${dir.path}/outbox.json').existsSync(), isFalse);
+      },
+    );
+
+    test('quitar un rechazado deja los demás', () async {
+      await store.addRejected([
+        RejectedChange(command: _guest('a'), code: 'c', message: 'uno'),
+        RejectedChange(command: _guest('b'), code: 'c', message: 'dos'),
+      ]);
+      final first = (await store.readRejected()).first;
+      await store.removeRejected(first.command.id);
+      expect((await store.readRejected()).map((r) => r.message), ['dos']);
+    });
+  });
 
   group('versión vieja', () {
     test('no envía ni trae nada, conserva la cola y lo dice', () async {
       final e = engine(isOutdated: () async => true);
-      await e.enqueue(Command.create('c1', 'member.createGuest', {'id': 'g'}));
+      await e.enqueue(_guest('g'));
       await e.sync();
       expect(e.last.state, SyncState.outdated);
       expect(e.last.pending, 1);
@@ -53,36 +141,43 @@ void main() {
     test('al actualizar vuelve a sincronizar', () async {
       var outdated = true;
       final e = engine(isOutdated: () async => outdated);
-      await e.enqueue(Command.create('c1', 'member.createGuest', {'id': 'g'}));
+      await e.enqueue(_guest('g'));
       await e.sync();
       outdated = false;
       await e.sync();
       expect(e.last.state, SyncState.idle);
       expect(server.pushed, hasLength(1));
     });
-  });
 
-  test(
-    'la compuerta se espera antes de tocar la cola y antes de sincronizar',
-    () async {
-      final open = Completer<void>();
-      final e = engine(gate: () => open.future);
-      var enqueued = false;
-      final enqueue = e
-          .enqueue(Command.create('c1', 'member.createGuest', {'id': 'g'}))
-          .then((_) => enqueued = true);
-      final sync = e.sync();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(enqueued, isFalse);
-      expect(await store.readOutbox(), isEmpty);
-      expect(server.pullBodies, isEmpty);
-      open.complete();
-      await enqueue;
-      await sync;
-      expect(enqueued, isTrue);
-      expect(server.pullBodies, isNotEmpty);
-    },
-  );
+    test(
+      'si el servidor dice 426, también es "actualiza"; la cola sigue',
+      () async {
+        final e = SyncEngine(
+          api: ApiClient(
+            baseUrl: 'https://api.test',
+            build: 3,
+            client: MockClient((req) async {
+              expect(req.headers['x-app-build'], '3');
+              return http.Response(
+                jsonEncode({
+                  'error': {
+                    'code': 'app_outdated',
+                    'message': 'Actualiza la app para seguir sincronizando',
+                  },
+                }),
+                426,
+              );
+            }),
+          ),
+          store: store,
+        );
+        await e.enqueue(_guest('g'));
+        await e.sync();
+        expect(e.last.state, SyncState.outdated);
+        expect(await store.readOutbox(), hasLength(1));
+      },
+    );
+  });
 
   test('reintentos: 5 s, 10 s, 20 s… y como mucho 5 min', () {
     expect(CloudController.retryDelay(1), const Duration(seconds: 5));
@@ -90,90 +185,5 @@ void main() {
     expect(CloudController.retryDelay(3), const Duration(seconds: 20));
     expect(CloudController.retryDelay(7), const Duration(minutes: 5));
     expect(CloudController.retryDelay(40), const Duration(minutes: 5));
-  });
-
-  group('turnos entre la app y el segundo plano', () {
-    test(
-      'con la app abierta, el de segundo plano no sincroniza: se lo pide a ella',
-      () async {
-        final fg = ForegroundSyncHandoff();
-        var asked = 0;
-        fg.start(onSyncRequest: () => asked++);
-        await fg.gate();
-
-        final bg = BackgroundSyncHandoff();
-        expect(await bg.acquire(onStop: () {}), isFalse);
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(asked, 1);
-        // Y no se queda con el turno.
-        expect(
-          IsolateNameServer.lookupPortByName(SyncHandoff.backgroundName),
-          isNull,
-        );
-        fg.dispose();
-      },
-    );
-
-    test(
-      'una app que murió sin despedirse no bloquea el segundo plano',
-      () async {
-        final dead = ReceivePort();
-        IsolateNameServer.registerPortWithName(
-          dead.sendPort,
-          SyncHandoff.foregroundName,
-        );
-        dead.close();
-
-        final bg = BackgroundSyncHandoff(
-          pingTimeout: const Duration(milliseconds: 50),
-        );
-        expect(await bg.acquire(onStop: () {}), isTrue);
-        expect(
-          IsolateNameServer.lookupPortByName(SyncHandoff.foregroundName),
-          isNull,
-        );
-        bg.release();
-      },
-    );
-
-    test(
-      'si la app abre mientras sincroniza el de segundo plano, espera a que pare',
-      () async {
-        final bg = BackgroundSyncHandoff();
-        final stopAsked = Completer<void>();
-        expect(await bg.acquire(onStop: stopAsked.complete), isTrue);
-
-        final fg = ForegroundSyncHandoff();
-        fg.start(onSyncRequest: () {});
-        var through = false;
-        final gate = fg.gate().then((_) => through = true);
-        await stopAsked.future;
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        expect(through, isFalse);
-
-        bg.release(); // terminó lo que estaba escribiendo
-        await gate;
-        expect(through, isTrue);
-        fg.dispose();
-      },
-    );
-
-    test(
-      'si el de segundo plano no contesta, la app sigue tras el plazo',
-      () async {
-        final silent = ReceivePort(); // anunciado, pero nunca contesta
-        IsolateNameServer.registerPortWithName(
-          silent.sendPort,
-          SyncHandoff.backgroundName,
-        );
-        final fg = ForegroundSyncHandoff(
-          stopTimeout: const Duration(milliseconds: 100),
-        );
-        fg.start(onSyncRequest: () {});
-        await fg.gate().timeout(const Duration(seconds: 2));
-        silent.close();
-        fg.dispose();
-      },
-    );
   });
 }

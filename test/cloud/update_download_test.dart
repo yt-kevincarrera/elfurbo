@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:elfurbo/domain/app_update.dart';
 import 'package:elfurbo/services/update_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,12 +13,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _apk = 'application/vnd.android.package-archive';
 final _bytes = List<int>.generate(100, (i) => i);
 
-ReleaseAsset _asset({String tag = 'v0.6.0', int size = 100}) => ReleaseAsset(
-  name: 'app-arm64-v8a-release.apk',
-  url: 'https://api.test/app/apk/$tag/arm64-v8a',
-  size: size,
-  tag: tag,
-);
+final _sha = sha256.convert(_bytes).toString();
+
+ReleaseAsset _asset({String tag = 'v0.6.0', int size = 100, String? sha}) =>
+    ReleaseAsset(
+      name: 'app-arm64-v8a-release.apk',
+      url: 'https://api.test/app/apk/$tag/arm64-v8a',
+      size: size,
+      tag: tag,
+      sha256: sha ?? _sha,
+    );
 
 void main() {
   late Directory dir;
@@ -43,11 +48,12 @@ void main() {
     List<int> body, {
     int status = 200,
     String type = _apk,
+    String? range,
   }) => http.StreamedResponse(
     Stream.value(body),
     status,
     contentLength: body.length,
-    headers: {'content-type': type},
+    headers: {'content-type': type, 'content-range': ?range},
   );
 
   File part([String tag = 'v0.6.0']) =>
@@ -70,12 +76,38 @@ void main() {
   test('una descarga cortada sigue donde se quedó (Range)', () async {
     await part().writeAsBytes(_bytes.sublist(0, 40));
     final file = await service(
-      (_) async => ok(_bytes.sublist(40), status: 206),
+      (_) async =>
+          ok(_bytes.sublist(40), status: 206, range: 'bytes 40-99/100'),
     ).download(_asset());
     expect(ranges, ['bytes=40-']);
     expect(await file.readAsBytes(), _bytes);
     expect(part().existsSync(), isFalse);
   });
+
+  test('un 206 que no empieza donde se quedó no se pega al trozo', () async {
+    await part().writeAsBytes(_bytes.sublist(0, 40));
+    await expectLater(
+      service(
+        (_) async =>
+            ok(_bytes.sublist(30), status: 206, range: 'bytes 30-99/100'),
+      ).download(_asset()),
+      throwsA(isA<HttpException>()),
+    );
+    expect(await part().readAsBytes(), _bytes.sublist(0, 40));
+  });
+
+  test(
+    'si la huella no coincide (bytes mezclados), se borra y no se instala',
+    () async {
+      await expectLater(
+        service(
+          (_) async => ok(_bytes),
+        ).download(_asset(sha: sha256.convert([1]).toString())),
+        throwsA(isA<HttpException>()),
+      );
+      expect(dir.listSync(), isEmpty);
+    },
+  );
 
   test(
     'si el servidor ignora el Range y manda todo, se empieza de cero',

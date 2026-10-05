@@ -52,6 +52,7 @@ class ApiClient {
     http.Client? client,
     this.baseUrl = apiBaseUrl,
     this.timeout = const Duration(seconds: 45),
+    this.build,
   }) : _client = client ?? http.Client();
 
   final http.Client _client;
@@ -62,6 +63,10 @@ class ApiClient {
 
   /// Token de la sesión actual. Lo pone quien maneja la sesión.
   String? token;
+
+  /// Build de la app (`x-app-build`): el servidor deja de sincronizar con las
+  /// más viejas que la que admite su protocolo (426 `app_outdated`).
+  final int? build;
 
   Future<Map<String, dynamic>?> get(String path) => _send('GET', path);
 
@@ -78,6 +83,7 @@ class ApiClient {
   ]) async {
     final request = http.Request(method, Uri.parse('$baseUrl$path'));
     if (token != null) request.headers['authorization'] = 'Bearer $token';
+    if (build != null) request.headers['x-app-build'] = '$build';
     if (body != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);

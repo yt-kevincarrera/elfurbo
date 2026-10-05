@@ -31,11 +31,15 @@ const before = (now: Date, ms: number) => new Date(now.getTime() - ms).toISOStri
 
 /** Borra lo viejo de las tablas que solo crecen. Repetirla no hace daño. */
 export async function purge(db: D1Database, now: Date) {
-  const last = await db
-    .prepare("SELECT MAX(id) AS id FROM changes WHERE at < ?")
+  // `at` crece con el id: el primer cambio que se queda marca el corte. Sin índice en `at`, esto
+  // lee solo las filas que se van a borrar (más una), no la tabla entera.
+  const keep = await db
+    .prepare("SELECT id FROM changes WHERE at >= ? ORDER BY id LIMIT 1")
     .bind(before(now, RETENTION.changes))
-    .first<{ id: number | null }>();
-  const through = last?.id ?? 0;
+    .first<{ id: number }>();
+  const through = keep
+    ? keep.id - 1
+    : ((await db.prepare("SELECT MAX(id) AS id FROM changes").first<{ id: number | null }>())?.id ?? 0);
   const previous = Number((await kvGet(db, PURGED_THROUGH_KEY))?.value ?? 0);
   const statements: D1PreparedStatement[] = [];
   if (through > previous) {

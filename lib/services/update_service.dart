@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -74,6 +75,17 @@ class UpdateService {
   static Future<String> installedVersion() async =>
       (await PackageInfo.fromPlatform()).version;
 
+  /// El build instalado (`versionCode` sin el +1000/+2000 por ABI de los APK
+  /// partidos), o null si no se sabe.
+  static Future<int?> installedBuild() async {
+    try {
+      final code = int.tryParse((await PackageInfo.fromPlatform()).buildNumber);
+      return code == null ? null : code % 1000;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// true si esta versión es más vieja que la mínima que admite el servidor:
   /// hay que actualizar para seguir sincronizando (sin conexión sigue todo).
   /// Lee lo que guardó el último [fetchLatest], también el de segundo plano.
@@ -83,9 +95,7 @@ class UpdateService {
       await prefs.reload();
       final min = prefs.getInt(_minBuildKey) ?? 0;
       if (min <= 0) return false;
-      final build = int.tryParse(
-        (await PackageInfo.fromPlatform()).buildNumber,
-      );
+      final build = await installedBuild();
       return build != null && build < min;
     } catch (_) {
       return false;
@@ -191,7 +201,11 @@ class UpdateService {
       final req = http.Request('GET', Uri.parse(asset.url));
       if (have > 0) req.headers['range'] = 'bytes=$have-';
       final res = await _client.send(req).timeout(const Duration(seconds: 30));
-      final resumed = res.statusCode == 206 && have > 0;
+      // Un 206 tiene que seguir justo donde se quedó el `.part`.
+      final resumed =
+          res.statusCode == 206 &&
+          have > 0 &&
+          (res.headers['content-range'] ?? '').startsWith('bytes $have-');
       final apk = (res.headers['content-type'] ?? '').contains('android');
       if ((res.statusCode != 200 && !resumed) || !apk) {
         await res.stream.drain<void>().catchError((Object _) {});
@@ -224,6 +238,13 @@ class UpdateService {
       // Cortada: la próxima sigue desde aquí. Más grande de la cuenta: de cero.
       if (got > asset.size) await part.delete();
       throw const HttpException('La descarga se cortó');
+    }
+    final sha = asset.sha256;
+    if (sha != null &&
+        (await sha256.bind(part.openRead()).first).toString() != sha) {
+      // Bytes mezclados (dos descargas a la vez, un proxy): de cero la próxima vez.
+      await part.delete();
+      throw const HttpException('La descarga llegó dañada');
     }
     return part.rename('${dir.path}/${asset.fileName}');
   }

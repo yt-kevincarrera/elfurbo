@@ -52,7 +52,6 @@ class SyncEngine {
     required this.store,
     DateTime Function()? clock,
     this.isOutdated,
-    this.gate,
   }) : _clock = clock ?? DateTime.now;
 
   final ApiClient api;
@@ -61,10 +60,6 @@ class SyncEngine {
 
   /// true si hay que actualizar la app para seguir sincronizando.
   final Future<bool> Function()? isOutdated;
-
-  /// Se espera antes de tocar la cola o sincronizar: si el sync de segundo plano
-  /// estaba en marcha con estos mismos archivos, primero termina.
-  final Future<void> Function()? gate;
 
   /// Máximo de comandos por envío (lo que admite el servidor).
   static const batchSize = 200;
@@ -87,46 +82,24 @@ class SyncEngine {
   /// Aplicados por el servidor que todavía no llegaron por el pull.
   final _acked = <Command>[];
 
-  /// Toda modificación de la cola pasa por aquí, de una en una: si se añade un cambio
-  /// mientras el push la reescribe, ninguno pisa al otro. Lo mismo para los rechazados.
-  Future<void> _outboxLock = Future.value();
-  Future<void> _rejectedLock = Future.value();
-
-  Future<T> _locked<T>(
-    Future<void> Function() get,
-    void Function(Future<void>) set,
-    Future<T> Function() f,
-  ) {
-    final result = get().then((_) => f());
-    set(result.then<void>((_) {}, onError: (_) {}));
-    return result;
-  }
-
-  Future<T> _withOutbox<T>(Future<T> Function(List<Command> outbox) f) =>
-      _locked(
-        () => _outboxLock,
-        (l) => _outboxLock = l,
-        () async => f(await store.readOutbox()),
-      );
-
-  Future<T> _withRejected<T>(Future<T> Function(List<RejectedChange> all) f) =>
-      _locked(
-        () => _rejectedLock,
-        (l) => _rejectedLock = l,
-        () async => f(await store.readRejected()),
-      );
-
   /// Añade un cambio a la cola (y lo deja visible al instante en la vista).
   Future<void> enqueue(Command c) async {
-    await gate?.call();
-    await _withOutbox((outbox) => store.writeOutbox([...outbox, c]));
+    await store.addToOutbox(c);
     _notify();
   }
 
   /// Los cambios que la vista aplica encima del servidor: los aplicados que aún
-  /// no llegaron por el pull y, después, los de la cola, en orden.
-  Future<List<Command>> pending() =>
-      _withOutbox((outbox) async => [..._acked, ...outbox]);
+  /// no llegaron por el pull y, después, los de la cola, en orden. Uno que se
+  /// acaba de aplicar puede seguir un instante en la cola: va una sola vez.
+  Future<List<Command>> pending() async {
+    final acked = [..._acked];
+    final ids = {for (final c in acked) c.id};
+    return [
+      ...acked,
+      for (final c in await store.readOutbox())
+        if (!ids.contains(c.id)) c,
+    ];
+  }
 
   /// Sincroniza. Si ya hay una en marcha, se encadena otra al terminar.
   Future<void> sync() {
@@ -139,7 +112,6 @@ class SyncEngine {
   }
 
   Future<void> _loop() async {
-    await gate?.call();
     do {
       _again = false;
       await _once();
@@ -159,10 +131,11 @@ class SyncEngine {
     } on OfflineException {
       await _emit(SyncState.offline);
     } on ApiException catch (e) {
-      await _emit(
-        e.status == 401 ? SyncState.unauthorized : SyncState.error,
-        message: e.message,
-      );
+      await _emit(switch (e.status) {
+        401 => SyncState.unauthorized,
+        426 => SyncState.outdated,
+        _ => SyncState.error,
+      }, message: e.message);
     } catch (e) {
       // Nada deja el indicador en "Sincronizando…" para siempre.
       await _emit(SyncState.error, message: 'No se pudo sincronizar');
@@ -242,15 +215,8 @@ class SyncEngine {
   /// entre las dos escrituras solo cause un reenvío (que volverá como duplicado).
   Future<void> _finish(Set<String> done, List<RejectedChange> rejected) async {
     if (_closed) return;
-    if (rejected.isNotEmpty) {
-      await _withRejected((all) => store.writeRejected([...all, ...rejected]));
-    }
-    await _withOutbox(
-      (now) => store.writeOutbox([
-        for (final c in now)
-          if (!done.contains(c.id)) c,
-      ]),
-    );
+    if (rejected.isNotEmpty) await store.addRejected(rejected);
+    await store.removeFromOutbox(done);
     if (done.isNotEmpty) _notify();
   }
 
@@ -313,12 +279,7 @@ class SyncEngine {
 
   /// Quita un cambio de "Cambios no aplicados" (el usuario lo descartó).
   Future<void> dismissRejected(String commandId) async {
-    await _withRejected(
-      (all) => store.writeRejected([
-        for (final r in all)
-          if (r.command.id != commandId) r,
-      ]),
-    );
+    await store.removeRejected(commandId);
     await _emit(last.state);
   }
 

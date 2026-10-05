@@ -127,7 +127,7 @@ void main() {
           'Ñico',
         );
         expect(await store.clubIds(), ['c1']);
-        await store.writeOutbox([Command.create('c1', 'member.leave', {})]);
+        await store.addToOutbox(Command.create('c1', 'member.leave', {}));
         expect(await store.readOutbox(), hasLength(1));
         await store.wipe();
         expect(await store.clubIds(), isEmpty);

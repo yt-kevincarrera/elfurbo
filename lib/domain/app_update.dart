@@ -33,6 +33,7 @@ class ReleaseAsset {
     required this.url,
     required this.size,
     this.tag = '',
+    this.sha256,
   });
 
   final String name;
@@ -41,6 +42,9 @@ class ReleaseAsset {
 
   /// La versión a la que pertenece (los APK se llaman igual en todas).
   final String tag;
+
+  /// Huella del APK (hex), si GitHub la da: se comprueba al terminar de bajarlo.
+  final String? sha256;
 
   /// Nombre del archivo en el teléfono: con la versión, para que una descarga
   /// a medias de una versión no se continúe con los bytes de otra.
@@ -73,6 +77,7 @@ class AppRelease {
               url: a['url'] as String? ?? '',
               size: (a['size'] as num?)?.toInt() ?? 0,
               tag: tag,
+              sha256: a['sha256'] as String?,
             ),
       ],
     );

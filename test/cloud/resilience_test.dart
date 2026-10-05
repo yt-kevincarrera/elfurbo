@@ -405,7 +405,7 @@ void main() {
       store: store,
     );
     final old = Command.create('c1', 'member.leave', {});
-    await store.writeRejected([
+    await store.addRejected([
       RejectedChange(command: old, code: 'x', message: 'viejo'),
     ]);
     await engine.enqueue(

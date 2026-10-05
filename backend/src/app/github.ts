@@ -14,7 +14,8 @@ export type Release = {
   title: string;
   notes: string;
   publishedAt: string | null;
-  assets: { abi: Abi; name: string; size: number }[];
+  /** `sha256` (hex) lo da GitHub; la app comprueba el APK antes de darlo por bueno. */
+  assets: { abi: Abi; name: string; size: number; sha256: string | null }[];
 };
 
 const CACHE_KEY = "github.latestRelease";
@@ -44,7 +45,9 @@ export function parseRelease(json: Record<string, unknown>): Release {
     publishedAt: typeof json.published_at === "string" ? json.published_at : null,
     assets: ABIS.flatMap((abi) => {
       const a = assets.find((x) => x.name === apkName(abi));
-      return a ? [{ abi, name: apkName(abi), size: Number(a.size) || 0 }] : [];
+      if (!a) return [];
+      const digest = typeof a.digest === "string" ? /^sha256:([0-9a-f]{64})$/i.exec(a.digest)?.[1] : undefined;
+      return [{ abi, name: apkName(abi), size: Number(a.size) || 0, sha256: digest?.toLowerCase() ?? null }];
     }),
   };
 }

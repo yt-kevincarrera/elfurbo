@@ -57,6 +57,8 @@ export const errors = {
     new ApiError(409, "season_has_matchdays", "La temporada tiene jornadas: muévelas o bórralas antes"),
   ownerCannotLeave: () =>
     new ApiError(409, "owner_cannot_leave", "Eres el dueño: transfiere el servidor antes de salir"),
+  appOutdated: () =>
+    new ApiError(426, "app_outdated", "Actualiza la app para seguir sincronizando"),
   ownerMustTransfer: () =>
     new ApiError(409, "owner_must_transfer", "Eres dueño de un servidor: transfiérelo antes de borrar tu cuenta"),
 };

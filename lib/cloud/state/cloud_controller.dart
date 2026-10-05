@@ -101,7 +101,6 @@ class CloudController {
     required this.sessions,
     required this.dataRoot,
     this.isOutdated,
-    this.gate,
   }) {
     _session = sessions.read();
     api.token = _session?.token;
@@ -114,9 +113,8 @@ class CloudController {
   /// Carpeta privada de la app; dentro, una subcarpeta por cuenta.
   final Directory dataRoot;
 
-  /// Ver [SyncEngine.isOutdated] y [SyncEngine.gate].
+  /// Ver [SyncEngine.isOutdated].
   final Future<bool> Function()? isOutdated;
-  final Future<void> Function()? gate;
 
   Session? _session;
   Session? get session => _session;
@@ -138,12 +136,7 @@ class CloudController {
 
   void _openStore(String userId) {
     _store = storeFor(dataRoot, userId);
-    _engine = SyncEngine(
-      api: api,
-      store: _store!,
-      isOutdated: isOutdated,
-      gate: gate,
-    );
+    _engine = SyncEngine(api: api, store: _store!, isOutdated: isOutdated);
   }
 
   AuthApi get _auth => AuthApi(api);
@@ -348,8 +341,14 @@ class CloudController {
       await _closing;
       return;
     }
-    final state = engine.last.state;
-    _scheduleRetry(state, engine.last.pending);
+    final last = engine.last;
+    final state = last.state;
+    // Varios pueden esperar la misma vuelta del sync (el temporizador, el
+    // reintento, un toque): el fallo se cuenta una vez.
+    if (!identical(last, _handled)) {
+      _handled = last;
+      _scheduleRetry(state, last.pending);
+    }
     if (state == SyncState.unauthorized) {
       await _expire();
     } else if (state == SyncState.idle) {
@@ -364,6 +363,7 @@ class CloudController {
   static const retryMax = Duration(minutes: 5);
   Timer? _retry;
   int _failures = 0;
+  SyncStatus? _handled;
 
   /// La espera tras [failures] fallos seguidos (1 = el primero).
   static Duration retryDelay(int failures) {

@@ -8,7 +8,7 @@ import '../cloud/api/api_client.dart';
 import '../cloud/auth/session.dart';
 import '../cloud/state/cloud_controller.dart';
 import '../cloud/sync/sync_engine.dart';
-import '../cloud/sync/sync_handoff.dart';
+import '../cloud/sync/local_store.dart';
 import 'update_service.dart';
 
 /// Sync con la app cerrada (Android WorkManager, spec §5):
@@ -17,8 +17,9 @@ import 'update_service.dart';
 /// - Al salir de la app con cambios por enviar, uno suelto en cuanto haya
 ///   conexión, para no esperar al siguiente turno.
 ///
-/// Si la app está abierta no sincroniza aquí: se lo pide a ella (ver
-/// [SyncHandoff]).
+/// Puede coincidir con la app abierta: la cola es un archivo por cambio (ver
+/// [LocalStore]), así que lo peor es enviar un cambio dos veces, y el servidor
+/// lo reconoce como duplicado.
 class SyncWorker {
   const SyncWorker();
 
@@ -70,22 +71,13 @@ final syncWorkerProvider = Provider<SyncWorker>((ref) => const SyncWorker());
 /// Un sync en segundo plano. true si terminó bien o no había nada que hacer;
 /// false para que WorkManager lo reintente más tarde.
 Future<bool> runBackgroundSync() async {
-  final handoff = BackgroundSyncHandoff();
   SyncEngine? engine;
-  var stop = false;
-  final mine = await handoff.acquire(
-    onStop: () {
-      stop = true;
-      engine?.close();
-    },
-  );
-  if (!mine) return true; // la app está abierta: sincroniza ella
-  final api = ApiClient();
+  final api = ApiClient(build: await UpdateService.installedBuild());
   try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload(); // la app pudo cambiar la sesión desde otro isolate
     final session = SessionStore(prefs).read();
-    if (session == null || stop) return true;
+    if (session == null) return true;
     api.token = session.token;
     engine = SyncEngine(
       api: api,
@@ -95,17 +87,15 @@ Future<bool> runBackgroundSync() async {
       ),
       isOutdated: UpdateService.isOutdated,
     );
-    if (stop) return true;
     await engine.sync();
     // Sin señal o el servidor falló: otra vez más tarde. Lo demás (al día,
     // sesión caducada, versión vieja) no mejora reintentando.
     return switch (engine.last.state) {
-      SyncState.offline || SyncState.error => stop,
+      SyncState.offline || SyncState.error => false,
       _ => true,
     };
   } finally {
     await engine?.close();
     api.close();
-    handoff.release();
   }
 }
