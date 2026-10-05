@@ -83,6 +83,10 @@ void main() {
     'hacer anotador': (r) => r.setRole('p1', UserRole.scorer),
     'expulsar': (r) => r.ban('p1'),
     'perdonar': (r) => r.unban('p1'),
+    'cambiar ajustes': (r) =>
+        r.updateSettings(reportValidation: 'trust', closeAfterHours: 48),
+    'pasar el servidor': (r) => r.transferOwnership('p2'),
+    'irme del servidor': (r) => r.leave(),
     'jugador sin cuenta': (r) => r.createGuest(' Yoandry '),
   };
 

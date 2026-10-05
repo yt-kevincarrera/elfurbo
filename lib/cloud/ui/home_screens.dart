@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../app.dart';
 import '../../data/update_controller.dart';
 import '../../ui/widgets/update_dialog.dart';
+import '../../ui/superadmin/superadmin_screen.dart';
 import '../../ui/widgets/chalk.dart';
 import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
@@ -280,6 +281,8 @@ class _AccountMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final club = ref.watch(currentClubProvider);
+    final superadmin = ref.watch(isSuperadminProvider);
     return PopupMenuButton<String>(
       tooltip: 'Servidores y cuenta',
       onSelected: (v) {
@@ -294,15 +297,36 @@ class _AccountMenu extends ConsumerWidget {
                 builder: (_) => const RejectedChangesScreen(),
               ),
             );
+          case 'leave':
+            if (club != null) confirmLeave(context, ref, club);
+          case 'superadmin':
+            SuperadminScreen.open(context);
           case 'logout':
             confirmAndLogout(context, ref);
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'join', child: Text('Unirme con un código')),
-        PopupMenuItem(value: 'request', child: Text('Solicitar un servidor')),
-        PopupMenuItem(value: 'rejected', child: Text('Cambios no aplicados')),
-        PopupMenuItem(value: 'logout', child: Text('Cerrar sesión')),
+      itemBuilder: (_) => [
+        if (superadmin)
+          const PopupMenuItem(
+            value: 'superadmin',
+            child: Text('Panel de superadmin'),
+          ),
+        const PopupMenuItem(value: 'join', child: Text('Unirme con un código')),
+        const PopupMenuItem(
+          value: 'request',
+          child: Text('Solicitar un servidor'),
+        ),
+        const PopupMenuItem(
+          value: 'rejected',
+          child: Text('Cambios no aplicados'),
+        ),
+        // El dueño no se puede ir sin pasarle el servidor a otro.
+        if (club != null && club.role != 'owner' && club.status != 'suspended')
+          const PopupMenuItem(
+            value: 'leave',
+            child: Text('Salir de este servidor'),
+          ),
+        const PopupMenuItem(value: 'logout', child: Text('Cerrar sesión')),
       ],
     );
   }

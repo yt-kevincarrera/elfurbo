@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/admin_api.dart';
 import '../auth/session.dart';
 import '../sync/club_data.dart';
 import '../sync/sync_engine.dart';
@@ -69,3 +70,22 @@ final syncStatusProvider = StreamProvider<SyncStatus>((ref) async* {
   yield engine.last;
   yield* engine.status;
 });
+
+/// Invitaciones, códigos de recuperación y auditoría (necesitan señal).
+final clubAdminApiProvider = Provider<ClubAdminApi>(
+  (ref) => ClubAdminApi(ref.watch(cloudProvider).api),
+);
+
+/// El panel del superadmin (necesita señal).
+final superadminApiProvider = Provider<SuperadminApi>(
+  (ref) => SuperadminApi(ref.watch(cloudProvider).api),
+);
+
+final isSuperadminProvider = Provider<bool>(
+  (ref) => ref.watch(meProvider).value?.user.isSuperadmin ?? false,
+);
+
+/// Invitaciones vigentes de un servidor; se pide de nuevo al invalidarlo.
+final invitesProvider = FutureProvider.autoDispose.family<List<Invite>, String>(
+  (ref, clubId) => ref.watch(clubAdminApiProvider).invites(clubId),
+);

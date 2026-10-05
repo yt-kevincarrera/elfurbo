@@ -73,11 +73,18 @@ superadminRoutes.get("/clubs/:id", async (c) => {
   });
 });
 
+const STATUS_LABEL: Record<ClubStatus, string> = {
+  pending: "pendiente de aprobación",
+  active: "activo",
+  rejected: "rechazado",
+  suspended: "suspendido",
+};
+
 /** El club, si su estado es uno de `from`; si no, 404 o 409. */
 async function loadClubIn(db: D1Database, id: string, from: ClubStatus[]) {
   const club = await findClub(db, id);
   if (!club) throw errors.notFound();
-  if (!from.includes(club.status)) throw errors.invalidState(`El servidor está ${club.status}`);
+  if (!from.includes(club.status)) throw errors.invalidState(`El servidor está ${STATUS_LABEL[club.status]}`);
   return club;
 }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_messenger.dart';
 import '../../services/local_notifications.dart';
+import '../../ui/superadmin/superadmin_screen.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import 'errors.dart';
@@ -76,6 +78,12 @@ class NoClubsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('El Furbo'),
         actions: [
+          if (ref.watch(isSuperadminProvider))
+            IconButton(
+              tooltip: 'Panel de superadmin',
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onPressed: () => SuperadminScreen.open(context),
+            ),
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
@@ -351,4 +359,39 @@ class _RequestClubSheetState extends ConsumerState<_RequestClubSheet> {
       ),
     );
   }
+}
+
+/// Me voy de un servidor (por la cola de sync). Mis goles se quedan en su
+/// historial; para volver hace falta otra invitación.
+Future<void> confirmLeave(
+  BuildContext context,
+  WidgetRef ref,
+  MyClub club,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('¿Te vas de ${club.name}?'),
+      content: const Text(
+        'Dejas de verlo. Tus goles y asistencias se quedan en su historial, y para volver necesitas otra invitación.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Me quedo'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Me voy'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  final cloud = ref.read(cloudProvider);
+  await cloud.run(club.id, 'member.leave', {});
+  showMessage(
+    'Listo, te sales de ${club.name}. Si no hay señal, en cuanto vuelva.',
+  );
+  await cloud.sync();
 }

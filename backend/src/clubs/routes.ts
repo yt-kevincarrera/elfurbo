@@ -3,7 +3,7 @@ import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { randomCode } from "../auth/crypto";
 import { issueRecoveryCode } from "../auth/recovery";
-import { canInviteAs, canIssueRecoveryCode, canManageInvites } from "../authz";
+import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, type InvitableRole } from "../authz";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
@@ -104,8 +104,10 @@ clubRoutes.get("/:clubId/invites", async (c) => {
     )
     .bind(club.id, new Date().toISOString())
     .all<{ code: string; role: string; target_member_id: string | null; max_uses: number; uses: number; expires_at: string }>();
+  // Solo las que uno mismo podría crear: un admin no ve (ni reparte) las de admin del dueño.
+  const visible = results.filter((r) => canInviteAs(member.role, r.role as InvitableRole));
   return c.json({
-    invites: results.map((r) => ({
+    invites: visible.map((r) => ({
       code: formatCode(r.code),
       role: r.role,
       maxUses: r.max_uses,
@@ -124,6 +126,7 @@ clubRoutes.post("/:clubId/invites/:code/revoke", async (c) => {
   if (!canManageInvites(member.role)) throw errors.forbidden();
   const invite = await findInvite(db, c.req.param("code"));
   if (!invite || invite.clubId !== club.id) throw errors.notFound();
+  if (!canInviteAs(member.role, invite.role as InvitableRole)) throw errors.forbidden();
   await db.batch([
     db.prepare("UPDATE invites SET revoked_at = ? WHERE code = ?").bind(now.toISOString(), invite.code),
     auditStatement(db, { clubId: club.id, actorUserId: userId, action: "invite.revoke", entity: "invite", entityKey: invite.code }, now),
@@ -160,4 +163,46 @@ clubRoutes.post("/:clubId/members/:memberId/recovery-code", async (c) => {
     auditStatement(db, { clubId: club.id, actorUserId: userId, action: "recovery.issue", entity: "member", entityKey: target.id }, now),
   ]);
   return c.json({ code: issued.code, expiresAt: issued.expiresAt }, 201);
+});
+
+/** Quién hizo qué en el servidor (owner y admin), lo más nuevo primero. `?before=<id>` pagina. */
+clubRoutes.get("/:clubId/audit", async (c) => {
+  const db = c.env.DB;
+  const { club, member } = await requireMembership(db, c.req.param("clubId"), c.var.auth.user.id);
+  if (!isAdmin(member.role)) throw errors.forbidden();
+  const limitQ = Number.parseInt(c.req.query("limit") ?? "", 10);
+  const limit = Number.isSafeInteger(limitQ) ? Math.min(Math.max(limitQ, 1), 100) : 50;
+  const beforeQ = Number.parseInt(c.req.query("before") ?? "", 10);
+  const before = Number.isSafeInteger(beforeQ) && beforeQ > 0 ? beforeQ : null;
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.action, a.entity, a.entity_key, a.summary, a.at, u.username, u.display_name
+         FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+        WHERE a.club_id = ?1 AND (?2 IS NULL OR a.id < ?2)
+        ORDER BY a.id DESC LIMIT ?3`,
+    )
+    .bind(club.id, before, limit + 1)
+    .all<{
+      id: number;
+      action: string;
+      entity: string;
+      entity_key: string;
+      summary: string;
+      at: string;
+      username: string | null;
+      display_name: string | null;
+    }>();
+  const page = results.slice(0, limit);
+  return c.json({
+    entries: page.map((r) => ({
+      id: r.id,
+      action: r.action,
+      entity: r.entity,
+      entityKey: r.entity_key,
+      summary: JSON.parse(r.summary) as unknown,
+      at: r.at,
+      actor: r.username === null ? null : { username: r.username, displayName: r.display_name },
+    })),
+    next: results.length > limit ? page[page.length - 1]!.id : null,
+  });
 });
