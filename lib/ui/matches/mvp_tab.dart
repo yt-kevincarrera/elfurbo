@@ -104,7 +104,7 @@ class MvpTab extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              'Nadie más confirmó que jugó todavía.',
+              'Nadie más ha marcado que jugó.',
               style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
           )

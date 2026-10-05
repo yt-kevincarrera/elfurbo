@@ -139,7 +139,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Unirme con un código'), findsOneWidget);
     expect(find.text('Solicitar un servidor'), findsOneWidget);
-    expect(find.textContaining('Hola, Kevin'), findsOneWidget);
+    expect(find.textContaining('¿Qué bolá, Kevin?'), findsOneWidget);
   });
 
   testWidgets(
@@ -201,7 +201,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 200));
     });
     await tester.pumpAndSettle();
-    expect(find.text('¿Salir igual?'), findsOneWidget);
+    expect(find.text('¿Te vas igual?'), findsOneWidget);
     expect(find.textContaining('1 cambio sin enviar'), findsOneWidget);
     expect(cloud!.session, isNotNull);
   });

@@ -14,21 +14,21 @@ export class ApiError extends Error {
 }
 
 export const errors = {
-  invalidInput: (details?: unknown) => new ApiError(400, "invalid_input", "Datos no válidos", details),
-  payloadTooLarge: () => new ApiError(413, "payload_too_large", "La petición es demasiado grande"),
-  unauthorized: () => new ApiError(401, "unauthorized", "Inicia sesión para continuar"),
+  invalidInput: (details?: unknown) => new ApiError(400, "invalid_input", "Hay algo en los datos que no cuadra", details),
+  payloadTooLarge: () => new ApiError(413, "payload_too_large", "Es demasiado para enviarlo de una vez"),
+  unauthorized: () => new ApiError(401, "unauthorized", "Entra con tu cuenta para seguir"),
   sessionExpired: () => new ApiError(401, "session_expired", "Tu sesión caducó. Vuelve a entrar"),
-  invalidCredentials: () => new ApiError(401, "invalid_credentials", "Usuario o contraseña incorrectos"),
+  invalidCredentials: () => new ApiError(401, "invalid_credentials", "El usuario o la contraseña no coinciden"),
   invalidRecoveryCode: () =>
     new ApiError(400, "invalid_recovery_code", "El código no es válido o ya caducó"),
   accountSuspended: () => new ApiError(403, "account_suspended", "Tu cuenta está suspendida"),
   usernameTaken: () => new ApiError(409, "username_taken", "Ese nombre de usuario ya existe"),
   tooManyAttempts: (retryAfterSeconds: number) =>
-    new ApiError(429, "too_many_attempts", "Demasiados intentos. Espera unos minutos", {
+    new ApiError(429, "too_many_attempts", "Muchos intentos seguidos. Espérate unos minutos", {
       retryAfterSeconds,
     }),
-  notFound: () => new ApiError(404, "not_found", "No encontrado"),
-  forbidden: () => new ApiError(403, "forbidden", "No tienes permiso para hacer esto"),
+  notFound: () => new ApiError(404, "not_found", "Eso no existe o ya no está"),
+  forbidden: () => new ApiError(403, "forbidden", "Eso no lo puedes hacer tú"),
   clubSuspended: () =>
     new ApiError(403, "club_suspended", "Este servidor está suspendido: solo se puede consultar"),
   invalidState: (message: string) => new ApiError(409, "invalid_state", message),
@@ -45,7 +45,7 @@ export const errors = {
       "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
     ),
   matchdayClosed: () => new ApiError(409, "matchday_closed", "La jornada está cerrada: ya no acepta cambios"),
-  matchdayNotPlayed: () => new ApiError(409, "matchday_not_played", "La jornada todavía no se jugó"),
+  matchdayNotPlayed: () => new ApiError(409, "matchday_not_played", "La jornada todavía no se ha jugado"),
   matchdayAlreadyPlayed: () =>
     new ApiError(409, "matchday_already_played", "La jornada ya se jugó: marca si jugaste o no"),
   notPresent: () => new ApiError(409, "not_present", "Solo pueden hacer esto los que jugaron esa jornada"),
@@ -76,7 +76,7 @@ export function handleError(err: Error, c: Context) {
   if (err instanceof ApiError) return errorResponse(c, err);
   console.error(err);
   return c.json(
-    { error: { code: "internal", message: "Error interno. Inténtalo de nuevo", details: null } },
+    { error: { code: "internal", message: "Algo se trabó en el servidor. Dale otra vez", details: null } },
     500,
   );
 }

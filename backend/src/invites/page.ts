@@ -28,11 +28,11 @@ function layout(body: string) {
 export function invitePage(invite: InviteRecord | null) {
   if (!invite) {
     return layout(`<h1>⚽ Invitación no válida</h1>
-<p>Esta invitación no existe, caducó o ya se usó. Pídele una nueva a quien te la mandó.</p>`);
+<p>Esta invitación no existe, caducó o ya se usó. Pídele otra a quien te la mandó.</p>`);
   }
   const code = formatCode(invite.code);
   const description = invite.club.description ? `<p>${escapeHtml(invite.club.description)}</p>` : "";
-  return layout(`<p>Te invitaron a</p><h1>⚽ ${escapeHtml(invite.club.name)}</h1>${description}
+  return layout(`<p>Te invitaron a jugar con</p><h1>⚽ ${escapeHtml(invite.club.name)}</h1>${description}
 <p>Tu código de invitación:</p><div class="code">${code}</div>
 <p><a class="button" href="elfurbo://invite/${invite.code}">Abrir en El Furbo</a></p>
 <p>¿No tienes la app? Pídele el APK a quien te invitó, instálala, entra y escribe el código en

@@ -33,7 +33,7 @@ class MatchesScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline,
-          title: 'No se pudieron cargar las jornadas',
+          title: 'No se pudieron traer las jornadas',
           subtitle: '$e',
         ),
         data: (matches) {
@@ -43,7 +43,7 @@ class MatchesScreen extends ConsumerWidget {
               title: 'Todavía no hay jornadas',
               subtitle: isAdmin
                   ? 'Crea la primera con el botón de abajo.'
-                  : 'Cuando el admin cargue una jornada, aparece aquí.',
+                  : 'Cuando alguien cree una jornada, sale aquí.',
             );
           }
           // Próximas: todo lo que todavía no terminó (incluye en curso y las
@@ -265,7 +265,7 @@ class _PlayedMatchCard extends ConsumerWidget {
                         ReportStatusChip(report: myReport, compact: true),
                       if (myReport == null && iPlayed && !closed)
                         _Hint(
-                          text: 'Carga tus goles',
+                          text: 'Pon tus goles',
                           color: scheme.pending,
                           icon: Icons.edit,
                         ),
