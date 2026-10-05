@@ -59,8 +59,7 @@ dibujada como una cancha y los jugadores como fichas. El texto habla cubano
 
 ## Ícono
 
-`tool/icon_test.dart` lo dibuja: la ficha amarilla con la F a rotulador sobre
-el círculo central y una flecha de tiza. Se regenera con:
+`tool/icon_test.dart` lo dibuja: un balón a tiza (parches amarillos, costuras blancas) con rayas de velocidad verdes sobre la pizarra. Se regenera con:
 
 ```bash
 flutter test tool/icon_test.dart && dart run flutter_launcher_icons
