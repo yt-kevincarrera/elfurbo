@@ -1,7 +1,7 @@
 name: elfurbo
 description: "El Furbo: estadísticas de fútbol entre amigos."
 publish_to: 'none'
-version: 0.3.0+5
+version: 0.3.1+6
 
 environment:
   sdk: ^3.9.2
