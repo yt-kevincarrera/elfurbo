@@ -98,7 +98,7 @@ class ReportStatusChip extends StatelessWidget {
         report.correctedByAdmin
             ? 'Corregido (admin)'
             : report.confirmedByAdmin
-            ? 'Confirmado (admin)'
+            ? 'Confirmado (staff)'
             : 'Confirmado',
         scheme.confirmed,
         Icons.verified,

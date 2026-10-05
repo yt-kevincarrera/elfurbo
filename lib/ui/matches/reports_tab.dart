@@ -9,6 +9,7 @@ import '../../models/app_user.dart';
 import '../../models/match_day.dart';
 import '../../models/match_report.dart';
 import '../widgets/common.dart';
+import '../widgets/guest_dialog.dart';
 import '../widgets/player_avatar.dart';
 
 class ReportsTab extends ConsumerWidget {
@@ -195,10 +196,6 @@ class ReportsTab extends ConsumerWidget {
             final pb = present.contains(b.uid) ? 0 : 1;
             return pa != pb ? pa - pb : a.name.compareTo(b.name);
           });
-    if (candidates.isEmpty) {
-      showMessage('Ya todos tienen sus goles puestos');
-      return;
-    }
     final chosen = await showModalBottomSheet<AppUser>(
       context: context,
       showDragHandle: true,
@@ -212,6 +209,12 @@ class ReportsTab extends ConsumerWidget {
                 '¿De quién?',
                 style: Theme.of(ctx).textTheme.titleMedium,
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt),
+              title: const Text('Uno nuevo, sin cuenta'),
+              subtitle: const Text('Lo creas y le pones los goles'),
+              onTap: () => Navigator.pop(ctx, _newGuest),
             ),
             for (final u in candidates)
               ListTile(
@@ -230,9 +233,31 @@ class ReportsTab extends ConsumerWidget {
       ),
     );
     if (chosen == null || !context.mounted) return;
-    await showReportFormSheet(context, match: match, forMember: chosen);
+    var member = chosen;
+    if (identical(chosen, _newGuest)) {
+      final name = await askGuestName(context);
+      if (name == null || !context.mounted) return;
+      // Se crea en la cola antes que sus goles: el servidor los aplica en orden.
+      final id = await ref.read(repoProvider).createGuest(name);
+      if (!context.mounted) return;
+      member = AppUser(
+        uid: id,
+        displayName: name,
+        role: UserRole.guest,
+        status: UserStatus.active,
+      );
+    }
+    await showReportFormSheet(context, match: match, forMember: member);
   }
 }
+
+/// Marca de "crear uno nuevo" en el selector de jugadores.
+const _newGuest = AppUser(
+  uid: '',
+  displayName: '',
+  role: UserRole.guest,
+  status: UserStatus.active,
+);
 
 class _ReportTile extends ConsumerWidget {
   const _ReportTile({
@@ -498,7 +523,11 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
         assists: _assists,
         note: _note.text,
       ),
-      success: widget.existing == null
+      success:
+          ref.read(isStaffProvider) ||
+              ref.read(clubSettingsProvider).reportValidation == 'trust'
+          ? 'Listo, tus goles ya cuentan.'
+          : widget.existing == null
           ? 'Listo, reporte enviado. Ahora te lo tienen que confirmar.'
           : 'Reporte actualizado. Vuelve a pendiente.',
     );

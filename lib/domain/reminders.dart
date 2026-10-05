@@ -72,7 +72,7 @@ List<PlannedReminder> plannedReminders(
           id: reminderIdBase + 2 * i + 1,
           at: night,
           title: '¿Cuántos metiste hoy?',
-          body: 'Carga tus goles y asistencias, y vota al MVP de la jornada.',
+          body: 'Pon tus goles y asistencias, y vota por el MVP de la jornada.',
           matchId: m.id,
         ),
       );

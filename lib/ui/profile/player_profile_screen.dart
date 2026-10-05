@@ -105,7 +105,9 @@ class PlayerProfileScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (isMe)
+                // El mío; o, si soy del staff, el de un jugador sin cuenta.
+                if (isMe ||
+                    (ref.watch(isStaffProvider) && (user?.isGuest ?? false)))
                   IconButton(
                     tooltip: 'Cambiar apodo',
                     onPressed: () => _editNickname(context, ref, user),
@@ -219,7 +221,11 @@ class PlayerProfileScreen extends ConsumerWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tu apodo'),
+        title: Text(
+          uid == ref.read(myUidProvider)
+              ? 'Tu apodo'
+              : 'Apodo de ${user?.displayName ?? 'Jugador'}',
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -611,8 +617,8 @@ class _ProfileMenu extends ConsumerWidget {
         ],
       ),
     );
+    // Sin dispose: el diálogo todavía se está cerrando y el campo lo usa.
     final typed = password.text;
-    password.dispose();
     if (ok != true) return;
     try {
       await ref.read(cloudProvider).deleteAccount(typed);

@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'core/app_messenger.dart';
 import 'data/providers.dart';
 import 'domain/reminders.dart';
 import 'models/notification_payload.dart';
@@ -10,6 +11,18 @@ import 'services/notification_router.dart';
 import 'services/update_worker.dart';
 import 'ui/shell/home_shell.dart';
 import 'ui/widgets/update_dialog.dart';
+
+/// Recordatorios de las próximas jornadas del servidor elegido (09:00 y
+/// 22:00), según mi intención. Se recalcula cuando cambian jornadas o asistencia.
+final _reminderPlanProvider = Provider<List<PlannedReminder>>((ref) {
+  final matches = ref.watch(matchesProvider).value ?? const [];
+  final attendance = ref.watch(attendanceProvider).value ?? const [];
+  final me = ref.watch(myUidProvider);
+  return plannedReminders(matches, {
+    for (final a in attendance)
+      if (a.uid == me) a.matchId: a.status,
+  }, DateTime.now());
+});
 
 /// Con sesión y un servidor elegido: la app del servidor (jornadas, tabla,
 /// perfil y admin). Al abrirse busca actualizaciones, programa los
@@ -33,6 +46,8 @@ class _ClubSessionState extends ConsumerState<ClubSession> {
   @override
   void dispose() {
     NotificationRouter.onUpdateTapped = null;
+    _debounce?.cancel();
+    _reminders?.close();
     super.dispose();
   }
 
@@ -56,14 +71,18 @@ class _ClubSessionState extends ConsumerState<ClubSession> {
     if (launch != null && launch.kind != NotificationKind.update) {
       NotificationRouter.handle(launch);
     }
+    // Los recordatorios primero: el aviso de actualización puede quedarse
+    // abierto un rato.
+    _reminders = ref.listenManual(
+      _reminderPlanProvider,
+      (_, plan) => _scheduleReminders(plan),
+      fireImmediately: true,
+    );
     await _checkForUpdates(force: launch?.kind == NotificationKind.update);
     await UpdateWorker.schedule();
-    if (!mounted) return;
-    _scheduleReminders();
-    // Reprogramar cuando cambian las jornadas o mi intención.
-    ref.listenManual(matchesProvider, (_, _) => _scheduleReminders());
-    ref.listenManual(attendanceProvider, (_, _) => _scheduleReminders());
   }
+
+  ProviderSubscription<List<PlannedReminder>>? _reminders;
 
   /// Busca una versión nueva (como mucho cada 12 h, o siempre con [force]).
   Future<void> _checkForUpdates({bool force = false}) async {
@@ -77,22 +96,25 @@ class _ClubSessionState extends ConsumerState<ClubSession> {
     }
   }
 
-  /// Recordatorios locales de las próximas jornadas (09:00 y 22:00) del
-  /// servidor elegido, según mi intención actual.
-  void _scheduleReminders() {
-    final matches = ref.read(matchesProvider).value;
-    if (matches == null) return;
-    final attendance = ref.read(attendanceProvider).value ?? const [];
-    final me = ref.read(myUidProvider);
-    final mine = {
-      for (final a in attendance)
-        if (a.uid == me) a.matchId: a.status,
-    };
-    fireAndForget(
-      LocalNotifications.scheduleReminders(
-        plannedReminders(matches, mine, DateTime.now()),
-      ),
-    );
+  Timer? _debounce;
+  Future<void> _scheduling = Future.value();
+  String? _scheduled;
+
+  /// Reprograma los recordatorios cuando cambia el plan: con un respiro (la
+  /// vista cambia varias veces seguidas al sincronizar), uno detrás de otro
+  /// (los ids son por posición, dos a la vez se pisarían) y solo si cambió algo.
+  void _scheduleReminders(List<PlannedReminder> plan) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(seconds: 2), () {
+      final key = [
+        for (final r in plan) '${r.id}|${r.at.toIso8601String()}|${r.matchId}',
+      ].join(',');
+      if (key == _scheduled) return;
+      _scheduled = key;
+      _scheduling = _scheduling
+          .then((_) => LocalNotifications.scheduleReminders(plan))
+          .catchError((Object e) => debugPrint('Recordatorios: $e'));
+    });
   }
 
   @override

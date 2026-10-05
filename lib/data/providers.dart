@@ -169,11 +169,10 @@ final mvpVotesProvider = Provider<AsyncValue<List<MvpVote>>>((ref) {
 });
 
 /// Reportes con su regla de "cuenta" (spec §2): solo valen las confirmaciones
-/// de quienes jugaron, lo que pone el staff cuenta al momento, y en un servidor
-/// que confía en los reportes también.
+/// de quienes jugaron; lo que pone el staff llega ya confirmado; y en un
+/// servidor que confía en los reportes, todo cuenta salvo un rechazo.
 final reportsProvider = Provider<AsyncValue<List<MatchReport>>>((ref) {
   final settings = ref.watch(clubSettingsProvider);
-  final users = ref.watch(usersByIdProvider);
   final present = ref.watch(_presentByMatchProvider);
   return ref.watch(clubDataProvider).whenData((d) {
     final confirmers = <String, List<String>>{};
@@ -185,16 +184,13 @@ final reportsProvider = Provider<AsyncValue<List<MatchReport>>>((ref) {
           .putIfAbsent('$match:${c['memberId']}', () => [])
           .add(confirmer);
     }
-    return [
-      for (final r in d.all('report')) _report(r, confirmers, users, settings),
-    ];
+    return [for (final r in d.all('report')) _report(r, confirmers, settings)];
   });
 });
 
 MatchReport _report(
   Map<String, dynamic> r,
   Map<String, List<String>> confirmers,
-  Map<String, AppUser> users,
   ClubSettings settings,
 ) {
   final decision = r['decision'] as String?;
@@ -215,9 +211,8 @@ MatchReport _report(
           ),
     correctedBy: r['correctedBy'] as String?,
     loadedBy: loadedBy,
-    autoConfirmed:
-        settings.reportValidation == 'trust' ||
-        (users[loadedBy]?.isStaff ?? false),
+    // Lo del staff ya viene con decision = confirmed (lo guarda el servidor).
+    autoConfirmed: settings.reportValidation == 'trust',
     confirmationsNeeded: settings.confirmationsNeeded,
   );
 }
@@ -295,6 +290,26 @@ final presentUidsProvider = Provider.family<Set<String>, String>((
 final iAmPresentProvider = Provider.family<bool, String>((ref, matchId) {
   final myUid = ref.watch(myUidProvider);
   return ref.watch(presentUidsProvider(matchId)).contains(myUid);
+});
+
+/// ¿Hay asistencia, reportes o votos de alguien que no sea quien creó la
+/// jornada? Entonces ese jugador ya no la mueve de fecha ni de temporada, ni la
+/// cancela o borra (igual que `hasOthersData` del servidor).
+final matchHasOthersDataProvider = Provider.family<bool, String>((
+  ref,
+  matchId,
+) {
+  final creator = ref.watch(matchByIdProvider(matchId))?.createdBy;
+  return ref
+          .watch(attendanceForMatchProvider(matchId))
+          .keys
+          .any((u) => u != creator) ||
+      ref
+          .watch(reportsForMatchProvider(matchId))
+          .any((r) => r.uid != creator) ||
+      ref
+          .watch(votesForMatchProvider(matchId))
+          .any((v) => v.voterUid != creator);
 });
 
 final reportsForMatchProvider = Provider.family<List<MatchReport>, String>((

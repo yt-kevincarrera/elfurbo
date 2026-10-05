@@ -99,7 +99,8 @@ class MatchDetailScreen extends ConsumerWidget {
                         enabled: !(closed && (season?.isClosed ?? false)),
                       ),
                     ),
-                  if (canManage)
+                  // Con la temporada cerrada el servidor no deja cambiar el estado.
+                  if (canManage && !(season?.isClosed ?? false))
                     PopupMenuItem(
                       value: _AdminAction.toggleCancel,
                       child: ListTile(
@@ -255,20 +256,8 @@ class MatchDetailScreen extends ConsumerWidget {
 (bool, bool) _permissions(WidgetRef ref, MatchDay match) {
   if (ref.watch(clubReadOnlyProvider)) return (false, false);
   if (ref.watch(isStaffProvider)) return (true, true);
-  final creator = match.createdBy;
-  if (ref.watch(myUidProvider) != creator) return (false, false);
-  final othersData =
-      ref
-          .watch(attendanceForMatchProvider(match.id))
-          .keys
-          .any((u) => u != creator) ||
-      ref
-          .watch(reportsForMatchProvider(match.id))
-          .any((r) => r.uid != creator) ||
-      ref
-          .watch(votesForMatchProvider(match.id))
-          .any((v) => v.voterUid != creator);
-  return (true, !othersData);
+  if (ref.watch(myUidProvider) != match.createdBy) return (false, false);
+  return (true, !ref.watch(matchHasOthersDataProvider(match.id)));
 }
 
 enum _AdminAction { edit, toggleClose, toggleCancel, delete }

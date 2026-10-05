@@ -76,6 +76,13 @@ class _CloudGateState extends ConsumerState<CloudGate>
 
   @override
   Widget build(BuildContext context) {
+    // Al cerrarse la sesión (salir, borrar la cuenta o un 401) se vuelve a la raíz:
+    // no puede quedar encima un diálogo o una pantalla de la sesión anterior.
+    ref.listen(sessionProvider, (prev, next) {
+      if (prev?.value != null && next.value == null) {
+        rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+      }
+    });
     final session = ref.watch(sessionProvider);
     if (session.isLoading && !session.hasValue) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));

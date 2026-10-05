@@ -2,9 +2,9 @@ enum ReportStatus { pending, confirmed, rejected }
 
 /// Goles y asistencias de un jugador en una jornada.
 ///
-/// Cuenta (spec §2) si el staff lo confirmó o lo corrigió; si lo puso alguien
-/// del staff o el servidor confía en los reportes ([autoConfirmed]), salvo
-/// rechazo; o si lo confirman [confirmationsNeeded] compañeros que jugaron.
+/// Cuenta (spec §2) si el staff lo confirmó, lo corrigió o lo puso él (en los
+/// tres casos llega con decisión "confirmado"); si el servidor confía en los
+/// reportes ([autoConfirmed]), salvo rechazo; o si lo confirman [confirmationsNeeded] compañeros que jugaron.
 /// El staff puede rechazarlo (definitivo para el autor) o corregir los números.
 class MatchReport {
   const MatchReport({
@@ -41,7 +41,7 @@ class MatchReport {
   /// Quién lo puso (el autor o alguien del staff por él).
   final String? loadedBy;
 
-  /// Cuenta sin confirmaciones: lo puso el staff o el servidor confía.
+  /// Cuenta sin confirmaciones: el servidor confía en los reportes.
   final bool autoConfirmed;
   final int confirmationsNeeded;
 

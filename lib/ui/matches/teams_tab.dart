@@ -29,15 +29,16 @@ class _TeamsTabState extends ConsumerState<TeamsTab> {
   int _seed = 0;
 
   /// Antes de la jornada se reparten los que dijeron que van; una vez jugada,
-  /// los que confirmaron presencia.
+  /// los que confirmaron presencia. Solo miembros activos: el servidor no
+  /// acepta equipos con alguien que ya se fue o lo expulsaron.
   Iterable<String> _participants() {
     final attendance = ref.read(attendanceForMatchProvider(widget.match.id));
-    if (widget.match.isPlayed(DateTime.now())) {
-      return attendance.values.where((a) => a.isPresent).map((a) => a.uid);
-    }
+    final active = {for (final u in ref.read(activeUsersProvider)) u.uid};
+    final played = widget.match.isPlayed(DateTime.now());
     return attendance.values
-        .where((a) => a.status == AttendanceStatus.yes)
-        .map((a) => a.uid);
+        .where((a) => played ? a.isPresent : a.status == AttendanceStatus.yes)
+        .map((a) => a.uid)
+        .where(active.contains);
   }
 
   void _generate() {

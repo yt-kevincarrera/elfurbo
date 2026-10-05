@@ -22,8 +22,6 @@ class LocalNotifications {
   static const channelReminders = 'elfurbo_reminders';
 
   static const idUpdate = 4242;
-  static const idPendingUsers = 4300;
-  static const idReportsBase = 4400;
 
   static const _color = Color(0xFFD4AF37);
   static const _icon = '@drawable/ic_notification';
@@ -127,37 +125,6 @@ class LocalNotifications {
       payload: NotificationPayload(
         kind: NotificationKind.update,
         tag: release.tag,
-      ).encode(),
-    );
-  }
-
-  static Future<void> showPendingUsers(int count) async {
-    await ensureInitialized();
-    await _plugin.show(
-      id: idPendingUsers,
-      title: count == 1
-          ? 'Un jugador espera aprobación'
-          : '$count jugadores esperan aprobación',
-      body: 'Entra a Admin para aprobarlos.',
-      notificationDetails: _details(channelDefault, 'El Furbo'),
-      payload: const NotificationPayload(
-        kind: NotificationKind.pendingUser,
-      ).encode(),
-    );
-  }
-
-  static Future<void> showReportsToConfirm(String matchId, int count) async {
-    await ensureInitialized();
-    await _plugin.show(
-      id: idReportsBase + (matchId.hashCode.abs() % 100),
-      title: count == 1
-          ? 'Tienes un reporte para confirmar'
-          : 'Tienes $count reportes para confirmar',
-      body: 'Tus compañeros cargaron goles. ¿Es verdad?',
-      notificationDetails: _details(channelDefault, 'El Furbo'),
-      payload: NotificationPayload(
-        kind: NotificationKind.report,
-        matchId: matchId,
       ).encode(),
     );
   }

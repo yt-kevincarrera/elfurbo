@@ -130,20 +130,27 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
     if (existing != null) {
       // Solo lo que cambió: al que creó la jornada el servidor no le deja
       // moverla de fecha o de temporada si ya hay datos de otros.
+      final date = _date == existing.date ? null : _date;
+      final duration = _duration == existing.durationMinutes ? null : _duration;
+      final season = seasonId == existing.seasonId ? null : seasonId;
+      final place = _place.text.trim() == (existing.place ?? '')
+          ? null
+          : _place.text;
+      final notes = _notes.text.trim() == (existing.notes ?? '')
+          ? null
+          : _notes.text;
+      if ([date, duration, season, place, notes].every((v) => v == null)) {
+        Navigator.of(context).pop(); // Nada que cambiar.
+        return;
+      }
       fireAndForget(
         repo.updateMatch(
           existing.id,
-          date: _date == existing.date ? null : _date,
-          durationMinutes: _duration == existing.durationMinutes
-              ? null
-              : _duration,
-          seasonId: seasonId == existing.seasonId ? null : seasonId,
-          place: _place.text.trim() == (existing.place ?? '')
-              ? null
-              : _place.text,
-          notes: _notes.text.trim() == (existing.notes ?? '')
-              ? null
-              : _notes.text,
+          date: date,
+          durationMinutes: duration,
+          seasonId: season,
+          place: place,
+          notes: notes,
         ),
         success: 'Jornada actualizada',
       );
@@ -176,6 +183,11 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
     final selectedSeason = _seasonId ?? activeId;
     final durationOptions = {..._durations, _duration}.toList()..sort();
     final count = _repeat ? _weeks : 1;
+    // El que la creó, si ya hay datos de otros, solo cambia lugar y notas.
+    final locked =
+        widget.existing != null &&
+        !ref.watch(isStaffProvider) &&
+        ref.watch(matchHasOthersDataProvider(widget.existing!.id));
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -194,18 +206,25 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
               style: text.titleLarge,
             ),
             const SizedBox(height: 16),
+            if (locked) ...[
+              Text(
+                'Ya hay datos de otros: la fecha, la duración y la temporada solo las cambia el staff.',
+                style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _pickDate,
+                    onPressed: locked ? null : _pickDate,
                     icon: const Icon(Icons.calendar_today),
                     label: Text(Fmt.short(_date)),
                   ),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
-                  onPressed: _pickTime,
+                  onPressed: locked ? null : _pickTime,
                   icon: const Icon(Icons.schedule),
                   label: Text(Fmt.time(_date)),
                 ),
@@ -217,7 +236,9 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
             SegmentedButton<int>(
               showSelectedIcon: false,
               selected: {_duration},
-              onSelectionChanged: (s) => setState(() => _duration = s.first),
+              onSelectionChanged: locked
+                  ? null
+                  : (s) => setState(() => _duration = s.first),
               segments: [
                 for (final d in durationOptions)
                   ButtonSegment(value: d, label: Text(_durationLabel(d))),
@@ -226,6 +247,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
             if (seasons.isNotEmpty) ...[
               const SizedBox(height: 12),
               DropdownMenu<String>(
+                enabled: !locked,
                 initialSelection: selectedSeason,
                 label: const Text('Temporada'),
                 leadingIcon: const Icon(Icons.flag_outlined),

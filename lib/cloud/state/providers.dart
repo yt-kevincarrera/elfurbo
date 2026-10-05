@@ -23,11 +23,16 @@ final meProvider = StreamProvider<Me?>((ref) {
 });
 
 /// El servidor elegido en el selector (el primero, si no se eligió ninguno).
+/// Se guarda en el teléfono: al abrir la app (también desde un recordatorio)
+/// sale el mismo.
 class SelectedClub extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() => ref.watch(cloudProvider).sessions.readSelectedClub();
 
-  void select(String clubId) => state = clubId;
+  void select(String clubId) {
+    state = clubId;
+    ref.read(cloudProvider).sessions.writeSelectedClub(clubId);
+  }
 }
 
 final selectedClubProvider = NotifierProvider<SelectedClub, String?>(

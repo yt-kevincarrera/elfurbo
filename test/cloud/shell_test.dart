@@ -185,4 +185,27 @@ void main() {
     expect(find.text('Nueva jornada'), findsOneWidget);
     expect(find.text('Admin'), findsNothing);
   });
+
+  testWidgets(
+    'cerrar sesión desde la barra: vuelve a la bienvenida sin dejar el diálogo de "Cerrando sesión…"',
+    (tester) async {
+      final cloud = await tester.runAsync(() => loggedIn('owner'));
+      await pump(tester, cloud!);
+      await tester.tap(find.byTooltip('Servidores y cuenta'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Cerrar sesión').last);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+      }
+      expect(cloud.session, isNull);
+      expect(find.text('Entrar'), findsOneWidget);
+      expect(find.text('Cerrando sesión…'), findsNothing);
+    },
+  );
 }

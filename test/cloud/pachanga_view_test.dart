@@ -288,4 +288,34 @@ void main() {
       );
     },
   );
+
+  test(
+    'lo que puso el staff sigue contando aunque luego le cambien el rol, y al revés',
+    () async {
+      var d = await _as(
+        's1',
+        _server(),
+        (r) => r.loadReportFor(
+          matchId: 'm1',
+          memberId: 'g1',
+          goals: 2,
+          assists: 0,
+        ),
+      );
+      d = await _as(
+        'p1',
+        d,
+        (r) => r.submitReport(matchId: 'm1', goals: 1, assists: 0),
+      );
+      // El anotador pasa a jugador y el jugador a anotador.
+      d.one('member', 's1')!['role'] = 'player';
+      d.one('member', 'p1')!['role'] = 'scorer';
+      final reports = {
+        for (final r in _container(d).read(reportsForMatchProvider('m1')))
+          r.uid: r,
+      };
+      expect(reports['g1']!.isConfirmed, isTrue);
+      expect(reports['p1']!.isPending, isTrue);
+    },
+  );
 }

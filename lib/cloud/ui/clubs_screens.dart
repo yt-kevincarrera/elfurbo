@@ -57,10 +57,10 @@ Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
+  // El diálogo lo cierra CloudGate al ver la sesión cerrada (esta pantalla ya no existe).
   await cloud.logout();
   // Que otra cuenta que entre después no reciba recordatorios de esta.
   await cancelRemindersQuietly();
-  if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
 }
 
 /// Sin servidores: cómo entrar en uno o pedir el tuyo.

@@ -82,7 +82,10 @@ describe("reportes", () => {
     const { scorer, raul, guest } = await squad(clubId);
     const id = await matchday(owner.token, clubId);
     await apply(scorer.token, cmd(clubId, "report.loadFor", { matchdayId: id, memberId: guest, goals: 1, assists: 2 }));
-    expect(await row("reports", `${id}:${guest}`)).toMatchObject({ goals: 1, assists: 2, loaded_by: scorer.memberId });
+    // Lo que pone el staff queda confirmado en el reporte: no depende del rol que tenga después.
+    expect(await row("reports", `${id}:${guest}`)).toMatchObject({ goals: 1, assists: 2, loaded_by: scorer.memberId, decision: "confirmed" });
+    await apply(scorer.token, cmd(clubId, "report.upsert", { matchdayId: id, goals: 1, assists: 0 }));
+    expect(await row("reports", `${id}:${scorer.memberId}`)).toMatchObject({ decision: "confirmed" });
     expect(await row("attendance", `${id}:${guest}`)).toMatchObject({ played: 1 });
     expect(await rejection(raul.token, cmd(clubId, "report.loadFor", { matchdayId: id, memberId: guest, goals: 1, assists: 0 }))).toBe("forbidden");
     expect(await auditActions(clubId)).toContain("report.loadFor");

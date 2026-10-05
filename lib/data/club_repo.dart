@@ -256,8 +256,13 @@ class ClubRepo {
       _run('member.unban', {'memberId': memberId});
 
   /// Un jugador sin cuenta (lo puede reclamar después con una invitación).
-  Future<void> createGuest(String displayName) => _run('member.createGuest', {
-    'id': newId(),
-    'displayName': displayName.trim(),
-  });
+  /// Devuelve su id, para ponerle los goles enseguida (va en la misma cola).
+  Future<String> createGuest(String displayName) async {
+    final id = newId();
+    await _run('member.createGuest', {
+      'id': id,
+      'displayName': displayName.trim(),
+    });
+    return id;
+  }
 }

@@ -10,6 +10,7 @@ import '../../domain/matchday_rules.dart';
 import '../../models/app_user.dart';
 import '../../models/season.dart';
 import '../widgets/common.dart';
+import '../widgets/guest_dialog.dart';
 import '../widgets/player_avatar.dart';
 
 /// Admin del servidor (owner y admin): temporadas, miembros y jugadores sin
@@ -118,45 +119,11 @@ class AdminScreen extends ConsumerWidget {
   /// Un jugador sin cuenta: sus goles los pone el staff, y más adelante puede
   /// reclamar el perfil con una invitación.
   Future<void> _newGuest(BuildContext context, WidgetRef ref) async {
-    final name = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Jugador sin cuenta'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Para el que juega con ustedes pero no tiene la app. Le pones los goles tú, y si algún día se la instala, reclama su perfil con una invitación.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: name,
-              autofocus: true,
-              maxLength: 40,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Crear'),
-          ),
-        ],
-      ),
-    );
-    final typed = name.text.trim();
-    name.dispose();
-    if (ok != true || typed.isEmpty) return;
+    final name = await askGuestName(context);
+    if (name == null) return;
     fireAndForget(
-      ref.read(repoProvider).createGuest(typed),
-      success: 'Listo, $typed ya está en la lista',
+      ref.read(repoProvider).createGuest(name),
+      success: 'Listo, $name ya está en la lista',
     );
   }
 
@@ -268,28 +235,34 @@ class _SeasonTile extends ConsumerWidget {
           if (s.isClosed) 'cerrada' else if (s.isActive) 'activa',
         ].join(' · '),
       ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (a) => _onAction(context, ref, a),
-        itemBuilder: (_) => [
-          if (!s.isActive && !s.isClosed)
-            const PopupMenuItem(
-              value: 'activate',
-              child: Text('Marcar como activa'),
+      trailing: ref.watch(clubReadOnlyProvider)
+          ? null
+          : PopupMenuButton<String>(
+              onSelected: (a) => _onAction(context, ref, a),
+              itemBuilder: (_) => [
+                if (!s.isActive && !s.isClosed)
+                  const PopupMenuItem(
+                    value: 'activate',
+                    child: Text('Marcar como activa'),
+                  ),
+                const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                PopupMenuItem(
+                  value: 'close',
+                  child: Text(
+                    s.isClosed ? 'Reabrir temporada' : 'Cerrar temporada',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(
+                    'Eliminar',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          const PopupMenuItem(value: 'edit', child: Text('Editar')),
-          PopupMenuItem(
-            value: 'close',
-            child: Text(s.isClosed ? 'Reabrir temporada' : 'Cerrar temporada'),
-          ),
-          PopupMenuItem(
-            value: 'delete',
-            child: Text(
-              'Eliminar',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -431,10 +404,20 @@ class _SeasonTile extends ConsumerWidget {
       return;
     }
 
-    final others = seasons.where((s) => s.id != season.id).toList();
+    // El servidor no deja tocar una jornada cerrada (ni mover nada a una
+    // temporada cerrada): si hay alguna, no se puede vaciar esta temporada.
+    if (mine.any((m) => ref.read(matchClosedProvider(m.id)))) {
+      showMessage(
+        'Tiene jornadas ya cerradas y esas no se pueden mover. Si ya terminó, mejor ciérrala en vez de borrarla.',
+      );
+      return;
+    }
+    final others = seasons
+        .where((s) => s.id != season.id && !s.isClosed)
+        .toList();
     if (others.isEmpty) {
       showMessage(
-        'Tiene ${Fmt.plural(mine.length, 'jornada', 'jornadas')} y no hay otra temporada a la que moverlas.',
+        'Tiene ${Fmt.plural(mine.length, 'jornada', 'jornadas')} y no hay otra temporada abierta a la que moverlas.',
       );
       return;
     }

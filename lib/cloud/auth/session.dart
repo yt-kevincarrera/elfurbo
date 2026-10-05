@@ -67,6 +67,14 @@ class SessionStore {
   );
 
   Future<void> clear() => _prefs.remove(_key);
+
+  static const _clubKey = 'cloud.selectedClub';
+
+  /// El servidor elegido en el selector: se abre el mismo al volver.
+  String? readSelectedClub() => _prefs.getString(_clubKey);
+
+  Future<void> writeSelectedClub(String clubId) =>
+      _prefs.setString(_clubKey, clubId);
 }
 
 /// Llamadas de cuenta: entrar, crear cuenta, recuperar, salir.

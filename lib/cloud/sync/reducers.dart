@@ -119,6 +119,10 @@ void _applyPachanga(ClubData d, Command c, String? me) {
         (_, r) => r['matchdayId'] == mdId && r['memberId'] == '$member',
       );
 
+  // Lo que pone el staff queda confirmado en el reporte (como en el servidor).
+  final myRole = me == null ? null : d.one('member', me)?['role'];
+  final staff = const {'owner', 'admin', 'scorer'}.contains(myRole);
+
   void writeReport(Object? member) {
     clearConfirmations(member);
     d.table('report')[key(member)] = {
@@ -129,7 +133,7 @@ void _applyPachanga(ClubData d, Command c, String? me) {
       'assists': p['assists'],
       'note': p['note'],
       'loadedBy': me,
-      'decision': null,
+      'decision': staff ? 'confirmed' : null,
       'correctedBy': null,
     };
     attendance(member)

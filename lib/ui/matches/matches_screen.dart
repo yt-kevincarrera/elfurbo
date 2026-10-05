@@ -82,6 +82,7 @@ class _UpcomingMatchCard extends ConsumerWidget {
     final attendance = ref.watch(attendanceForMatchProvider(match.id));
     final myUid = ref.watch(myUidProvider);
     final mine = attendance[myUid]?.status;
+    final closed = ref.watch(matchClosedProvider(match.id));
     final going = attendance.values
         .where((a) => a.status == AttendanceStatus.yes)
         .length;
@@ -162,12 +163,16 @@ class _UpcomingMatchCard extends ConsumerWidget {
                     emptySelectionAllowed: true,
                     showSelectedIcon: false,
                     selected: {if (mine != null) mine},
-                    onSelectionChanged: (sel) {
-                      if (sel.isEmpty) return;
-                      fireAndForget(
-                        ref.read(repoProvider).setIntent(match.id, sel.first),
-                      );
-                    },
+                    onSelectionChanged: closed
+                        ? null
+                        : (sel) {
+                            if (sel.isEmpty) return;
+                            fireAndForget(
+                              ref
+                                  .read(repoProvider)
+                                  .setIntent(match.id, sel.first),
+                            );
+                          },
                     segments: const [
                       ButtonSegment(
                         value: AttendanceStatus.yes,
