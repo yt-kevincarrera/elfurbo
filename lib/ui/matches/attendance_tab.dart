@@ -7,6 +7,7 @@ import '../../models/app_user.dart';
 import '../../models/attendance.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
+import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
 
 /// Asistencia de una jornada.
@@ -439,14 +440,42 @@ class _Group extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionTitle('$title (${users.length})'),
-        for (final u in users)
-          ListTile(
-            dense: true,
-            leading: PlayerAvatar(user: u, radius: 18),
-            title: Text(u.name),
-            subtitle: subtitleOf == null ? null : Text(subtitleOf!(u)),
-            trailing: Icon(icon, color: color, size: 20),
-            onLongPress: onLongPress == null ? null : () => onLongPress!(u),
+        for (final (i, u) in users.indexed)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1.5),
+            child: GroupedTile(
+              index: i,
+              count: users.length,
+              onLongPress: onLongPress == null ? null : () => onLongPress!(u),
+              child: Row(
+                children: [
+                  PlayerAvatar(user: u, radius: 18),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          u.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        if (subtitleOf != null)
+                          Text(
+                            subtitleOf!(u),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(icon, color: color, size: 22),
+                ],
+              ),
+            ),
           ),
       ],
     );

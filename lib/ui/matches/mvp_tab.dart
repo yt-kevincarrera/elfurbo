@@ -7,6 +7,7 @@ import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
+import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
 
 class MvpTab extends ConsumerWidget {
@@ -121,11 +122,39 @@ class MvpTab extends ConsumerWidget {
             },
             child: Column(
               children: [
-                for (final u in candidates)
-                  RadioListTile<String>(
-                    value: u.uid,
-                    title: Text(u.name),
-                    secondary: PlayerAvatar(user: u, radius: 18),
+                for (final (i, u) in candidates.indexed)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 1.5,
+                    ),
+                    child: GroupedTile(
+                      index: i,
+                      count: candidates.length,
+                      color: myVote?.votedFor == u.uid
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : null,
+                      onTap: closed || myVote?.votedFor == u.uid
+                          ? null
+                          : () => fireAndForget(
+                              ref.read(repoProvider).castVote(match.id, u.uid),
+                              success: 'Votaste a ${u.name}',
+                            ),
+                      padding: const EdgeInsets.fromLTRB(14, 6, 4, 6),
+                      child: Row(
+                        children: [
+                          PlayerAvatar(user: u, radius: 18),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              u.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          Radio<String>(value: u.uid),
+                        ],
+                      ),
+                    ),
                   ),
               ],
             ),

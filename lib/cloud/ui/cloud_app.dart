@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
 import 'home_screens.dart';
+import '../../ui/widgets/expressive.dart';
 
 /// La app (backend propio). Se arranca con `lib/main.dart`.
 class CloudApp extends StatelessWidget {
@@ -85,7 +86,7 @@ class _CloudGateState extends ConsumerState<CloudGate>
     });
     final session = ref.watch(sessionProvider);
     if (session.isLoading && !session.hasValue) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: LoadingView());
     }
     return session.value == null ? const WelcomeScreen() : const CloudHome();
   }

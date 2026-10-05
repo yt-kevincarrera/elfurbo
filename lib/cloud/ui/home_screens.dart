@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
+import '../../app.dart';
+import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import '../sync/command.dart';
 import '../sync/sync_engine.dart';
-import '../../app.dart';
 import 'clubs_screens.dart';
 
 /// Inicio con sesión: sin servidores, cómo conseguir uno; con servidor, la
@@ -28,7 +30,8 @@ class CloudHome extends ConsumerWidget {
   }
 }
 
-/// Barra de arriba del servidor: selector, indicador de sync y menú de la cuenta.
+/// Barra de arriba del servidor: el servidor (y el selector si hay varios),
+/// cómo va la sincronización, los cambios que no entraron y el menú de la cuenta.
 class ClubBar extends ConsumerWidget {
   const ClubBar({super.key});
 
@@ -37,36 +40,150 @@ class ClubBar extends ConsumerWidget {
     final clubs = ref.watch(meProvider).value?.clubs ?? const [];
     final club = ref.watch(currentClubProvider);
     if (club == null) return const SizedBox.shrink();
+    final sync = ref.watch(syncStatusProvider).value;
     final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final syncing = sync?.state == SyncState.syncing;
     return Material(
-      color: scheme.surfaceContainer,
+      color: scheme.surface,
       child: SafeArea(
         bottom: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              height: 48,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
               child: Row(
                 children: [
-                  const SizedBox(width: 16),
-                  Icon(Icons.sports_soccer, size: 20, color: scheme.primary),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: ClubSwitcher(clubs: clubs, current: club),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: clubs.length > 1
+                          ? () => _pickClub(context, ref, clubs, club)
+                          : () => ref.read(cloudProvider).sync(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            ShapeBadge(
+                              shape: MaterialShapes.cookie9Sided,
+                              color: scheme.primaryContainer,
+                              size: 44,
+                              child: Text(
+                                _initials(club.name),
+                                style: text.titleSmall?.copyWith(
+                                  color: scheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          club.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: text.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                      if (clubs.length > 1)
+                                        Icon(
+                                          Icons.unfold_more,
+                                          size: 18,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                    ],
+                                  ),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 250),
+                                    child: Text(
+                                      sync == null ? ' ' : syncLabel(sync),
+                                      key: ValueKey(
+                                        sync == null ? '' : syncLabel(sync),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.labelMedium?.copyWith(
+                                        color: switch (sync?.state) {
+                                          SyncState.error ||
+                                          SyncState.unauthorized =>
+                                            scheme.error,
+                                          _ => scheme.onSurfaceVariant,
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  const SyncIndicator(),
+                  if ((sync?.rejected ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: ActionChip(
+                        avatar: Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: scheme.onErrorContainer,
+                        ),
+                        label: Text('${sync!.rejected}'),
+                        labelStyle: text.labelLarge?.copyWith(
+                          color: scheme.onErrorContainer,
+                        ),
+                        backgroundColor: scheme.errorContainer,
+                        tooltip: 'Cambios no aplicados',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const RejectedChangesScreen(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: 'Sincronizar',
+                    onPressed: syncing
+                        ? null
+                        : () => ref.read(cloudProvider).sync(),
+                    icon: Icon(
+                      sync?.state == SyncState.offline
+                          ? Icons.cloud_off_outlined
+                          : Icons.sync,
+                    ),
+                  ),
                   const _AccountMenu(),
                 ],
               ),
             ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              child: syncing
+                  ? const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: WavyProgressBar(height: 8),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
             if (club.status == 'suspended')
               Container(
                 width: double.infinity,
-                color: scheme.errorContainer,
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 6,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.errorContainer,
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   'Servidor suspendido: solo se puede consultar',
@@ -77,6 +194,67 @@ class ClubBar extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static const _connectors = {'y', 'e', 'de', 'del', 'la', 'el', 'los', 'las'};
+
+  static String _initials(String name) => name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty && w[0].toUpperCase() != w[0].toLowerCase())
+      // Sin conectores: "Unción y Fuego" es UF, no UY.
+      .where((w) => !_connectors.contains(w.toLowerCase()))
+      .take(2)
+      .map((w) => w[0].toUpperCase())
+      .join();
+
+  Future<void> _pickClub(
+    BuildContext context,
+    WidgetRef ref,
+    List<MyClub> clubs,
+    MyClub current,
+  ) async {
+    final scheme = Theme.of(context).colorScheme;
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Text(
+                'Tus servidores',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              ),
+            ),
+            for (final c in clubs)
+              ListTile(
+                selected: c.id == current.id,
+                selectedTileColor: scheme.secondaryContainer,
+                leading: ShapeBadge(
+                  shape: MaterialShapes.cookie9Sided,
+                  color: scheme.primaryContainer,
+                  size: 40,
+                  child: Text(
+                    _initials(c.name),
+                    style: TextStyle(
+                      color: scheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                title: Text(c.name),
+                subtitle: Text(roleLabel(c.role)),
+                trailing: c.id == current.id ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.pop(ctx, c.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (id != null) ref.read(selectedClubProvider.notifier).select(id);
   }
 }
 
@@ -118,7 +296,7 @@ class _Loading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+      const Scaffold(body: LoadingView(message: 'Un momentico…'));
 }
 
 /// Primera vez en este teléfono y sin señal: no hay nada guardado todavía.

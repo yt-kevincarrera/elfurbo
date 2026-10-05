@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
@@ -7,6 +8,7 @@ import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
 import '../profile/player_profile_screen.dart';
 import '../widgets/common.dart';
+import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
 
 class LeaderboardScreen extends ConsumerStatefulWidget {
@@ -107,7 +109,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                         'Cuando se jueguen jornadas y se confirmen los goles, aquí sale la tabla.',
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.only(top: 8, bottom: 24),
                     itemCount: ranking.length,
                     itemBuilder: (context, i) {
                       final s = ranking[i];
@@ -122,46 +124,57 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           ? 0.0
                           : value / s.matchesPlayed;
                       final isMe = s.uid == myUid;
-                      return ListTile(
-                        tileColor: isMe
-                            ? scheme.primaryContainer.withValues(alpha: 0.35)
-                            : null,
-                        onTap: () => PlayerProfileScreen.open(context, s.uid),
-                        leading: SizedBox(
-                          width: 56,
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 1.5,
+                        ),
+                        child: GroupedTile(
+                          index: i,
+                          count: ranking.length,
+                          color: isMe
+                              ? scheme.secondaryContainer
+                              : scheme.surfaceContainerLow,
+                          onTap: () => PlayerProfileScreen.open(context, s.uid),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
-                                width: 22,
-                                child: Text(
-                                  '${i + 1}',
-                                  style: text.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: i == 0
-                                        ? scheme.mvpGold
-                                        : scheme.onSurfaceVariant,
-                                  ),
+                              _Rank(position: i + 1),
+                              const SizedBox(width: 12),
+                              PlayerAvatar(user: user, radius: 18),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user?.name ?? 'Jugador',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.titleMedium?.copyWith(
+                                        fontWeight: isMe
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${Fmt.plural(s.matchesPlayed, 'jornada', 'jornadas')} · ${Fmt.decimal(perMatch)} por jornada'
+                                      '${s.currentStreak >= 3 ? ' · 🔥 ${s.currentStreak}' : ''}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.bodySmall?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              PlayerAvatar(user: user, radius: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$value',
+                                style: text.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: i == 0 ? scheme.tertiary : null,
+                                ),
+                              ),
                             ],
-                          ),
-                        ),
-                        title: Text(
-                          user?.name ?? 'Jugador',
-                          style: TextStyle(
-                            fontWeight: isMe ? FontWeight.bold : null,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${Fmt.plural(s.matchesPlayed, 'jornada', 'jornadas')} · ${Fmt.decimal(perMatch)} por jornada'
-                          '${s.currentStreak >= 3 ? ' · 🔥 ${s.currentStreak} seguidos' : ''}',
-                        ),
-                        trailing: Text(
-                          '$value',
-                          style: text.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       );
@@ -207,16 +220,69 @@ class SeasonSelector extends ConsumerWidget {
               child: Text(s.name),
             ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
-            const Icon(Icons.arrow_drop_down),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 150),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.expand_more,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Puesto en la tabla: el podio va en formas (el primero, dorado).
+class _Rank extends StatelessWidget {
+  const _Rank({required this.position});
+
+  final int position;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final label = Text(
+      '$position',
+      style: text.titleMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: switch (position) {
+          1 => scheme.onTertiaryContainer,
+          2 || 3 => scheme.onSecondaryContainer,
+          _ => scheme.onSurfaceVariant,
+        },
+      ),
+    );
+    if (position > 3) {
+      return SizedBox(width: 32, child: Center(child: label));
+    }
+    return ShapeBadge(
+      shape: position == 1 ? MaterialShapes.sunny : MaterialShapes.cookie7Sided,
+      color: position == 1
+          ? scheme.tertiaryContainer
+          : scheme.surfaceContainerHighest,
+      size: 32,
+      child: label,
     );
   }
 }

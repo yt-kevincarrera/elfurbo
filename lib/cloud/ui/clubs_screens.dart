@@ -5,6 +5,7 @@ import '../../services/local_notifications.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import 'errors.dart';
+import '../../ui/widgets/expressive.dart';
 
 /// Cierra sesión. Si hay cambios sin enviar o rechazados sin revisar, avisa antes:
 /// al salir se borran del teléfono los datos de la cuenta.
@@ -50,7 +51,7 @@ Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
     builder: (_) => const AlertDialog(
       content: Row(
         children: [
-          CircularProgressIndicator(),
+          AppLoading(size: 40),
           SizedBox(width: 16),
           Text('Cerrando sesión…'),
         ],

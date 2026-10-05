@@ -10,6 +10,7 @@ import '../../domain/matchday_rules.dart';
 import '../../models/app_user.dart';
 import '../../models/season.dart';
 import '../widgets/common.dart';
+import '../widgets/expressive.dart';
 import '../widgets/guest_dialog.dart';
 import '../widgets/player_avatar.dart';
 
@@ -57,12 +58,16 @@ class AdminScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          for (final s in seasons)
-            _SeasonTile(
-              season: s,
-              matchCount: matches.where((m) => m.seasonId == s.id).length,
-              seasons: seasons,
-            ),
+          GroupedSection(
+            children: [
+              for (final s in seasons)
+                _SeasonTile(
+                  season: s,
+                  matchCount: matches.where((m) => m.seasonId == s.id).length,
+                  seasons: seasons,
+                ),
+            ],
+          ),
           SectionTitle(
             'Jugadores (${active.length})',
             trailing: readOnly
@@ -73,43 +78,54 @@ class AdminScreen extends ConsumerWidget {
                     label: const Text('Sin cuenta'),
                   ),
           ),
-          for (final u in active)
-            ListTile(
-              leading: PlayerAvatar(user: u),
-              title: Text(u.name),
-              subtitle: Text(
-                [
-                  roleLabel(u.role.name),
-                  if (u.nickname != null && u.nickname!.isNotEmpty)
-                    u.displayName,
-                ].join(' · '),
-              ),
-              trailing: u.uid == myUid
-                  ? const Chip(
-                      label: Text('Tú'),
-                      visualDensity: VisualDensity.compact,
-                    )
-                  : readOnly
-                  ? null
-                  : _PlayerMenu(user: u, myRole: myRole),
-            ),
+          GroupedSection(
+            children: [
+              for (final u in active)
+                ListTile(
+                  leading: PlayerAvatar(user: u),
+                  title: Text(u.name),
+                  subtitle: Text(
+                    [
+                      roleLabel(u.role.name),
+                      if (u.nickname != null && u.nickname!.isNotEmpty)
+                        u.displayName,
+                    ].join(' · '),
+                  ),
+                  trailing: u.uid == myUid
+                      ? const Chip(
+                          label: Text('Tú'),
+                          visualDensity: VisualDensity.compact,
+                        )
+                      : readOnly
+                      ? null
+                      : _PlayerMenu(user: u, myRole: myRole),
+                ),
+            ],
+          ),
           if (banned.isNotEmpty) ...[
             SectionTitle('Expulsados (${banned.length})'),
-            for (final u in banned)
-              ListTile(
-                leading: PlayerAvatar(user: u),
-                title: Text(u.name),
-                subtitle: const Text('Para volver necesita otra invitación'),
-                trailing: readOnly || !canBan(myRole, u.role)
-                    ? null
-                    : TextButton(
-                        onPressed: () => fireAndForget(
-                          repo.unban(u.uid),
-                          success: '${u.name} puede volver con una invitación',
-                        ),
-                        child: const Text('Perdonar'),
-                      ),
-              ),
+            GroupedSection(
+              children: [
+                for (final u in banned)
+                  ListTile(
+                    leading: PlayerAvatar(user: u),
+                    title: Text(u.name),
+                    subtitle: const Text(
+                      'Para volver necesita otra invitación',
+                    ),
+                    trailing: readOnly || !canBan(myRole, u.role)
+                        ? null
+                        : TextButton(
+                            onPressed: () => fireAndForget(
+                              repo.unban(u.uid),
+                              success:
+                                  '${u.name} puede volver con una invitación',
+                            ),
+                            child: const Text('Perdonar'),
+                          ),
+                  ),
+              ],
+            ),
           ],
         ],
       ),
