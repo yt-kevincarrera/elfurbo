@@ -44,18 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase: credenciales locales del proyecto (cada uno baja la suya desde la consola)
-/android/app/google-services.json
-firebase-debug.log
-/functions/node_modules/
+# La clave de firma de las releases: nunca en el repo.
 /android/key.properties
-/android/app/upload-keystore.jks
-
-# Tests de reglas de Firestore (emulador)
-/firestore-tests/node_modules/
-firestore-debug.log
-ui-debug.log
+*.jks
+*.keystore
 
 # Backend (Cloudflare Worker)
 /backend/node_modules/
 /backend/.wrangler/
+
+# Restos locales de cuando se usaba Firebase (ya no hace falta).
+/android/app/google-services.json

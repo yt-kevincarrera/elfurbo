@@ -259,6 +259,7 @@ describe("página /i/<código>", () => {
     expect(res.html).toContain("Pachanga del sábado");
     expect(res.html).toContain(code);
     expect(res.html).toContain(`elfurbo://invite/${code.replace("-", "")}`);
+    expect(res.html).toContain('href="/app/download"');
   });
 
   it("escapa el nombre y la descripción del servidor (los escribe cualquiera)", async () => {

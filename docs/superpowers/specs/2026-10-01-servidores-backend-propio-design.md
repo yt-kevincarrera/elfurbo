@@ -32,7 +32,7 @@ Este documento es el **subproyecto 1** de una serie:
 
 ### Decisiones tomadas con el dueño
 
-- Backend: Cloudflare Workers + D1, gratis. Sin Google salvo FCM para push.
+- Backend: Cloudflare Workers + D1, gratis. Sin Google (tampoco FCM, ver §7).
 - Crear servidores: cualquiera lo **solicita**, el superadmin lo **aprueba**.
 - Datos actuales: **se empieza de cero**. Los datos de Firestore se quedan
   intactos en el proyecto de Firebase; la 1.0 no los lee.
@@ -50,8 +50,10 @@ Este documento es el **subproyecto 1** de una serie:
 - Validación de estadísticas: configurable por servidor, "con confirmación"
   (por defecto, como hoy) o "confianza". Lo que carga un admin o anotador
   cuenta al momento.
-- Notificaciones push: FCM llega en Cuba sin VPN; se mantiene, enviado desde
-  el Worker.
+- Notificaciones: al principio se pensó en FCM desde el Worker, pero el
+  teléfono necesita pedir su token a las API de Firebase, que desde Cuba
+  rechazan sin VPN. Se cambió (2026-10-07) por avisos locales calculados con
+  lo que trae el sync (§7).
 - Sincronización: cola de acciones + sincronización por lotes (no tiempo real).
 
 ### Supuestos (corregibles)
@@ -95,9 +97,8 @@ elfurbo/
   TypeScript como autoridad. `shared-fixtures/` contiene casos
   `{estado, comando, resultado esperado}` que ambos lados ejecutan en sus
   tests, para que no diverjan.
-- **Firebase queda solo para FCM** (`firebase_core` + `firebase_messaging`).
-  Se eliminan `firebase_auth`, `cloud_firestore`, `google_sign_in`,
-  `functions/`, `firestore.rules` y `firestore-tests/`.
+- **Sin Firebase**: se eliminan todos sus paquetes, `google_sign_in`,
+  `functions/`, `firestore.rules` y `firestore-tests/` (en el corte, §11).
 - Se reutilizan del código actual: `StatsEngine`, `TeamBalancer`, logros,
   `matchday_rules`, Riverpod, la tarjeta para WhatsApp y la mayoría de las
   pantallas (cambian su fuente de datos).
@@ -557,21 +558,37 @@ GitHub no abre desde Cuba. El Worker hace de intermediario:
 - **CI** (`.github/workflows/ci.yml`): se añaden `npm test` y `tsc` del
   backend, y se quitan los tests de reglas de Firestore y el chequeo de
   Functions. Despliegue a `staging` automático en cada push a `main`. A
-  `production`, a mano con `npm run deploy:prod` o al publicar una release.
+  `production`, a mano con `npm run deploy:production`.
 
 ## 11. Corte a 1.0 y clave de firma
 
 - La 1.0 se publica con el mismo paquete `app.elfurbo`, pero **firmada con
   una clave de release nueva**. Hoy se firma con la clave debug de la PC.
-  Como la 1.0 empieza de cero de todas formas, este es el momento de
-  cambiar la clave: cada usuario desinstala la versión vieja una vez e
-  instala la 1.0. A partir de ahí las actualizaciones vuelven a ser
-  automáticas.
+  Como hay que reinstalar una vez de todas formas, este es el momento de
+  cambiar la clave: cada usuario desinstala la versión vieja e instala la
+  1.0 (sus datos siguen en el servidor). A partir de ahí las actualizaciones
+  vuelven a ser automáticas. `release.sh` comprueba que cada APK venga
+  firmado con esa clave (`tool/release-cert.sha256`).
 - La clave (`.jks`) y sus contraseñas se guardan fuera del repo, con copia de
   seguridad en un sitio seguro. `release.sh` y Gradle la leen desde
   `key.properties`, que está en `.gitignore`.
-- El proyecto de Firebase y los datos de Firestore se conservan sin cambios.
-  Solo se sigue usando FCM.
+- La app ya no usa nada de Firebase (ni FCM, ver §7): fuera los paquetes, el
+  plugin de Google en Gradle, las Functions y las reglas. El proyecto de
+  Firebase queda sin tocar en su consola.
+- Producción: Worker `furbo-api` y D1 `furbo-prod`; la app apunta ahí por
+  defecto. Staging queda para probar.
+- Orden del corte (en staging había un solo usuario y un servidor, así que
+  no hizo falta congelar nada):
+  1. `wrangler d1 export` de staging → importar en `furbo-prod`, vacía (el
+     export trae `d1_migrations`, así que las migraciones ya constan).
+  2. Desplegar producción y probarla (`/health`, entrar).
+  3. Publicar la 1.0.0 (clave nueva, apunta a producción). Las 0.x siguen con
+     staging, que les ofrece la 1.0.0 con la nota de desinstalar antes.
+  4. Antes de desinstalar, comprobar "Todo al día" (lo que esté por enviar
+     se perdería).
+- Los enlaces `elfurbo://invite/CODIGO` de la página de invitación abren la
+  app (`MainActivity` los pasa por un canal propio) con el código ya puesto.
+  La página también ofrece **Descargar El Furbo** (`/app/download`).
 - El Worker de prueba `furbo-probe` y su D1 se borran al terminar el
   subproyecto.
 
@@ -588,7 +605,8 @@ GitHub no abre desde Cuba. El Worker hace de intermediario:
 5. **App, pachanga portada**: jornadas, asistencia, reportes, MVP, equipos,
    tabla y perfil sobre la base local. Admin del servidor y panel del
    superadmin.
-6. **Notificaciones y actualizaciones**: FCM desde el Worker, cron, `/app/*`.
+6. **Notificaciones y actualizaciones**: avisos locales desde el sync (sin
+   FCM), cron de purga, `/app/*`.
 7. **Corte a 1.0**: clave de release, quitar Firebase Auth, Firestore y
    Functions, actualizar README, release 1.0.0 y borrar `furbo-probe`.
 

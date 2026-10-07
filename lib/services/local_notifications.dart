@@ -83,7 +83,7 @@ class LocalNotifications {
   }
 
   /// Pide permiso para avisar (Android 13+ lo exige; antes lo pedía el push
-  /// de Firebase). Solo desde la app abierta: el sistema enseña el diálogo una
+  /// que ya no hay). Solo desde la app abierta: el sistema enseña el diálogo una
   /// vez y luego responde solo.
   static Future<void> requestPermission() async {
     await ensureInitialized();

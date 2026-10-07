@@ -4,11 +4,12 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-/// URL del backend propio (Cloudflare Workers). Se cambia al compilar con
-/// `--dart-define=API_URL=https://...`; por defecto, staging.
+/// URL del backend propio (Cloudflare Workers). Por defecto, producción; para
+/// probar contra staging:
+/// `--dart-define=API_URL=https://furbo-api-staging.furbo-probe.workers.dev`.
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'https://furbo-api-staging.furbo-probe.workers.dev',
+  defaultValue: 'https://furbo-api.furbo-probe.workers.dev',
 );
 
 /// Error que devuelve la API: `code` estable para la app y `message` en

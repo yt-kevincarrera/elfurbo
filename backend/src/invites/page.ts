@@ -16,13 +16,19 @@ main{max-width:420px}h1{font-size:1.6rem;margin:.2em 0}p{line-height:1.5;opacity
 .code{font-size:2rem;letter-spacing:.15em;font-weight:700;background:#fff;color:#0f5132;
 border-radius:12px;padding:.4em .6em;display:inline-block;margin:.4em 0}
 a.button{display:inline-block;margin-top:1em;background:#ffc107;color:#000;font-weight:700;
-padding:.8em 1.4em;border-radius:999px;text-decoration:none}`;
+padding:.8em 1.4em;border-radius:999px;text-decoration:none}
+a.ghost{background:transparent;color:#fff;border:2px solid #fff}small a{color:#fff}`;
 
 function layout(body: string) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>El Furbo · Invitación</title><style>${STYLE}</style></head>
 <body><main>${body}</main></body></html>`;
+}
+
+/** Para quien baja la app desde el navegador y algo falla. */
+export function downloadErrorPage(message: string) {
+  return layout(`<h1>⚽ No se pudo bajar la app</h1><p>${escapeHtml(message)}</p>`);
 }
 
 export function invitePage(invite: InviteRecord | null) {
@@ -35,6 +41,8 @@ export function invitePage(invite: InviteRecord | null) {
   return layout(`<p>Te invitaron a jugar con</p><h1>⚽ ${escapeHtml(invite.club.name)}</h1>${description}
 <p>Tu código de invitación:</p><div class="code">${code}</div>
 <p><a class="button" href="elfurbo://invite/${invite.code}">Abrir en El Furbo</a></p>
-<p>¿No tienes la app? Pídele el APK a quien te invitó, instálala, entra y escribe el código en
-"Tengo un código de invitación".</p>`);
+<p>¿No tienes la app? Bájala, instálala y vuelve a esta página (o escribe el código en
+"Tengo un código de invitación").</p>
+<p><a class="button ghost" href="/app/download">Descargar El Furbo</a></p>
+<p><small>¿Teléfono viejo y no instala? <a href="/app/download?abi=armeabi-v7a">Prueba esta otra</a>.</small></p>`);
 }

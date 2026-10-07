@@ -19,7 +19,7 @@ enum NotificationKind {
 
   const NotificationKind(this.wire);
 
-  /// Valor en JSON / `data.type` de FCM.
+  /// Valor en el JSON del payload.
   final String wire;
 
   static NotificationKind fromWire(Object? value) =>
@@ -51,8 +51,7 @@ class NotificationPayload {
 
   bool get opensMatch => matchId != null && matchId!.isNotEmpty;
 
-  /// Desde `RemoteMessage.data` de FCM.
-  factory NotificationPayload.fromFcmData(Map<String, dynamic> data) =>
+  factory NotificationPayload.fromJson(Map<String, dynamic> data) =>
       NotificationPayload(
         kind: NotificationKind.fromWire(data['type']),
         matchId: data['matchId'] as String?,
@@ -77,7 +76,7 @@ class NotificationPayload {
       if (json is! Map<String, dynamic>) {
         return const NotificationPayload(kind: NotificationKind.unknown);
       }
-      return NotificationPayload.fromFcmData(json);
+      return NotificationPayload.fromJson(json);
     } on FormatException {
       return const NotificationPayload(kind: NotificationKind.unknown);
     }
