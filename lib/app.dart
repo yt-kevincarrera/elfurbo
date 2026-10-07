@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'cloud/state/providers.dart';
 import 'data/providers.dart';
 import 'data/update_controller.dart';
 import 'domain/reminders.dart';
@@ -47,6 +48,14 @@ class _ClubSessionState extends ConsumerState<ClubSession>
     NotificationRouter.onUpdateTapped = () {
       if (mounted) openUpdate(context, ref);
     };
+    // Un aviso de otro servidor: primero se cambia a él.
+    NotificationRouter.onSelectClub = (clubId) {
+      if (!mounted) return false;
+      final clubs = ref.read(meProvider).value?.clubs ?? const [];
+      if (!clubs.any((c) => c.id == clubId)) return false;
+      ref.read(selectedClubProvider.notifier).select(clubId);
+      return true;
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSafely());
   }
 
@@ -64,6 +73,7 @@ class _ClubSessionState extends ConsumerState<ClubSession>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     NotificationRouter.onUpdateTapped = null;
+    NotificationRouter.onSelectClub = null;
     _debounce?.cancel();
     _reminders?.close();
     super.dispose();
@@ -142,7 +152,12 @@ class _ClubSessionState extends ConsumerState<ClubSession>
       if (key == _scheduled) return;
       _scheduled = key;
       _scheduling = _scheduling
-          .then((_) => LocalNotifications.scheduleReminders(plan))
+          .then(
+            (_) => LocalNotifications.scheduleReminders(
+              plan,
+              clubId: ref.read(currentClubProvider)?.id,
+            ),
+          )
           .catchError((Object e) => debugPrint('Recordatorios: $e'));
     });
   }

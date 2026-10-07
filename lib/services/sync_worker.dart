@@ -1,14 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:workmanager/workmanager.dart';
 
 import '../cloud/api/api_client.dart';
 import '../cloud/auth/session.dart';
 import '../cloud/state/cloud_controller.dart';
 import '../cloud/sync/sync_engine.dart';
+import '../cloud/sync/alerts.dart';
 import '../cloud/sync/local_store.dart';
+import 'local_notifications.dart';
 import 'update_service.dart';
 
 /// Sync con la app cerrada (Android WorkManager, spec §5):
@@ -65,6 +69,37 @@ class SyncWorker {
   }
 }
 
+/// Avisa de lo nuevo que trajo el sync (ver `alerts.dart`). Con señal, antes
+/// pone al día `/me` (servidores aprobados) y, si soy superadmin, las
+/// solicitudes pendientes. Un fallo aquí no hace fallar el sync.
+Future<void> _alert(
+  ApiClient api,
+  LocalStore store, {
+  required bool online,
+}) async {
+  try {
+    await initializeDateFormatting('es');
+    tzdata.initializeTimeZones();
+    List<Map<String, Object?>>? requests;
+    if (online) {
+      final me = await api.get('/me');
+      if (me != null) await store.writeMe(me);
+      if ((me?['user'] as Map?)?['isSuperadmin'] == true) {
+        final j = await api.get('/admin/clubs?status=pending');
+        requests = [
+          for (final c in (j?['clubs'] as List?) ?? const [])
+            Map<String, Object?>.from(c as Map),
+        ];
+      }
+    }
+    await LocalNotifications.showAlerts(
+      await refreshAlerts(store, notify: true, requests: requests),
+    );
+  } catch (e) {
+    debugPrint('Avisos: no se pudieron calcular: $e');
+  }
+}
+
 /// Para la interfaz (en tests, uno que no hace nada).
 final syncWorkerProvider = Provider<SyncWorker>((ref) => const SyncWorker());
 
@@ -79,17 +114,19 @@ Future<bool> runBackgroundSync() async {
     final session = SessionStore(prefs).read();
     if (session == null) return true;
     api.token = session.token;
+    final store = CloudController.storeFor(
+      await getApplicationSupportDirectory(),
+      session.user.id,
+      // Si la app cerró la sesión mientras tanto, no se resucita la carpeta.
+      createsRoot: false,
+    );
     engine = SyncEngine(
       api: api,
-      store: CloudController.storeFor(
-        await getApplicationSupportDirectory(),
-        session.user.id,
-        // Si la app cerró la sesión mientras tanto, no se resucita la carpeta.
-        createsRoot: false,
-      ),
+      store: store,
       isOutdated: UpdateService.isOutdated,
     );
     await engine.sync();
+    await _alert(api, store, online: engine.last.state == SyncState.idle);
     // Sin señal o el servidor falló: otra vez más tarde. Lo demás (al día,
     // sesión caducada, versión vieja) no mejora reintentando.
     return switch (engine.last.state) {

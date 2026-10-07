@@ -72,6 +72,7 @@ class _CloudGateState extends ConsumerState<CloudGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    ref.read(cloudProvider).visible = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.resumed) _sync();
     if (state == AppLifecycleState.paused) unawaited(_flushLater());
   }

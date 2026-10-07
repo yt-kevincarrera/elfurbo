@@ -6,6 +6,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../cloud/sync/alerts.dart';
 import '../domain/app_update.dart';
 import '../domain/reminders.dart';
 import '../models/notification_payload.dart';
@@ -127,8 +128,7 @@ class LocalNotifications {
     await _plugin.show(
       id: idUpdate,
       title: 'Nueva versión de El Furbo',
-      body:
-          'Ya salió la ${release.version}. Toca para actualizar (en Cuba, con VPN).',
+      body: 'Ya salió la ${release.version}. Toca para actualizar.',
       notificationDetails: _details(
         channelUpdates,
         'Actualizaciones',
@@ -200,10 +200,43 @@ class LocalNotifications {
     await _plugin.cancel(id: idUpdate);
   }
 
+  /// Los avisos calculados tras un sync (ver `alerts.dart`). Uno por tipo y
+  /// servidor: uno nuevo del mismo tipo reemplaza al anterior.
+  static Future<void> showAlerts(List<Alert> alerts) async {
+    if (alerts.isEmpty) return;
+    await ensureInitialized();
+    for (final a in alerts) {
+      await _plugin.show(
+        id: alertIdBase + ('${a.kind.name}@${a.clubId}'.hashCode & 0xFFFFF),
+        title: a.title,
+        body: a.body,
+        notificationDetails: _details(channelDefault, 'El Furbo'),
+        payload: NotificationPayload(
+          kind: switch (a.kind) {
+            AlertKind.matchday => NotificationKind.matchDay,
+            AlertKind.confirmReport => NotificationKind.report,
+            AlertKind.reportRejected => NotificationKind.reportStatus,
+            AlertKind.clubApproved ||
+            AlertKind.requestRejected => NotificationKind.club,
+            AlertKind.clubRequest => NotificationKind.clubRequest,
+          },
+          matchId: a.matchdayId,
+          clubId: a.kind == AlertKind.requestRejected ? null : a.clubId,
+        ).encode(),
+      );
+    }
+  }
+
+  /// Ids de los avisos: muy por encima de los recordatorios y del de versión.
+  static const alertIdBase = 1 << 24;
+
   // ---------------------------------------------------------- recordatorios
 
   /// Reemplaza todos los recordatorios programados por [reminders].
-  static Future<void> scheduleReminders(List<PlannedReminder> reminders) async {
+  static Future<void> scheduleReminders(
+    List<PlannedReminder> reminders, {
+    String? clubId,
+  }) async {
     await ensureInitialized();
     await cancelReminders();
     for (final r in reminders) {
@@ -218,6 +251,7 @@ class LocalNotifications {
           payload: NotificationPayload(
             kind: NotificationKind.matchDay,
             matchId: r.matchId,
+            clubId: clubId,
           ).encode(),
         );
       } catch (e) {

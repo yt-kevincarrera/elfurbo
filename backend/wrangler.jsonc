@@ -6,7 +6,7 @@
   "workers_dev": true,
   "observability": { "enabled": true },
   "vars": { "ENVIRONMENT": "local", "MIN_SUPPORTED_BUILD": "0" },
-  // Cada hora: la purga diaria y, más adelante, los recordatorios.
+  // Cada hora (a su hora hace la purga diaria).
   "triggers": { "crons": ["0 * * * *"] },
   // Base local para `wrangler dev` y los tests. Los entornos remotos van en "env".
   "d1_databases": [

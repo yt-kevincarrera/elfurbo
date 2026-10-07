@@ -1,9 +1,10 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../core/app_messenger.dart';
 import '../models/notification_payload.dart';
 import '../ui/matches/match_detail_screen.dart';
 import '../ui/shell/home_shell.dart';
+import '../ui/superadmin/superadmin_screen.dart';
 
 /// Traduce el payload de una notificación (push o local) a navegación.
 ///
@@ -17,7 +18,17 @@ class NotificationRouter {
   /// se registra aquí; lo hace `_ActiveSession`.
   static VoidCallback? onUpdateTapped;
 
+  /// Cambia al servidor de la notificación (lo registra `ClubSession`).
+  /// Devuelve false si ya no soy miembro.
+  static bool Function(String clubId)? onSelectClub;
+
   static void handle(NotificationPayload payload) {
+    final clubId = payload.clubId;
+    if (clubId != null &&
+        payload.kind != NotificationKind.clubRequest &&
+        !(onSelectClub?.call(clubId) ?? true)) {
+      return;
+    }
     switch (payload.kind) {
       case NotificationKind.update:
         onUpdateTapped?.call();
@@ -27,7 +38,20 @@ class NotificationRouter {
       case NotificationKind.postMatch:
       case NotificationKind.report:
       case NotificationKind.reportStatus:
-        if (payload.opensMatch) _openMatch(payload.matchId!);
+        // Tras cambiar de servidor, la jornada se abre cuando ya está a la vista.
+        if (payload.opensMatch) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _openMatch(payload.matchId!),
+          );
+        }
+      case NotificationKind.clubRequest:
+        final nav = rootNavigatorKey.currentState;
+        nav?.popUntil((route) => route.isFirst);
+        nav?.push(
+          MaterialPageRoute<void>(builder: (_) => const SuperadminScreen()),
+        );
+      case NotificationKind.club:
+        rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
       case NotificationKind.unknown:
         break;
     }
