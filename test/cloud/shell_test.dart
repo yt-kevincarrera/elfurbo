@@ -17,6 +17,8 @@ import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'settle_io.dart';
+
 const _user = {
   'id': 'u1',
   'username': 'kevincito',
@@ -109,14 +111,7 @@ void main() {
   setUpAll(() => initializeDateFormatting('es'));
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    dir = await Directory.systemTemp.createTemp('furbo-shell');
-  });
-  tearDown(() async {
-    try {
-      await dir.delete(recursive: true);
-    } on FileSystemException {
-      // Alguna escritura del sync de fondo todavía en vuelo.
-    }
+    dir = await dataDir('furbo-shell');
   });
 
   Future<CloudController> loggedIn(String role) async {
@@ -155,21 +150,16 @@ void main() {
     CloudController cloud, {
     List<Override> overrides = const [],
   }) async {
-    await tester.runAsync(() async {
-      await tester.pumpWidget(
+    // Dentro de runAsync: el sync que arranca al abrir corre con el reloj de verdad.
+    await tester.runAsync(
+      () => tester.pumpWidget(
         ProviderScope(
           overrides: [cloudProvider.overrideWithValue(cloud), ...overrides],
           child: const CloudApp(),
         ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    for (var i = 0; i < 20; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 50)),
-      );
-    }
+      ),
+    );
+    await settleIo(tester);
   }
 
   testWidgets(
@@ -201,16 +191,8 @@ void main() {
       await pump(tester, cloud!);
       await tester.tap(find.byTooltip('Servidores y cuenta'));
       await tester.pumpAndSettle();
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Cerrar sesión').last);
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
-      for (var i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 30)),
-        );
-      }
+      await tester.runAsync(() => tester.tap(find.text('Cerrar sesión').last));
+      await settleIo(tester, until: find.text('Entrar'));
       expect(cloud.session, isNull);
       expect(find.text('Entrar'), findsOneWidget);
       expect(find.text('Cerrando sesión…'), findsNothing);
