@@ -2,6 +2,8 @@ import type { MatchdayCreators, Role } from "../authz";
 import { errors } from "../http/errors";
 
 export type ClubStatus = "pending" | "active" | "rejected" | "suspended";
+export type ClubKind = "group" | "tournament";
+export type ClubVisibility = "private" | "public";
 export type MemberStatus = "active" | "left" | "banned";
 
 export type ClubSettings = {
@@ -10,6 +12,10 @@ export type ClubSettings = {
   confirmationsNeeded: number;
   closeAfterHours: number;
   timezone: string;
+  /** Cómo se entra en un servidor público: pidiéndolo (lo acepta un admin) o al momento. */
+  joinPolicy: "request" | "open";
+  /** Si sus estadísticas salen en el perfil global de sus jugadores. */
+  shareStats: boolean;
 };
 
 export const DEFAULT_SETTINGS: ClubSettings = {
@@ -18,6 +24,8 @@ export const DEFAULT_SETTINGS: ClubSettings = {
   confirmationsNeeded: 2,
   closeAfterHours: 72,
   timezone: "America/Havana",
+  joinPolicy: "request",
+  shareStats: true,
 };
 
 export type ClubRecord = {
@@ -27,6 +35,17 @@ export type ClubRecord = {
   status: ClubStatus;
   ownerUserId: string;
   settings: ClubSettings;
+  kind: ClubKind;
+  visibility: ClubVisibility;
+  official: boolean;
+  province: string | null;
+  city: string | null;
+  /** Índice de la paleta de tiza (0–7). */
+  color: number;
+  /** El servidor que organiza un torneo. */
+  hostClubId: string | null;
+  /** El superadmin lo sacó del directorio: no se puede volver a hacer público. */
+  delisted: boolean;
 };
 
 export type MemberRecord = {
@@ -45,6 +64,14 @@ type ClubRow = {
   status: ClubStatus;
   owner_user_id: string;
   settings: string;
+  kind: ClubKind;
+  visibility: ClubVisibility;
+  official: number;
+  province: string | null;
+  city: string | null;
+  color: number;
+  host_club_id: string | null;
+  delisted: number;
 };
 
 type MemberRow = {
@@ -56,13 +83,29 @@ type MemberRow = {
   display_name: string;
 };
 
-const clubFromRow = (r: ClubRow): ClubRecord => ({
+export const CLUB_COLUMNS =
+  "id, name, description, status, owner_user_id, settings, kind, visibility, official, province, city, color, host_club_id, delisted";
+
+export const clubSettings = (raw: string): ClubSettings => ({
+  ...DEFAULT_SETTINGS,
+  ...(JSON.parse(raw) as Partial<ClubSettings>),
+});
+
+export const clubFromRow = (r: ClubRow): ClubRecord => ({
   id: r.id,
   name: r.name,
   description: r.description,
   status: r.status,
   ownerUserId: r.owner_user_id,
-  settings: { ...DEFAULT_SETTINGS, ...(JSON.parse(r.settings) as Partial<ClubSettings>) },
+  settings: clubSettings(r.settings),
+  kind: r.kind,
+  visibility: r.visibility,
+  official: r.official === 1,
+  province: r.province,
+  city: r.city,
+  color: r.color,
+  hostClubId: r.host_club_id,
+  delisted: r.delisted === 1,
 });
 
 const memberFromRow = (r: MemberRow): MemberRecord => ({
@@ -75,10 +118,7 @@ const memberFromRow = (r: MemberRow): MemberRecord => ({
 });
 
 export async function findClub(db: D1Database, clubId: string) {
-  const row = await db
-    .prepare("SELECT id, name, description, status, owner_user_id, settings FROM clubs WHERE id = ?")
-    .bind(clubId)
-    .first<ClubRow>();
+  const row = await db.prepare(`SELECT ${CLUB_COLUMNS} FROM clubs WHERE id = ?`).bind(clubId).first<ClubRow>();
   return row ? clubFromRow(row) : null;
 }
 

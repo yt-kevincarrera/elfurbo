@@ -49,7 +49,15 @@ class ClubSettings {
     this.reportValidation = 'confirm',
     this.confirmationsNeeded = MatchReport.defaultConfirmationsNeeded,
     this.closeAfterHours = MatchDay.defaultCloseAfterHours,
+    this.joinPolicy = 'request',
+    this.shareStats = true,
   });
+
+  /// Cómo se entra si es público: `request` (lo acepta un admin) u `open`.
+  final String joinPolicy;
+
+  /// Si sus estadísticas salen en el perfil global de sus jugadores.
+  final bool shareStats;
 
   /// `members` (cualquiera crea jornadas) o `staff`.
   final String matchdayCreators;
@@ -70,9 +78,76 @@ class ClubSettings {
       closeAfterHours:
           (s['closeAfterHours'] as num?)?.toInt() ??
           MatchDay.defaultCloseAfterHours,
+      joinPolicy: (s['joinPolicy'] as String?) ?? 'request',
+      shareStats: s['shareStats'] != false,
     );
   }
 }
+
+/// Quién es el servidor: nombre, tipo, si es público u oficial, dónde y su
+/// color. De la vista local, así un cambio sin señal se ve al momento.
+class ClubInfo {
+  const ClubInfo({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.kind = 'group',
+    this.visibility = 'private',
+    this.official = false,
+    this.province,
+    this.city,
+    this.color = 0,
+    this.delisted = false,
+  });
+
+  final String id;
+  final String name;
+  final String description;
+
+  /// El superadmin lo sacó del directorio: no se puede hacer público.
+  final bool delisted;
+  final String kind;
+  final String visibility;
+  final bool official;
+  final String? province;
+  final String? city;
+  final int color;
+
+  bool get isPublic => visibility == 'public';
+  bool get isTournament => kind == 'tournament';
+
+  factory ClubInfo.fromCloud(Map<String, dynamic> c, {required String id}) =>
+      ClubInfo(
+        id: id,
+        name: (c['name'] as String?) ?? '',
+        description: (c['description'] as String?) ?? '',
+        kind: (c['kind'] as String?) ?? 'group',
+        visibility: (c['visibility'] as String?) ?? 'private',
+        official: c['official'] == true,
+        province: c['province'] as String?,
+        city: c['city'] as String?,
+        color: (c['color'] as num?)?.toInt() ?? 0,
+        delisted: c['delisted'] == true,
+      );
+}
+
+/// El servidor elegido tal como está en la vista local (o lo de `/me` si
+/// todavía no llegaron sus datos).
+final clubInfoProvider = Provider<ClubInfo?>((ref) {
+  final club = ref.watch(currentClubProvider);
+  if (club == null) return null;
+  final row = ref.watch(clubDataProvider).value?.club;
+  if (row == null) {
+    return ClubInfo(
+      id: club.id,
+      name: club.name,
+      kind: club.kind,
+      official: club.official,
+      color: club.color,
+    );
+  }
+  return ClubInfo.fromCloud(row.cast<String, dynamic>(), id: club.id);
+});
 
 final clubSettingsProvider = Provider<ClubSettings>((ref) {
   final club = ref.watch(clubDataProvider).value?.club;

@@ -266,7 +266,6 @@ class _ClubsState extends ConsumerState<_Clubs> {
 
   @override
   Widget build(BuildContext context) {
-    final api = ref.read(superadminApiProvider);
     return Column(
       children: [
         Padding(
@@ -298,41 +297,19 @@ class _ClubsState extends ConsumerState<_Clubs> {
                         children: [
                           for (final c in clubs)
                             ListTile(
-                              title: Text(c.name),
+                              title: Text(c.official ? '⭐ ${c.name}' : c.name),
                               subtitle: Text(
-                                '@${c.ownerUsername ?? '?'} · ${Fmt.plural(c.members, 'miembro', 'miembros')}',
+                                [
+                                  '@${c.ownerUsername ?? '?'}',
+                                  Fmt.plural(c.members, 'miembro', 'miembros'),
+                                  if (c.kind == 'tournament') 'Torneo',
+                                  if (c.visibility == 'public') 'Público',
+                                  if (c.delisted) 'Fuera del directorio',
+                                ].join(' · '),
                               ),
-                              trailing: switch (c.status) {
-                                'active' => TextButton(
-                                  onPressed: () async {
-                                    final note = await _askNote(
-                                      context,
-                                      '¿Suspender ${c.name}?',
-                                      confirm: 'Suspender',
-                                    );
-                                    if (note == null || !context.mounted) {
-                                      return;
-                                    }
-                                    await _act(
-                                      context,
-                                      () => api.suspend(c.id, note: note),
-                                      done: '${c.name} suspendido',
-                                      refresh: [_clubsProvider],
-                                    );
-                                  },
-                                  child: const Text('Suspender'),
-                                ),
-                                'suspended' => TextButton(
-                                  onPressed: () => _act(
-                                    context,
-                                    () => api.reactivate(c.id),
-                                    done: '${c.name} reactivado',
-                                    refresh: [_clubsProvider],
-                                  ),
-                                  child: const Text('Reactivar'),
-                                ),
-                                _ => null,
-                              },
+                              trailing: c.status == 'rejected'
+                                  ? null
+                                  : _ClubMenu(club: c),
                             ),
                         ],
                       ),
@@ -340,6 +317,79 @@ class _ClubsState extends ConsumerState<_Clubs> {
                   ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Lo que el superadmin hace con un servidor activo o suspendido.
+class _ClubMenu extends ConsumerWidget {
+  const _ClubMenu({required this.club});
+
+  final AdminClub club;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final api = ref.read(superadminApiProvider);
+    final c = club;
+    Future<void> act(Future<void> Function() f, String done) =>
+        _act(context, f, done: done, refresh: [_clubsProvider]);
+    return PopupMenuButton<String>(
+      tooltip: 'Acciones',
+      onSelected: (v) async {
+        switch (v) {
+          case 'suspend':
+            final note = await _askNote(
+              context,
+              '¿Suspender ${c.name}?',
+              confirm: 'Suspender',
+            );
+            if (note == null || !context.mounted) return;
+            await act(
+              () => api.suspend(c.id, note: note),
+              '${c.name} suspendido',
+            );
+          case 'reactivate':
+            await act(() => api.reactivate(c.id), '${c.name} reactivado');
+          case 'official':
+            await act(
+              () => api.setOfficial(c.id, !c.official),
+              c.official
+                  ? '${c.name} ya no es oficial'
+                  : '${c.name} es oficial ahora',
+            );
+          case 'delist':
+            final note = c.delisted
+                ? ''
+                : await _askNote(
+                    context,
+                    '¿Sacar ${c.name} del directorio?',
+                    confirm: 'Sacar',
+                  );
+            if (note == null || !context.mounted) return;
+            await act(
+              () => api.setDelisted(c.id, !c.delisted, note: note),
+              c.delisted
+                  ? 'Su dueño ya lo puede hacer público'
+                  : '${c.name} fuera del directorio',
+            );
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'official',
+          child: Text(c.official ? 'Quitar oficial' : 'Marcar como oficial'),
+        ),
+        PopupMenuItem(
+          value: 'delist',
+          child: Text(
+            c.delisted ? 'Permitir en el directorio' : 'Sacar del directorio',
+          ),
+        ),
+        if (c.status == 'active')
+          const PopupMenuItem(value: 'suspend', child: Text('Suspender')),
+        if (c.status == 'suspended')
+          const PopupMenuItem(value: 'reactivate', child: Text('Reactivar')),
       ],
     );
   }

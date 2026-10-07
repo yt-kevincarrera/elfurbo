@@ -86,6 +86,19 @@ void main() {
     'cambiar ajustes': (r) =>
         r.updateSettings(reportValidation: 'trust', closeAfterHours: 48),
     'pasar el servidor': (r) => r.transferOwnership('p2'),
+    'perfil del servidor': (r) => r.updateProfile(
+      name: ' Los Pinos ',
+      description: 'Los sábados en el Pre ',
+      province: 'hab',
+      city: ' Playa',
+      color: 3,
+    ),
+    'quitar provincia y ciudad': (r) =>
+        r.updateProfile(province: '', city: '  '),
+    'hacer público y abierto': (r) =>
+        r.setVisibility('public', joinPolicy: 'open'),
+    'hacer privado': (r) => r.setVisibility('private'),
+    'no compartir estadísticas': (r) => r.updateSettings(shareStats: false),
     'irme del servidor': (r) => r.leave(),
     'jugador sin cuenta': (r) => r.createGuest(' Yoandry '),
   };

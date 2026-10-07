@@ -236,6 +236,19 @@ List<Alert> clubAlerts(
   return alerts;
 }
 
+/// Lo que tengo pendiente en un servidor, para el número de la hoja de
+/// servidores: jornadas por jugar en las que no dije nada y reportes que puedo
+/// confirmar. Las mismas reglas que los avisos, pero sin mirar si ya se avisó.
+int pendingCount(
+  ClubData data, {
+  required String myMemberId,
+  required DateTime now,
+}) => clubAlerts(data, myMemberId: myMemberId, now: now)
+    .where(
+      (a) => a.kind == AlertKind.matchday || a.kind == AlertKind.confirmReport,
+    )
+    .length;
+
 /// Avisos de la cuenta, de `GET /me`: servidores aprobados (de los que eran
 /// solicitudes pendientes en [wasPending]) y solicitudes rechazadas.
 List<Alert> accountAlerts(

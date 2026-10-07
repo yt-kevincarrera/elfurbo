@@ -18,6 +18,9 @@ class MyClub {
     required this.status,
     required this.memberId,
     required this.role,
+    this.kind = 'group',
+    this.color = 0,
+    this.official = false,
   });
 
   final String id;
@@ -26,12 +29,24 @@ class MyClub {
   final String memberId;
   final String role;
 
+  /// `group` (la pachanga de siempre) o `tournament`.
+  final String kind;
+
+  /// Índice de la paleta del servidor (`Chalk.club`).
+  final int color;
+  final bool official;
+
+  bool get isTournament => kind == 'tournament';
+
   factory MyClub.fromJson(Map<String, dynamic> j) => MyClub(
     id: j['id'] as String,
     name: j['name'] as String,
     status: j['status'] as String,
     memberId: j['memberId'] as String,
     role: j['role'] as String,
+    kind: (j['kind'] as String?) ?? 'group',
+    color: (j['color'] as num?)?.toInt() ?? 0,
+    official: j['official'] == true,
   );
 }
 

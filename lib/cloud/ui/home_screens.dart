@@ -6,12 +6,14 @@ import '../../app.dart';
 import '../../data/update_controller.dart';
 import '../../ui/widgets/update_dialog.dart';
 import '../../ui/superadmin/superadmin_screen.dart';
-import '../../ui/widgets/chalk.dart';
+import '../../data/providers.dart';
+import '../../ui/widgets/club_token.dart';
 import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import '../sync/command.dart';
 import '../sync/sync_engine.dart';
+import 'club_picker.dart';
 import 'clubs_screens.dart';
 
 /// Inicio con sesión: sin servidores, cómo conseguir uno; con servidor, la
@@ -40,9 +42,16 @@ class ClubBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final clubs = ref.watch(meProvider).value?.clubs ?? const [];
     final club = ref.watch(currentClubProvider);
     if (club == null) return const SizedBox.shrink();
+    // Nombre y color de la vista local: un cambio sin señal se ve al momento.
+    final info = ref.watch(clubInfoProvider);
+    final name = info?.name ?? club.name;
+    // Un punto en el selector si hay algo pendiente en otro servidor.
+    final elsewhere = ref
+        .watch(pendingByClubProvider)
+        .entries
+        .any((e) => e.key != club.id && e.value > 0);
     final sync = ref.watch(syncStatusProvider).value;
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -63,17 +72,15 @@ class ClubBar extends ConsumerWidget {
                   Expanded(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: clubs.length > 1
-                          ? () => _pickClub(context, ref, clubs, club)
-                          : () => ref.read(cloudProvider).sync(),
+                      onTap: () => showClubPicker(context),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Row(
                           children: [
-                            ChalkToken(
-                              label: _initials(club.name),
-                              color: Chalk.yellow,
-                              filled: true,
+                            ClubToken(
+                              name: name,
+                              color: info?.color ?? club.color,
+                              tournament: club.isTournament,
                               size: 44,
                             ),
                             const SizedBox(width: 12),
@@ -85,19 +92,22 @@ class ClubBar extends ConsumerWidget {
                                     children: [
                                       Flexible(
                                         child: Text(
-                                          club.name,
+                                          name,
                                           overflow: TextOverflow.ellipsis,
                                           style: text.titleMedium?.copyWith(
                                             fontWeight: FontWeight.w800,
                                           ),
                                         ),
                                       ),
-                                      if (clubs.length > 1)
-                                        Icon(
+                                      Badge(
+                                        isLabelVisible: elsewhere,
+                                        smallSize: 8,
+                                        child: Icon(
                                           Icons.unfold_more,
                                           size: 18,
                                           color: scheme.onSurfaceVariant,
                                         ),
+                                      ),
                                     ],
                                   ),
                                   AnimatedSwitcher(
@@ -218,61 +228,6 @@ class ClubBar extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  static const _connectors = {'y', 'e', 'de', 'del', 'la', 'el', 'los', 'las'};
-
-  static String _initials(String name) => name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty && w[0].toUpperCase() != w[0].toLowerCase())
-      // Sin conectores: "Unción y Fuego" es UF, no UY.
-      .where((w) => !_connectors.contains(w.toLowerCase()))
-      .take(2)
-      .map((w) => w[0].toUpperCase())
-      .join();
-
-  Future<void> _pickClub(
-    BuildContext context,
-    WidgetRef ref,
-    List<MyClub> clubs,
-    MyClub current,
-  ) async {
-    final scheme = Theme.of(context).colorScheme;
-    final id = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Text(
-                'Tus servidores',
-                style: Theme.of(ctx).textTheme.titleLarge,
-              ),
-            ),
-            for (final c in clubs)
-              ListTile(
-                selected: c.id == current.id,
-                selectedTileColor: scheme.secondaryContainer,
-                leading: ChalkToken(
-                  label: _initials(c.name),
-                  color: Chalk.yellow,
-                  filled: true,
-                  size: 40,
-                ),
-                title: Text(c.name),
-                subtitle: Text(roleLabel(c.role)),
-                trailing: c.id == current.id ? const Icon(Icons.check) : null,
-                onTap: () => Navigator.pop(ctx, c.id),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (id != null) ref.read(selectedClubProvider.notifier).select(id);
   }
 }
 

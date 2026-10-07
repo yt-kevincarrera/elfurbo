@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from "../clubs/model";
+import { clubSettings } from "../clubs/model";
 import type { SyncEntity } from "./changes";
 
 type Row = Record<string, unknown>;
@@ -18,13 +18,21 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
     table: "clubs",
     clubColumn: "id",
     keyColumn: "id",
-    columns: "id, name, description, status, settings",
+    columns: "id, name, description, status, settings, kind, visibility, official, province, city, color, host_club_id, delisted",
     toJson: (r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
       status: r.status,
-      settings: { ...DEFAULT_SETTINGS, ...JSON.parse(String(r.settings)) },
+      settings: clubSettings(String(r.settings)),
+      kind: r.kind,
+      visibility: r.visibility,
+      official: r.official === 1,
+      province: r.province,
+      city: r.city,
+      color: r.color,
+      hostClubId: r.host_club_id,
+      delisted: r.delisted === 1,
     }),
   },
   member: {

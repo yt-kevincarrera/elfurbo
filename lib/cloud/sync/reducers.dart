@@ -53,6 +53,27 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
       final club = d.club;
       if (club == null) return;
       club['settings'] = {...(club['settings'] as Map? ?? const {}), ...p};
+    case 'club.updateProfile':
+      final club = d.club;
+      if (club == null) return;
+      for (final f in const ['name', 'description', 'province', 'city']) {
+        if (p.containsKey(f)) club[f] = p[f];
+      }
+      if (p.containsKey('color')) club['color'] = p['color'];
+    case 'club.setVisibility':
+      final club = d.club;
+      // Fuera del directorio no puede ser público (el servidor lo rechaza).
+      if (club == null ||
+          (p['visibility'] == 'public' && club['delisted'] == true)) {
+        return;
+      }
+      club['visibility'] = p['visibility'];
+      if (p['joinPolicy'] != null) {
+        club['settings'] = {
+          ...(club['settings'] as Map? ?? const {}),
+          'joinPolicy': p['joinPolicy'],
+        };
+      }
     case 'club.transferOwnership':
       final target = member(p['memberId']);
       if (target == null) return;

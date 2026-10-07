@@ -261,12 +261,38 @@ class ClubRepo {
     String? reportValidation,
     int? confirmationsNeeded,
     int? closeAfterHours,
+    bool? shareStats,
   }) => _run('club.updateSettings', {
     'matchdayCreators': ?matchdayCreators,
     'reportValidation': ?reportValidation,
     'confirmationsNeeded': ?confirmationsNeeded,
     'closeAfterHours': ?closeAfterHours,
+    'shareStats': ?shareStats,
   });
+
+  /// Nombre, descripción, provincia, ciudad y color (solo lo que cambia). Solo
+  /// el dueño. Una provincia o ciudad vacía ('') se quita.
+  Future<void> updateProfile({
+    String? name,
+    String? description,
+    String? province,
+    String? city,
+    int? color,
+  }) => _run('club.updateProfile', {
+    if (name != null) 'name': name.trim(),
+    if (description != null) 'description': description.trim(),
+    if (province != null) 'province': province.isEmpty ? null : province,
+    if (city != null) 'city': _text(city),
+    'color': ?color,
+  });
+
+  /// Privado (solo por invitación) o público (sale en el directorio). En uno
+  /// público, [joinPolicy] dice si entrar se pide (`request`) o es al momento
+  /// (`open`). Solo el dueño.
+  Future<void> setVisibility(String visibility, {String? joinPolicy}) => _run(
+    'club.setVisibility',
+    {'visibility': visibility, 'joinPolicy': ?joinPolicy},
+  );
 
   /// El dueño le pasa el servidor a otro miembro con cuenta (él queda de admin).
   Future<void> transferOwnership(String memberId) =>

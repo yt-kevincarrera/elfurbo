@@ -13,6 +13,7 @@ import '../widgets/common.dart';
 import '../widgets/expressive.dart';
 import '../widgets/guest_dialog.dart';
 import 'audit_screen.dart';
+import 'club_profile.dart';
 import 'invites.dart';
 import 'settings.dart';
 import '../widgets/player_avatar.dart';
@@ -51,6 +52,7 @@ class AdminScreen extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 32),
         children: [
           if (canManageInvites(myRole)) const InvitesSection(),
+          if (canManageClub(myRole)) const ClubProfileSection(),
           if (canManageClub(myRole)) const ClubSettingsSection(),
           SectionTitle(
             'Temporadas',

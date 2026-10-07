@@ -27,6 +27,36 @@ abstract final class Chalk {
 
   /// Colores para las fichas de jugador (el mismo jugador, el mismo color).
   static const tokens = [yellow, green, pink, blue, orange];
+
+  static const lilac = Color(0xFFC9B6F2);
+  static const aqua = Color(0xFF8EE3D6);
+
+  /// Los colores que el dueño elige para su servidor (`clubs.color`, 0–7).
+  static const clubColors = [
+    yellow,
+    green,
+    pink,
+    blue,
+    orange,
+    lilac,
+    aqua,
+    white,
+  ];
+
+  static const clubColorNames = [
+    'Amarillo',
+    'Verde',
+    'Rosado',
+    'Azul',
+    'Naranja',
+    'Lila',
+    'Agua',
+    'Blanco',
+  ];
+
+  /// El color del servidor (el amarillo de siempre si no se sabe).
+  static Color club(int? index) =>
+      clubColors[(index ?? 0).clamp(0, clubColors.length - 1)];
 }
 
 /// Borde de tiza: un trazo con doble pasada (como la tiza sobre la pizarra) o

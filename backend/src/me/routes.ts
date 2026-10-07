@@ -19,13 +19,13 @@ meRoutes.get("/", async (c) => {
   const userId = c.var.auth.user.id;
   const clubs = await db
     .prepare(
-      `SELECT c.id, c.name, c.status, m.id AS member_id, m.role
+      `SELECT c.id, c.name, c.status, c.kind, c.color, c.official, m.id AS member_id, m.role
          FROM members m JOIN clubs c ON c.id = m.club_id
         WHERE m.user_id = ? AND m.status = 'active' AND c.status IN ('active', 'suspended')
         ORDER BY c.name`,
     )
     .bind(userId)
-    .all<{ id: string; name: string; status: string; member_id: string; role: string }>();
+    .all<{ id: string; name: string; status: string; kind: string; color: number; official: number; member_id: string; role: string }>();
   const requests = await db
     .prepare(
       `SELECT id, name, status, review_note, created_at FROM clubs
@@ -35,7 +35,16 @@ meRoutes.get("/", async (c) => {
     .all<{ id: string; name: string; status: string; review_note: string | null; created_at: string }>();
   return c.json({
     user: c.var.auth.user,
-    clubs: clubs.results.map((r) => ({ id: r.id, name: r.name, status: r.status, memberId: r.member_id, role: r.role })),
+    clubs: clubs.results.map((r) => ({
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      kind: r.kind,
+      color: r.color,
+      official: r.official === 1,
+      memberId: r.member_id,
+      role: r.role,
+    })),
     clubRequests: requests.results.map((r) => ({
       id: r.id,
       name: r.name,

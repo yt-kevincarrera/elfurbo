@@ -152,10 +152,24 @@ class AdminClub {
     required this.createdAt,
     required this.members,
     this.ownerUsername,
+    this.kind = 'group',
+    this.visibility = 'private',
+    this.official = false,
+    this.delisted = false,
   });
 
   final String id;
   final String name;
+
+  /// `group` o `tournament`.
+  final String kind;
+
+  /// `private` o `public` (sale en el directorio).
+  final String visibility;
+  final bool official;
+
+  /// Lo saqué del directorio: su dueño no lo puede volver a hacer público.
+  final bool delisted;
 
   /// `pending`, `active`, `rejected` o `suspended`.
   final String status;
@@ -172,6 +186,10 @@ class AdminClub {
     createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
     members: (j['members'] as num?)?.toInt() ?? 0,
     ownerUsername: j['ownerUsername'] as String?,
+    kind: (j['kind'] as String?) ?? 'group',
+    visibility: (j['visibility'] as String?) ?? 'private',
+    official: j['official'] == true,
+    delisted: j['delisted'] == true,
   );
 }
 
@@ -268,6 +286,20 @@ class SuperadminApi {
 
   Future<void> reactivate(String clubId) =>
       _api.post('/admin/clubs/$clubId/reactivate');
+
+  /// Oficial: sus estadísticas cuentan como las de más prestigio.
+  Future<void> setOfficial(String clubId, bool official, {String note = ''}) =>
+      _api.post('/admin/clubs/$clubId/official', {
+        'official': official,
+        'note': note,
+      });
+
+  /// Fuera del directorio (pasa a privado y su dueño no lo puede hacer público), o permitirlo otra vez.
+  Future<void> setDelisted(String clubId, bool delisted, {String note = ''}) =>
+      _api.post('/admin/clubs/$clubId/delist', {
+        'delisted': delisted,
+        'note': note,
+      });
 
   Future<List<AdminUser>> users({String query = ''}) async {
     final q = query.trim();
