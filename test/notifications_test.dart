@@ -40,30 +40,27 @@ void main() {
       );
     });
 
-    test('fromFcmData usa los tipos de las Functions', () {
+    test('fromJson lee el tipo', () {
       expect(
-        NotificationPayload.fromFcmData({
+        NotificationPayload.fromJson({
           'type': 'match_day',
           'matchId': 'm2',
         }).kind,
         NotificationKind.matchDay,
       );
       expect(
-        NotificationPayload.fromFcmData({'type': 'pending_user'}).kind,
+        NotificationPayload.fromJson({'type': 'pending_user'}).kind,
         NotificationKind.pendingUser,
       );
       expect(
-        NotificationPayload.fromFcmData({'type': 'report_status'}).kind,
+        NotificationPayload.fromJson({'type': 'report_status'}).kind,
         NotificationKind.reportStatus,
       );
       expect(
-        NotificationPayload.fromFcmData({'type': 'post_match'}).kind,
+        NotificationPayload.fromJson({'type': 'post_match'}).kind,
         NotificationKind.postMatch,
       );
-      expect(
-        NotificationPayload.fromFcmData({}).kind,
-        NotificationKind.unknown,
-      );
+      expect(NotificationPayload.fromJson({}).kind, NotificationKind.unknown);
     });
 
     test('update lleva el tag', () {

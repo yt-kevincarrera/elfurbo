@@ -26,6 +26,11 @@ function layout(body: string) {
 <body><main>${body}</main></body></html>`;
 }
 
+/** Para quien baja la app desde el navegador y algo falla. */
+export function downloadErrorPage(message: string) {
+  return layout(`<h1>⚽ No se pudo bajar la app</h1><p>${escapeHtml(message)}</p>`);
+}
+
 export function invitePage(invite: InviteRecord | null) {
   if (!invite) {
     return layout(`<h1>⚽ Invitación no válida</h1>

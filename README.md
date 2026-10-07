@@ -91,7 +91,8 @@ keyPassword=<la contraseña>
 ```
 
 Sin ese archivo, `flutter build` firma con la clave de debug (sirve para probar) y
-`tool/release.sh` se niega a publicar.
+`tool/release.sh` se niega a publicar. Además comprueba que cada APK venga firmado con la
+clave cuya huella está en `tool/release-cert.sha256`.
 
 ### Publicar una versión
 

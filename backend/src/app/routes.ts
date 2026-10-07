@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { ApiError, errors } from "../http/errors";
+import { downloadErrorPage } from "../invites/page";
 import type { AppEnv } from "../types";
 import { ABIS, type Abi, apkName, latestRelease, REPO, TAG, UpstreamError } from "./github";
 
@@ -38,15 +39,18 @@ appRoutes.get("/latest", async (c) => {
  */
 appRoutes.get("/download", async (c) => {
   const abi = (c.req.query("abi") ?? "arm64-v8a") as Abi;
-  if (!ABIS.includes(abi)) throw errors.notFound();
+  const fail = (message: string, status: 404 | 502) => c.html(downloadErrorPage(message), status);
+  if (!ABIS.includes(abi)) return fail("Ese tipo de teléfono no existe.", 404);
   let release;
   try {
     release = await latestRelease(c.env.DB, c.env.GITHUB_TOKEN);
   } catch (e) {
-    if (e instanceof UpstreamError) throw upstream();
+    if (e instanceof UpstreamError) return fail("Ahora mismo no se puede. Prueba en un rato.", 502);
     throw e;
   }
-  if (!release?.assets.some((a) => a.abi === abi)) throw errors.notFound();
+  if (!release?.assets.some((a) => a.abi === abi)) {
+    return fail("Todavía no hay una versión publicada para este teléfono.", 404);
+  }
   return c.redirect(`/app/apk/${release.tag}/${abi}`, 302);
 });
 

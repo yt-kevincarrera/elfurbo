@@ -40,7 +40,14 @@ android {
         val f = rootProject.file("key.properties")
         if (f.exists()) f.inputStream().use { load(it) }
     }
-    val hasReleaseKey = keyProps.getProperty("storeFile") != null
+    val keyFields = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    val hasReleaseKey = !keyProps.isEmpty
+    if (hasReleaseKey) {
+        val missing = keyFields.filter { keyProps.getProperty(it).isNullOrBlank() }
+        if (missing.isNotEmpty()) {
+            throw GradleException("android/key.properties está incompleto: falta $missing")
+        }
+    }
 
     signingConfigs {
         if (hasReleaseKey) {

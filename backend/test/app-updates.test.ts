@@ -121,10 +121,19 @@ describe("GET /app/download", () => {
     expect(old.headers.get("location")).toBe("/app/apk/v0.6.0/armeabi-v7a");
   });
 
-  it("una ABI rara o sin releases: 404", async () => {
-    expect((await api("/app/download?abi=mips")).status).toBe(404);
+  it("una ABI rara, sin releases o GitHub caído: una página que se entiende", async () => {
+    const page = async (path: string) => {
+      const res = await exports.default.fetch(`https://api.test${path}`);
+      return { status: res.status, type: res.headers.get("content-type"), html: await res.text() };
+    };
+    const odd = await page("/app/download?abi=mips");
+    expect(odd.status).toBe(404);
+    expect(odd.type).toContain("text/html");
     github = () => new Response("{}", { status: 404 });
-    expect((await api("/app/download")).status).toBe(404);
+    expect((await page("/app/download")).html).toContain("Todavía no hay una versión");
+    await env.DB.prepare("DELETE FROM kv").run();
+    github = () => new Response("caído", { status: 500 });
+    expect((await page("/app/download")).status).toBe(502);
   });
 });
 

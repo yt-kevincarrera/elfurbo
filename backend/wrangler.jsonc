@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "furbo-api",
+  // Sin --env (wrangler dev, tests): nada que ver con el Worker de producción.
+  "name": "furbo-api-local",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "workers_dev": true,

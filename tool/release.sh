@@ -61,6 +61,20 @@ flutter build apk --release --split-per-abi
 OUT=build/app/outputs/flutter-apk
 ls -1 "$OUT"/app-*-release.apk
 
+# Cada APK tiene que venir firmado con la clave de las releases (tool/release-cert.sha256):
+# uno firmado con otra no se instala encima en ningún teléfono.
+EXPECTED_CERT="$(tr -d '[:space:]' < tool/release-cert.sha256)"
+APKSIGNER="$(ls -d "${ANDROID_HOME:-${LOCALAPPDATA:-}/Android/Sdk}"/build-tools/* 2>/dev/null | tail -1)/apksigner"
+[[ -x "$APKSIGNER" ]] || APKSIGNER="$APKSIGNER.bat"
+for apk in "$OUT"/app-*-release.apk; do
+  CERT="$("$APKSIGNER" verify --print-certs "$apk" | sed -nE 's/.*certificate SHA-256 digest: ([0-9a-f]+).*/\1/p' | head -1)"
+  if [[ "$CERT" != "$EXPECTED_CERT" ]]; then
+    git checkout -- pubspec.yaml
+    echo "$apk no está firmado con la clave de las releases ($CERT). No se publica." >&2
+    exit 1
+  fi
+done
+
 git add pubspec.yaml
 git commit -m "Versión ${NEW_VERSION} (build ${NEW_BUILD})"
 git tag "v${NEW_VERSION}"

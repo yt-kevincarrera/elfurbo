@@ -170,7 +170,12 @@ class _AuthFormState extends State<_AuthForm> {
     });
     try {
       await widget.onSubmit();
-      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      // Solo si esta pantalla sigue siendo la de arriba: al entrar con un enlace
+      // de invitación, la app ya volvió a la raíz y abrió encima "Entrar con
+      // código", que no hay que cerrar.
+      if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = describeError(e));
     } finally {
@@ -292,10 +297,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) => _AuthForm(
     title: widget.fromInvite ? 'Primero, tu cuenta' : 'Crear cuenta',
     fields: [
-      if (widget.fromInvite)
+      if (widget.fromInvite) ...[
         const Text(
-          'Crea tu cuenta (o entra si ya tienes una) y después escribe el código de invitación.',
+          'Crea tu cuenta y después entras al servidor con el código (si llegaste por un enlace, ya está puesto).',
         ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+            ),
+            child: const Text('Ya tengo cuenta: entrar'),
+          ),
+        ),
+      ],
       _field(_name, 'Tu nombre', hint: 'Cómo te dicen en el grupo'),
       _field(
         _user,
