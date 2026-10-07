@@ -26,6 +26,10 @@ function layout(body: string) {
 <body><main>${body}</main></body></html>`;
 }
 
+/** Bajar la app, también cuando la invitación ya no vale (el que llegó aquí la quiere). */
+const DOWNLOAD = `<p><a class="button ghost" href="/app/download">Descargar El Furbo</a></p>
+<p><small>¿Teléfono viejo y no instala? <a href="/app/download?abi=armeabi-v7a">Prueba esta otra</a>.</small></p>`;
+
 /** Para quien baja la app desde el navegador y algo falla. */
 export function downloadErrorPage(message: string) {
   return layout(`<h1>⚽ No se pudo bajar la app</h1><p>${escapeHtml(message)}</p>`);
@@ -34,7 +38,8 @@ export function downloadErrorPage(message: string) {
 export function invitePage(invite: InviteRecord | null) {
   if (!invite) {
     return layout(`<h1>⚽ Invitación no válida</h1>
-<p>Esta invitación no existe, caducó o ya se usó. Pídele otra a quien te la mandó.</p>`);
+<p>Esta invitación no existe, caducó o ya se usó. Pídele otra a quien te la mandó.</p>
+<p>Mientras tanto, ya puedes ir bajando la app:</p>${DOWNLOAD}`);
   }
   const code = formatCode(invite.code);
   const description = invite.club.description ? `<p>${escapeHtml(invite.club.description)}</p>` : "";
@@ -43,6 +48,5 @@ export function invitePage(invite: InviteRecord | null) {
 <p><a class="button" href="elfurbo://invite/${invite.code}">Abrir en El Furbo</a></p>
 <p>¿No tienes la app? Bájala, instálala y vuelve a esta página (o escribe el código en
 "Tengo un código de invitación").</p>
-<p><a class="button ghost" href="/app/download">Descargar El Furbo</a></p>
-<p><small>¿Teléfono viejo y no instala? <a href="/app/download?abi=armeabi-v7a">Prueba esta otra</a>.</small></p>`);
+${DOWNLOAD}`);
 }

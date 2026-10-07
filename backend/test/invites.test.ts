@@ -281,5 +281,7 @@ describe("página /i/<código>", () => {
     const res = await page("/i/NOEXISTE");
     expect(res.status).toBe(404);
     expect(res.html).toContain("Invitación no válida");
+    // Aunque no valga, se puede bajar la app.
+    expect(res.html).toContain('href="/app/download"');
   });
 });
