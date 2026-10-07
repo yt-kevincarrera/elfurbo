@@ -466,28 +466,34 @@ servidores y miembros:
 
 ## 7. Notificaciones
 
-- El Worker envía con **FCM HTTP v1**. La cuenta de servicio del proyecto de
-  Firebase es un secreto del Worker. El JWT se firma con WebCrypto (RS256) y
-  el token de acceso se guarda en D1 durante 55 minutos.
-- Los envíos se hacen con `ctx.waitUntil` después de responder al push, para
-  no retrasar al usuario. Los tokens muertos se borran de `devices`.
+Sin push. FCM no sirve desde Cuba: el teléfono tiene que pedir su token a las
+API de Firebase (`firebaseinstallations`, `fcmregistrations`), que rechazan
+las peticiones sin VPN, igual que Firestore y Auth. Los avisos los calcula el
+propio teléfono con lo que trae el sync (`lib/cloud/sync/alerts.dart`):
+
+- El sync de segundo plano (WorkManager, ~15 min) trae los datos; después pone
+  al día `/me` y, si soy superadmin, las solicitudes pendientes.
+- Cada aviso tiene una clave estable. Se guarda cuáles ya se mostraron
+  (`alerts.json` de la cuenta). La primera pasada solo marca todo como visto.
+- Con la app a la vista, lo nuevo se marca como visto sin avisar. Abierta pero
+  en segundo plano, avisa ella.
 - Eventos:
-  - Nuevo reporte pendiente de confirmar → miembros presentes con cuenta.
-  - Reporte confirmado que se edita → los que lo confirmaron ("vuelve a
-    confirmarlo").
-  - Jornada nueva → miembros del servidor (agrupado: "3 jornadas nuevas" si
-    se crean varias de golpe).
-  - Solicitud de servidor → superadmin. Servidor aprobado o rechazado → el
-    solicitante.
-- **Cron cada hora** (`0 * * * *`): para cada servidor, si en su zona
-  horaria son las 09:00 y hay jornada hoy, envía "¡Hoy se juega!" a todos
-  menos a los que marcaron "No voy". A las 22:00 de una jornada jugada envía
-  "¿Cuántos metiste hoy?" a los presentes sin reporte.
-- Se eliminan los recordatorios programados localmente y los chequeos locales
-  cada 12 h, para no duplicar avisos. WorkManager queda solo para
-  sincronizar.
-- Tocar una notificación abre el servidor y la jornada (`clubId`,
-  `matchdayId`) o el panel correspondiente.
+  - Jornada nueva de otro, por jugar, en la que no dije nada.
+  - Reporte de otro que puedo confirmar (jugué, sin decidir, le faltan
+    confirmaciones, jornada sin cerrar). Si lo editan, la clave cambia y se
+    vuelve a avisar.
+  - Mi reporte rechazado.
+  - Mi servidor aprobado; mi solicitud rechazada (con la nota).
+  - Superadmin: solicitud de servidor nueva.
+- Varios del mismo tipo y servidor van en uno ("3 jornadas nuevas"). Uno nuevo
+  del mismo tipo reemplaza al anterior en la barra.
+- "¡Hoy se juega!" (09:00) y "¿Cuántos metiste hoy?" (22:00) siguen siendo
+  recordatorios programados en el teléfono para el servidor elegido.
+- Tocar un aviso cambia a su servidor y abre la jornada (o el panel de
+  superadmin).
+- Contra: no es instantáneo (de 15 min a más con el teléfono en reposo), y en
+  teléfonos que matan las apps en segundo plano puede no llegar hasta abrir la
+  app.
 
 ## 8. Actualizaciones de la app sin GitHub
 

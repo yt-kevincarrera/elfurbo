@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-/// Qué representa una notificación (push de las Functions o local). Los
-/// nombres del campo `type` coinciden con los que envían las Functions.
+/// Qué representa una notificación (todas son locales: las calcula el teléfono
+/// con lo que trae el sync, ver `alerts.dart`).
 enum NotificationKind {
   update('update'),
   matchDay('match_day'),
@@ -9,6 +9,12 @@ enum NotificationKind {
   report('report'),
   reportStatus('report_status'),
   pendingUser('pending_user'),
+
+  /// Un servidor mío (aprobado o rechazado): abre ese servidor.
+  club('club'),
+
+  /// Superadmin: solicitudes de servidor por revisar.
+  clubRequest('club_request'),
   unknown('unknown');
 
   const NotificationKind(this.wire);
@@ -25,9 +31,17 @@ enum NotificationKind {
 
 /// Datos mínimos para saber qué abrir al tocar una notificación.
 class NotificationPayload {
-  const NotificationPayload({required this.kind, this.matchId, this.tag});
+  const NotificationPayload({
+    required this.kind,
+    this.matchId,
+    this.tag,
+    this.clubId,
+  });
 
   final NotificationKind kind;
+
+  /// Servidor al que pertenece (se cambia a él antes de abrir la jornada).
+  final String? clubId;
 
   /// Jornada a abrir (report, match_day, post_match, report_status).
   final String? matchId;
@@ -43,12 +57,14 @@ class NotificationPayload {
         kind: NotificationKind.fromWire(data['type']),
         matchId: data['matchId'] as String?,
         tag: data['tag'] as String?,
+        clubId: data['clubId'] as String?,
       );
 
   String encode() => jsonEncode({
     'type': kind.wire,
     if (matchId != null) 'matchId': matchId,
     if (tag != null) 'tag': tag,
+    if (clubId != null) 'clubId': clubId,
   });
 
   /// Tolera null y texto que no sea JSON (devuelve `unknown`).

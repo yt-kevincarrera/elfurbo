@@ -1,14 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:workmanager/workmanager.dart';
 
 import '../cloud/api/api_client.dart';
 import '../cloud/auth/session.dart';
 import '../cloud/state/cloud_controller.dart';
 import '../cloud/sync/sync_engine.dart';
+import '../cloud/sync/alerts.dart';
 import '../cloud/sync/local_store.dart';
+import 'local_notifications.dart';
 import 'update_service.dart';
 
 /// Sync con la app cerrada (Android WorkManager, spec §5):
@@ -29,6 +33,29 @@ class SyncWorker {
   static const flushTask = 'syncNow';
 
   static bool handles(String task) => task == periodicTask || task == flushTask;
+
+  static const _visibleKey = 'alerts.visibleUntil';
+
+  /// La app está a la vista (hasta dentro de unos minutos; se renueva mientras
+  /// siga): el de segundo plano no avisa de lo del servidor que se está mirando.
+  static Future<void> markVisible(bool visible) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (visible) {
+        await prefs.setInt(
+          _visibleKey,
+          DateTime.now().add(const Duration(minutes: 3)).millisecondsSinceEpoch,
+        );
+      } else {
+        await prefs.remove(_visibleKey);
+      }
+    } catch (_) {
+      // Sin esto, como mucho sale un aviso de más.
+    }
+  }
+
+  static bool _isVisible(SharedPreferences prefs) =>
+      (prefs.getInt(_visibleKey) ?? 0) > DateTime.now().millisecondsSinceEpoch;
 
   /// Programa (o mantiene) el sync periódico. Idempotente.
   Future<void> schedule() async {
@@ -65,6 +92,48 @@ class SyncWorker {
   }
 }
 
+/// Avisa de lo nuevo que trajo el sync (ver `alerts.dart`). Con señal, antes
+/// pone al día `/me` (servidores aprobados) y, si soy superadmin, las
+/// solicitudes pendientes. Un fallo aquí no hace fallar el sync.
+Future<void> _alert(
+  ApiClient api,
+  LocalStore store, {
+  required bool online,
+  String? watching,
+}) async {
+  try {
+    await initializeDateFormatting('es');
+    tzdata.initializeTimeZones();
+    List<Map<String, Object?>>? requests;
+    if (online) {
+      final me = await api.get('/me');
+      if (me != null) await store.writeMe(me);
+      if ((me?['user'] as Map?)?['isSuperadmin'] == true) {
+        try {
+          final j = await api.get('/admin/clubs?status=pending');
+          requests = [
+            for (final c in (j?['clubs'] as List?) ?? const [])
+              Map<String, Object?>.from(c as Map),
+          ];
+        } catch (_) {
+          // Sin la lista, sus marcas se conservan y lo demás se avisa igual.
+        }
+      }
+    }
+    await LocalNotifications.showAlerts(
+      await refreshAlerts(
+        store,
+        // Con la app a la vista, lo del servidor que se mira no se avisa.
+        notify: (a) =>
+            watching == null || (watching.isNotEmpty && a.clubId != watching),
+        requests: requests,
+      ),
+    );
+  } catch (e) {
+    debugPrint('Avisos: no se pudieron calcular: $e');
+  }
+}
+
 /// Para la interfaz (en tests, uno que no hace nada).
 final syncWorkerProvider = Provider<SyncWorker>((ref) => const SyncWorker());
 
@@ -79,17 +148,27 @@ Future<bool> runBackgroundSync() async {
     final session = SessionStore(prefs).read();
     if (session == null) return true;
     api.token = session.token;
+    final store = CloudController.storeFor(
+      await getApplicationSupportDirectory(),
+      session.user.id,
+      // Si la app cerró la sesión mientras tanto, no se resucita la carpeta.
+      createsRoot: false,
+    );
     engine = SyncEngine(
       api: api,
-      store: CloudController.storeFor(
-        await getApplicationSupportDirectory(),
-        session.user.id,
-        // Si la app cerró la sesión mientras tanto, no se resucita la carpeta.
-        createsRoot: false,
-      ),
+      store: store,
       isOutdated: UpdateService.isOutdated,
     );
     await engine.sync();
+    await prefs.reload();
+    await _alert(
+      api,
+      store,
+      online: engine.last.state == SyncState.idle,
+      watching: SyncWorker._isVisible(prefs)
+          ? SessionStore(prefs).readSelectedClub() ?? ''
+          : null,
+    );
     // Sin señal o el servidor falló: otra vez más tarde. Lo demás (al día,
     // sesión caducada, versión vieja) no mejora reintentando.
     return switch (engine.last.state) {

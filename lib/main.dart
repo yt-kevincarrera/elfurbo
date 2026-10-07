@@ -10,6 +10,7 @@ import 'cloud/auth/session.dart';
 import 'cloud/state/cloud_controller.dart';
 import 'cloud/state/providers.dart';
 import 'cloud/ui/cloud_app.dart';
+import 'services/local_notifications.dart';
 import 'services/update_service.dart';
 import 'services/update_worker.dart';
 
@@ -31,6 +32,7 @@ Future<void> main() async {
     sessions: SessionStore(prefs),
     dataRoot: dir,
     isOutdated: UpdateService.isOutdated,
+    showAlerts: LocalNotifications.showAlerts,
   );
   runApp(
     ProviderScope(

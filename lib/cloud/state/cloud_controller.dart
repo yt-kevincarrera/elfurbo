@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../api/api_client.dart';
 import '../auth/session.dart';
+import '../sync/alerts.dart';
 import '../sync/club_data.dart';
 import '../sync/command.dart';
 import '../sync/local_store.dart';
@@ -101,6 +102,7 @@ class CloudController {
     required this.sessions,
     required this.dataRoot,
     this.isOutdated,
+    this.showAlerts,
   }) {
     _session = sessions.read();
     api.token = _session?.token;
@@ -115,6 +117,18 @@ class CloudController {
 
   /// Ver [SyncEngine.isOutdated].
   final Future<bool> Function()? isOutdated;
+
+  /// Muestra los avisos nuevos (ver `alerts.dart`); en tests, nada.
+  final Future<void> Function(List<Alert>)? showAlerts;
+
+  /// La app está a la vista: lo nuevo del servidor que se está mirando se marca
+  /// como visto sin avisar (lo de los demás, sí). Abierta pero en segundo plano,
+  /// avisa ella (como el de WorkManager).
+  bool visible = true;
+
+  /// El servidor que se está mirando (el elegido, o el primero).
+  String? get watchedClub =>
+      sessions.readSelectedClub() ?? _me?.clubs.firstOrNull?.id;
 
   Session? _session;
   Session? get session => _session;
@@ -359,6 +373,26 @@ class CloudController {
     } else if (state == SyncState.idle) {
       // Servidores nuevos, aprobados o de los que me echaron: el selector al día.
       await loadMe();
+      // Varios esperan la misma vuelta del sync: los avisos, una vez.
+      if (!identical(last, _alerted)) {
+        _alerted = last;
+        await _alerts(engine.store);
+      }
+    }
+  }
+
+  SyncStatus? _alerted;
+
+  Future<void> _alerts(LocalStore store) async {
+    try {
+      final watching = visible ? watchedClub : null;
+      final fresh = await refreshAlerts(
+        store,
+        notify: (a) => watching == null || a.clubId != watching,
+      );
+      if (fresh.isNotEmpty) await showAlerts?.call(fresh);
+    } catch (_) {
+      // Avisar es secundario: nunca rompe el sync.
     }
   }
 

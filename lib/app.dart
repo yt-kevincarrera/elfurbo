@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'cloud/state/providers.dart';
 import 'data/providers.dart';
 import 'data/update_controller.dart';
 import 'domain/reminders.dart';
@@ -47,6 +48,24 @@ class _ClubSessionState extends ConsumerState<ClubSession>
     NotificationRouter.onUpdateTapped = () {
       if (mounted) openUpdate(context, ref);
     };
+    // Un aviso de otro servidor: primero se cambia a él, y se espera a sus datos.
+    NotificationRouter.onSelectClub = (clubId) async {
+      if (!mounted) return false;
+      final cloud = ref.read(cloudProvider);
+      bool member() => cloud.me?.clubs.any((c) => c.id == clubId) ?? false;
+      // Lo pudo traer el de segundo plano (p. ej. "aprobaron tu servidor").
+      if (!member()) await cloud.loadMe();
+      if (!mounted || !member()) return false;
+      ref.read(selectedClubProvider.notifier).select(clubId);
+      try {
+        await ref
+            .read(clubViewProvider(clubId).future)
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // Se abre igual: la pantalla sabe esperar.
+      }
+      return mounted;
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSafely());
   }
 
@@ -64,6 +83,7 @@ class _ClubSessionState extends ConsumerState<ClubSession>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     NotificationRouter.onUpdateTapped = null;
+    NotificationRouter.onSelectClub = null;
     _debounce?.cancel();
     _reminders?.close();
     super.dispose();
@@ -142,7 +162,12 @@ class _ClubSessionState extends ConsumerState<ClubSession>
       if (key == _scheduled) return;
       _scheduled = key;
       _scheduling = _scheduling
-          .then((_) => LocalNotifications.scheduleReminders(plan))
+          .then(
+            (_) => LocalNotifications.scheduleReminders(
+              plan,
+              clubId: ref.read(currentClubProvider)?.id,
+            ),
+          )
           .catchError((Object e) => debugPrint('Recordatorios: $e'));
     });
   }

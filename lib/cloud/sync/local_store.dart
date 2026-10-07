@@ -257,6 +257,15 @@ class LocalStore {
 
   Future<void> writeMe(Map<String, dynamic> me) => _write('me.json', me);
 
+  /// Qué avisos ya se mostraron (ver `alerts.dart`).
+  Future<Map<String, dynamic>?> readAlertLedger() async {
+    final j = await _read('alerts.json');
+    return j is Map<String, dynamic> ? j : null;
+  }
+
+  Future<void> writeAlertLedger(Map<String, Object?> ledger) =>
+      _write('alerts.json', ledger);
+
   /// Borra todo lo de esta cuenta en el teléfono (al cerrar sesión).
   /// Primero se aparta (rename, atómico): el sync de segundo plano, si estaba
   /// escribiendo, ya no encuentra la carpeta y no la vuelve a crear.

@@ -1,9 +1,10 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../core/app_messenger.dart';
 import '../models/notification_payload.dart';
 import '../ui/matches/match_detail_screen.dart';
 import '../ui/shell/home_shell.dart';
+import '../ui/superadmin/superadmin_screen.dart';
 
 /// Traduce el payload de una notificación (push o local) a navegación.
 ///
@@ -17,7 +18,14 @@ class NotificationRouter {
   /// se registra aquí; lo hace `_ActiveSession`.
   static VoidCallback? onUpdateTapped;
 
-  static void handle(NotificationPayload payload) {
+  /// Cambia al servidor de la notificación y espera a tener sus datos (lo
+  /// registra `ClubSession`). Devuelve false si no soy miembro.
+  static Future<bool> Function(String clubId)? onSelectClub;
+
+  static Future<void> handle(NotificationPayload payload) async {
+    final clubId = payload.clubId;
+    final select = onSelectClub;
+    if (clubId != null && select != null && !await select(clubId)) return;
     switch (payload.kind) {
       case NotificationKind.update:
         onUpdateTapped?.call();
@@ -28,6 +36,14 @@ class NotificationRouter {
       case NotificationKind.report:
       case NotificationKind.reportStatus:
         if (payload.opensMatch) _openMatch(payload.matchId!);
+      case NotificationKind.clubRequest:
+        final nav = rootNavigatorKey.currentState;
+        nav?.popUntil((route) => route.isFirst);
+        nav?.push(
+          MaterialPageRoute<void>(builder: (_) => const SuperadminScreen()),
+        );
+      case NotificationKind.club:
+        rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
       case NotificationKind.unknown:
         break;
     }
