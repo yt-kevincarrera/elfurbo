@@ -93,6 +93,12 @@ void main() {
           status: 'cancelled',
         );
         matchday(a, 'cerrada', now.add(const Duration(days: 1)), season: 's0');
+        matchday(
+          a,
+          'cerrada-a-mano',
+          now.add(const Duration(days: 2)),
+          status: 'closed',
+        );
         matchday(a, 'lejos', now.add(const Duration(days: 15)));
         matchday(a, 'vale', now.add(const Duration(days: 14)));
         // Con duración: todavía se dice "voy" mientras dura.

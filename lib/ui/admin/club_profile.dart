@@ -112,7 +112,10 @@ class ClubProfileSection extends ConsumerWidget {
             children: [
               Text('Quién lo ve', style: text.titleMedium),
               Text(
-                info.isPublic
+                info.delisted
+                    ? 'El superadmin lo sacó del directorio: por ahora solo se '
+                          'entra con invitación. Habla con él para volver a ponerlo.'
+                    : info.isPublic
                     ? 'Sale en "Buscar servidores": cualquiera lo encuentra y '
                           'puede pedir entrar.'
                     : 'Solo se entra con una invitación. No sale en ningún '
@@ -136,16 +139,17 @@ class ClubProfileSection extends ConsumerWidget {
                                 : 'Listo, ahora es privado',
                           );
                         },
-                  segments: const [
-                    ButtonSegment(
+                  segments: [
+                    const ButtonSegment(
                       value: 'private',
                       icon: Icon(Icons.lock_outline),
                       label: Text('Privado'),
                     ),
                     ButtonSegment(
                       value: 'public',
-                      icon: Icon(Icons.public),
-                      label: Text('Público'),
+                      icon: const Icon(Icons.public),
+                      label: const Text('Público'),
+                      enabled: !info.delisted,
                     ),
                   ],
                 ),
@@ -290,7 +294,7 @@ class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
               ),
             ),
             DropdownButtonFormField<String?>(
-              initialValue: _province,
+              initialValue: provinces.containsKey(_province) ? _province : null,
               decoration: const InputDecoration(labelText: 'Provincia'),
               items: [
                 const DropdownMenuItem(value: null, child: Text('Sin decir')),

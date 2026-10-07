@@ -97,11 +97,15 @@ class ClubInfo {
     this.province,
     this.city,
     this.color = 0,
+    this.delisted = false,
   });
 
   final String id;
   final String name;
   final String description;
+
+  /// El superadmin lo sacó del directorio: no se puede hacer público.
+  final bool delisted;
   final String kind;
   final String visibility;
   final bool official;
@@ -123,6 +127,7 @@ class ClubInfo {
         province: c['province'] as String?,
         city: c['city'] as String?,
         color: (c['color'] as num?)?.toInt() ?? 0,
+        delisted: c['delisted'] == true,
       );
 }
 

@@ -47,6 +47,7 @@ List<AgendaItem> agendaItems(
     final club = s.data.club;
     if (club == null || club['status'] != 'active') continue;
     final settings = (club['settings'] as Map?) ?? const {};
+    final closeAfter = (settings['closeAfterHours'] as num?)?.toInt() ?? 72;
     final closedSeasons = {
       for (final season in s.data.all('season'))
         if (season['isClosed'] == true) '${season['id']}',
@@ -60,7 +61,10 @@ List<AgendaItem> agendaItems(
         status: '${md['status']}',
         seasonClosed: closedSeasons.contains('${md['seasonId']}'),
       );
-      if (times.seasonClosed || !acceptsIntent(times, now)) continue;
+      // Lo mismo que el servidor: "Voy" solo antes de terminar y con la jornada abierta.
+      if (!acceptsIntent(times, now) || isClosed(times, now, closeAfter)) {
+        continue;
+      }
       final id = '${md['id']}';
       final going = s.data
           .all('attendance')

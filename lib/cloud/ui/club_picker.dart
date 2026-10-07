@@ -27,9 +27,16 @@ final _sourcesProvider = Provider<List<AgendaSource>>((ref) {
   ];
 });
 
+/// La hora, al minuto: la agenda y los pendientes cambian con ella aunque no
+/// llegue nada nuevo (una jornada empieza y ya no se dice "voy").
+final minuteProvider = StreamProvider<DateTime>((ref) async* {
+  yield DateTime.now();
+  yield* Stream.periodic(const Duration(minutes: 1), (_) => DateTime.now());
+});
+
 /// Lo que tengo pendiente en cada servidor (ver `pendingCount`).
 final pendingByClubProvider = Provider<Map<String, int>>((ref) {
-  final now = DateTime.now();
+  final now = ref.watch(minuteProvider).value ?? DateTime.now();
   return {
     for (final s in ref.watch(_sourcesProvider))
       s.data.clubId: pendingCount(s.data, myMemberId: s.myMemberId, now: now),
@@ -38,7 +45,10 @@ final pendingByClubProvider = Provider<Map<String, int>>((ref) {
 
 /// Las jornadas de los próximos 14 días de todos mis servidores.
 final agendaProvider = Provider<List<AgendaItem>>(
-  (ref) => agendaItems(ref.watch(_sourcesProvider), now: DateTime.now()),
+  (ref) => agendaItems(
+    ref.watch(_sourcesProvider),
+    now: ref.watch(minuteProvider).value ?? DateTime.now(),
+  ),
 );
 
 /// La hoja "Tus servidores": la agenda común, mis servidores y torneos con lo
@@ -66,15 +76,19 @@ class _ClubPickerSheet extends ConsumerWidget {
     Widget tile(MyClub c) {
       final n = pending[c.id] ?? 0;
       final selected = c.id == current?.id;
+      // Nombre y color de la vista local (un cambio sin señal se ve ya).
+      final row = ref.watch(clubViewProvider(c.id)).value?.club;
+      final name = (row?['name'] as String?) ?? c.name;
+      final color = (row?['color'] as num?)?.toInt() ?? c.color;
       return ListTile(
         selected: selected,
         selectedTileColor: scheme.secondaryContainer,
         leading: ClubToken(
-          name: c.name,
-          color: c.color,
+          name: name,
+          color: color,
           tournament: c.isTournament,
         ),
-        title: Text(c.name, overflow: TextOverflow.ellipsis),
+        title: Text(name, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           [
             roleLabel(c.role),

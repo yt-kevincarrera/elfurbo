@@ -274,6 +274,12 @@ void main() {
       ], myMemberId: 'o');
       expect(back.club!['visibility'], 'private');
       expect(back.club!['settings'], containsPair('joinPolicy', 'open'));
+      // Fuera del directorio no se ve público ni un momento (el servidor lo rechaza).
+      back.club!['delisted'] = true;
+      final delisted = clubView(back, [
+        Command.create('c1', 'club.setVisibility', {'visibility': 'public'}),
+      ], myMemberId: 'o');
+      expect(delisted.club!['visibility'], 'private');
     });
   });
 

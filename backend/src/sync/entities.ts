@@ -18,7 +18,7 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
     table: "clubs",
     clubColumn: "id",
     keyColumn: "id",
-    columns: "id, name, description, status, settings, kind, visibility, official, province, city, color, host_club_id",
+    columns: "id, name, description, status, settings, kind, visibility, official, province, city, color, host_club_id, delisted",
     toJson: (r) => ({
       id: r.id,
       name: r.name,
@@ -32,6 +32,7 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
       city: r.city,
       color: r.color,
       hostClubId: r.host_club_id,
+      delisted: r.delisted === 1,
     }),
   },
   member: {

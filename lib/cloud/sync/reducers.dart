@@ -62,7 +62,11 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
       if (p.containsKey('color')) club['color'] = p['color'];
     case 'club.setVisibility':
       final club = d.club;
-      if (club == null) return;
+      // Fuera del directorio no puede ser público (el servidor lo rechaza).
+      if (club == null ||
+          (p['visibility'] == 'public' && club['delisted'] == true)) {
+        return;
+      }
       club['visibility'] = p['visibility'];
       if (p['joinPolicy'] != null) {
         club['settings'] = {

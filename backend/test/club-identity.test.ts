@@ -71,9 +71,18 @@ describe("identidad del servidor (2.0)", () => {
 
   it("club.updateProfile y club.setVisibility: solo el owner", async () => {
     const { clubId } = await activeClub();
-    const admin = await addMember(clubId, "jefe", "admin");
-    expect(await rejection(admin.token, cmd(clubId, "club.updateProfile", { color: 1 }))).toBe("forbidden");
-    expect(await rejection(admin.token, cmd(clubId, "club.setVisibility", { visibility: "public" }))).toBe("forbidden");
+    for (const role of ["admin", "scorer", "player"] as const) {
+      const m = await addMember(clubId, `m.${role}`, role);
+      expect(await rejection(m.token, cmd(clubId, "club.updateProfile", { color: 1 })), role).toBe("forbidden");
+      expect(await rejection(m.token, cmd(clubId, "club.setVisibility", { visibility: "public" })), role).toBe("forbidden");
+    }
+  });
+
+  it("en un servidor suspendido no se cambia nada", async () => {
+    const { clubId, owner, admin } = await activeClub();
+    expect((await post(`/admin/clubs/${clubId}/suspend`, admin.token, {})).status).toBe(200);
+    expect(await rejection(owner.token, cmd(clubId, "club.updateProfile", { color: 1 }))).toBe("club_suspended");
+    expect(await rejection(owner.token, cmd(clubId, "club.setVisibility", { visibility: "public" }))).toBe("club_suspended");
   });
 
   it("club.setVisibility: público y abierto, luego privado conservando cómo se entra", async () => {
@@ -120,8 +129,11 @@ describe("superadmin: oficial y directorio", () => {
     expect((await post(`/admin/clubs/${clubId}/delist`, admin.token, { delisted: true, note: "Nombre feo" })).status).toBe(200);
     expect(await clubRow(clubId)).toMatchObject({ visibility: "private", delisted: 1 });
     expect(await rejection(owner.token, cmd(clubId, "club.setVisibility", { visibility: "public" }))).toBe("club_delisted");
-    // Privado sí puede seguir siendo.
+    // Privado sí puede seguir siendo, y el perfil se puede arreglar.
     await apply(owner.token, cmd(clubId, "club.setVisibility", { visibility: "private", joinPolicy: "request" }));
+    await apply(owner.token, cmd(clubId, "club.updateProfile", { name: "Nombre decente" }));
+    // La app lo sabe, para no ofrecer "Público".
+    expect((await pullAll(owner.token)).clubs[clubId]!.upserts.club).toMatchObject([{ delisted: true }]);
 
     await post(`/admin/clubs/${clubId}/delist`, admin.token, { delisted: false });
     await apply(owner.token, cmd(clubId, "club.setVisibility", { visibility: "public" }));

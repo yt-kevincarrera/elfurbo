@@ -87,8 +87,7 @@ La 2.0 mejora la hoja y añade una agenda común.
 
 ### La hoja "Tus servidores"
 
-- Va en dos grupos, **Servidores** y **Torneos**, cada uno ordenado por
-  actividad reciente.
+- Va en dos grupos, **Servidores** y **Torneos**, cada uno por nombre.
 - Cada fila lleva:
   - la ficha con las iniciales en el **color del servidor**;
   - el nombre;
@@ -162,7 +161,7 @@ Ajustes nuevos en `settings`:
 Solo el owner:
 - `club.updateProfile {name?, description?, province?, city?, color?}`:
   - el nombre tiene de 3 a 40 caracteres;
-  - la descripción, hasta 300;
+  - la descripción, hasta 200;
   - `province` va con su código.
 - `club.setVisibility {visibility, joinPolicy?}`.
 
