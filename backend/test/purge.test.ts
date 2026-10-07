@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { hourly, purge, PURGE_HOUR_UTC } from "../src/cron";
+import { purge, PURGE_HOUR_UTC, tick } from "../src/cron";
 import { activeClub } from "./fixtures";
 import { api } from "./helpers";
 import { apply, cmd, pullAll } from "./sync-helpers";
@@ -82,15 +82,15 @@ describe("purga diaria", () => {
     }
   });
 
-  it("el cron de cada hora solo purga a su hora", async () => {
+  it("el cron solo purga en la primera pasada de su hora", async () => {
     const { clubId, owner } = await activeClub();
     await apply(owner.token, cmd(clubId, "member.createGuest", guest()));
     await env.DB.prepare("UPDATE applied_commands SET at = ?").bind(ago(40)).run();
     const today = new Date();
     const at = (h: number) => new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), h));
-    await hourly(env, at((PURGE_HOUR_UTC + 1) % 24));
+    await tick(env, at((PURGE_HOUR_UTC + 1) % 24));
     expect(await count("applied_commands")).toBe(1);
-    await hourly(env, at(PURGE_HOUR_UTC));
+    await tick(env, at(PURGE_HOUR_UTC));
     expect(await count("applied_commands")).toBe(0);
   });
 });

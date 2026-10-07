@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../cloud/state/providers.dart';
 import '../cloud/sync/club_data.dart';
+import '../domain/report_rules.dart';
 import '../domain/stats_engine.dart';
 import '../models/app_user.dart';
 import '../models/attendance.dart';
@@ -243,54 +244,21 @@ final mvpVotesProvider = Provider<AsyncValue<List<MvpVote>>>((ref) {
       .whenData((d) => _rows(d, 'vote', MvpVote.fromCloud));
 });
 
-/// Reportes con su regla de "cuenta" (spec §2): solo valen las confirmaciones
-/// de quienes jugaron; lo que pone el staff llega ya confirmado; y en un
-/// servidor que confía en los reportes, todo cuenta salvo un rechazo.
+/// Reportes con su regla de "cuenta" (spec §2, ver `reportsFromCloud`).
 final reportsProvider = Provider<AsyncValue<List<MatchReport>>>((ref) {
   final settings = ref.watch(clubSettingsProvider);
-  final present = ref.watch(_presentByMatchProvider);
-  return ref.watch(clubDataProvider).whenData((d) {
-    final confirmers = <String, List<String>>{};
-    for (final c in d.all('confirmation')) {
-      final match = '${c['matchdayId']}';
-      final confirmer = '${c['confirmerId']}';
-      if (!(present[match]?.contains(confirmer) ?? false)) continue;
-      confirmers
-          .putIfAbsent('$match:${c['memberId']}', () => [])
-          .add(confirmer);
-    }
-    return [for (final r in d.all('report')) _report(r, confirmers, settings)];
-  });
+  return ref
+      .watch(clubDataProvider)
+      .whenData(
+        (d) => reportsFromCloud(
+          reports: d.all('report'),
+          confirmations: d.all('confirmation'),
+          attendance: d.all('attendance'),
+          reportValidation: settings.reportValidation,
+          confirmationsNeeded: settings.confirmationsNeeded,
+        ),
+      );
 });
-
-MatchReport _report(
-  Map<String, dynamic> r,
-  Map<String, List<String>> confirmers,
-  ClubSettings settings,
-) {
-  final decision = r['decision'] as String?;
-  final loadedBy = r['loadedBy'] as String?;
-  return MatchReport(
-    matchId: '${r['matchdayId']}',
-    uid: '${r['memberId']}',
-    goals: (r['goals'] as num?)?.toInt() ?? 0,
-    assists: (r['assists'] as num?)?.toInt() ?? 0,
-    note: r['note'] as String?,
-    confirmations:
-        confirmers['${r['matchdayId']}:${r['memberId']}'] ?? const [],
-    adminStatus: decision == null
-        ? null
-        : ReportStatus.values.firstWhere(
-            (s) => s.name == decision,
-            orElse: () => ReportStatus.pending,
-          ),
-    correctedBy: r['correctedBy'] as String?,
-    loadedBy: loadedBy,
-    // Lo del staff ya viene con decision = confirmed (lo guarda el servidor).
-    autoConfirmed: settings.reportValidation == 'trust',
-    confirmationsNeeded: settings.confirmationsNeeded,
-  );
-}
 
 /// Quién jugó cada jornada (presencia real), por id de jornada.
 final _presentByMatchProvider = Provider<Map<String, Set<String>>>((ref) {

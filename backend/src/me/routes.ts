@@ -19,13 +19,14 @@ meRoutes.get("/", async (c) => {
   const userId = c.var.auth.user.id;
   const clubs = await db
     .prepare(
-      `SELECT c.id, c.name, c.status, c.kind, c.color, c.official, m.id AS member_id, m.role
-         FROM members m JOIN clubs c ON c.id = m.club_id
+      `SELECT c.id, c.name, c.status, c.kind, c.color, c.official, m.id AS member_id, m.role,
+              CASE WHEN c.official = 1 THEN 'official' ELSE COALESCE(cm.tier, 'new') END AS tier
+         FROM members m JOIN clubs c ON c.id = m.club_id LEFT JOIN club_metrics cm ON cm.club_id = c.id
         WHERE m.user_id = ? AND m.status = 'active' AND c.status IN ('active', 'suspended')
         ORDER BY c.name`,
     )
     .bind(userId)
-    .all<{ id: string; name: string; status: string; kind: string; color: number; official: number; member_id: string; role: string }>();
+    .all<{ id: string; name: string; status: string; kind: string; color: number; official: number; member_id: string; role: string; tier: string }>();
   const requests = await db
     .prepare(
       `SELECT id, name, status, review_note, created_at FROM clubs
@@ -44,6 +45,7 @@ meRoutes.get("/", async (c) => {
       official: r.official === 1,
       memberId: r.member_id,
       role: r.role,
+      tier: r.tier,
     })),
     clubRequests: requests.results.map((r) => ({
       id: r.id,

@@ -9,6 +9,7 @@ import '../../services/notification_router.dart';
 import '../../ui/widgets/club_token.dart';
 import '../../ui/widgets/common.dart';
 import '../../ui/widgets/expressive.dart';
+import '../../ui/widgets/tier_chip.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
 import '../sync/agenda.dart';
@@ -89,12 +90,20 @@ class _ClubPickerSheet extends ConsumerWidget {
           tournament: c.isTournament,
         ),
         title: Text(name, overflow: TextOverflow.ellipsis),
-        subtitle: Text(
-          [
-            roleLabel(c.role),
-            if (c.official) 'Oficial',
-            if (c.status == 'suspended') 'Suspendido',
-          ].join(' · '),
+        subtitle: Row(
+          children: [
+            Flexible(
+              child: Text(
+                [
+                  roleLabel(c.role),
+                  if (c.status == 'suspended') 'Suspendido',
+                ].join(' · '),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            TierChip.wire(c.official ? 'official' : c.tier),
+          ],
         ),
         trailing: n > 0
             ? Badge.count(count: n, largeSize: 22)

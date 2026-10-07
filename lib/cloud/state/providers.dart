@@ -89,3 +89,8 @@ final isSuperadminProvider = Provider<bool>(
 final invitesProvider = FutureProvider.autoDispose.family<List<Invite>, String>(
   (ref, clubId) => ref.watch(clubAdminApiProvider).invites(clubId),
 );
+
+/// El prestigio de un servidor (necesita señal); se pide de nuevo al invalidarlo.
+final prestigeProvider = FutureProvider.autoDispose.family<Prestige, String>(
+  (ref, clubId) => ref.watch(clubAdminApiProvider).prestige(clubId),
+);

@@ -1,4 +1,5 @@
 import { kvGet, kvSetStatement } from "./kv";
+import { recomputeStats } from "./stats/job";
 import type { Env } from "./types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -18,13 +19,24 @@ export const RETENTION = {
   recoveryCodes: 30 * DAY_MS,
 };
 
-/** El cron de cada hora (`0 * * * *`). */
+/** El cron, cada 10 minutos (ver `triggers` en wrangler.jsonc). */
 export async function scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-  ctx.waitUntil(hourly(env, new Date(controller.scheduledTime)));
+  ctx.waitUntil(tick(env, new Date(controller.scheduledTime)));
 }
 
-export async function hourly(env: Env, now: Date) {
-  if (now.getUTCHours() === PURGE_HOUR_UTC) await purge(env.DB, now);
+/**
+ * Cada pasada: la purga, una vez al día (la primera pasada de las 08:00 UTC), y las estadísticas de
+ * los servidores con cambios (spec 2.0 §3). Si una falla, la otra corre igual.
+ */
+export async function tick(env: Env, now: Date) {
+  if (now.getUTCHours() === PURGE_HOUR_UTC && now.getUTCMinutes() < 10) {
+    try {
+      await purge(env.DB, now);
+    } catch (e) {
+      console.error("purga", e);
+    }
+  }
+  await recomputeStats(env.DB, now);
 }
 
 const before = (now: Date, ms: number) => new Date(now.getTime() - ms).toISOString();

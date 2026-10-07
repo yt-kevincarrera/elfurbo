@@ -9,6 +9,7 @@ import 'package:elfurbo/cloud/state/providers.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
 import 'package:elfurbo/models/app_user.dart';
 import 'package:elfurbo/ui/admin/audit_screen.dart';
+import 'package:flutter/widgets.dart' show Scrollable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -89,6 +90,28 @@ class _Server {
           },
         ],
       }),
+      'GET /clubs/c1/prestige' => json({
+        'tier': 'established',
+        'score': 52,
+        'parts': [
+          {
+            'key': 'age',
+            'points': 7.5,
+            'max': 15,
+            'hint':
+                'Llevan 90 días jugando: la antigüedad cuenta completa a los 6 meses.',
+          },
+          {'key': 'validation', 'points': 25, 'max': 25, 'hint': null},
+          {
+            'key': 'goals',
+            'points': -5,
+            'max': 0,
+            'hint': 'Promedio de goles muy alto: 2,5 por jugador y jornada.',
+          },
+        ],
+        'newReason': null,
+        'computedAt': '2026-10-07T15:00:00.000Z',
+      }),
       'POST /clubs/c1/invites' => json({
         'invite': {
           'code': 'WXYZ-2345',
@@ -153,6 +176,26 @@ void main() {
     await settleIo(tester);
     return cloud!;
   }
+
+  testWidgets(
+    'admin: el prestigio con su nivel, la puntuación por partes y qué falta',
+    (tester) async {
+      await start(tester, _Server('owner'));
+      await tester.tap(find.text('Admin'));
+      await settleIo(tester, until: find.text('ABCD-EFGH'));
+      await tester.scrollUntilVisible(
+        find.text('Goles fuera de lo normal'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await settleIo(tester);
+      expect(find.text('52 de 100'), findsOneWidget);
+      expect(find.text('Establecido'), findsOneWidget);
+      expect(find.text('7.5 / 15'), findsOneWidget);
+      expect(find.text('-5'), findsOneWidget);
+      expect(find.textContaining('6 meses'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'admin: ve las invitaciones del servidor y crea una con el rol elegido',

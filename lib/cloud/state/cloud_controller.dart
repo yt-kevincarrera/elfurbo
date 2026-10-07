@@ -21,6 +21,7 @@ class MyClub {
     this.kind = 'group',
     this.color = 0,
     this.official = false,
+    this.tier = 'new',
   });
 
   final String id;
@@ -28,6 +29,10 @@ class MyClub {
   final String status;
   final String memberId;
   final String role;
+
+  /// Nivel de prestigio (`official`, `verified`, `established`, `casual` o
+  /// `new`), de `/me`. Lo recalcula el servidor cada pocos minutos.
+  final String tier;
 
   /// `group` (la pachanga de siempre) o `tournament`.
   final String kind;
@@ -47,6 +52,7 @@ class MyClub {
     kind: (j['kind'] as String?) ?? 'group',
     color: (j['color'] as num?)?.toInt() ?? 0,
     official: j['official'] == true,
+    tier: (j['tier'] as String?) ?? 'new',
   );
 }
 

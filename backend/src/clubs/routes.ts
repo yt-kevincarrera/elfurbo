@@ -7,6 +7,7 @@ import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, type Invi
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
+import { prestigeOf } from "../stats/job";
 import type { AppEnv } from "../types";
 import { assertWritable, DEFAULT_SETTINGS, findMember, requireMembership } from "./model";
 import { clubRequestSchema, createInviteSchema } from "./schemas";
@@ -205,4 +206,13 @@ clubRoutes.get("/:clubId/audit", async (c) => {
     })),
     next: results.length > limit ? page[page.length - 1]!.id : null,
   });
+});
+
+/**
+ * El prestigio del servidor (spec 2.0 §4): nivel, puntuación por partes y qué le falta para subir.
+ * Lo ve cualquier miembro; se recalcula cada pocos minutos.
+ */
+clubRoutes.get("/:clubId/prestige", async (c) => {
+  const { club } = await requireMembership(c.env.DB, c.req.param("clubId"), c.var.auth.user.id);
+  return c.json(await prestigeOf(c.env.DB, club));
 });
