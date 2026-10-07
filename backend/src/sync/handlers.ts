@@ -1,4 +1,4 @@
-import { transferOwnership, updateSettings } from "../commands/club";
+import { setVisibility, transferOwnership, updateProfile, updateSettings } from "../commands/club";
 import { ban, createGuest, leave, setRole, unban, updateMember } from "../commands/members";
 import {
   activateSeason,
@@ -38,6 +38,8 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "member.leave": leave,
   "club.updateSettings": updateSettings,
   "club.transferOwnership": transferOwnership,
+  "club.updateProfile": updateProfile,
+  "club.setVisibility": setVisibility,
   "season.create": createSeason,
   "season.update": updateSeason,
   "season.activate": activateSeason,

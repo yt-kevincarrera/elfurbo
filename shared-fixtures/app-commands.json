@@ -36,6 +36,11 @@
     { "name": "perdonar", "type": "member.unban", "payload": { "memberId": "p1" } },
     { "name": "cambiar ajustes", "type": "club.updateSettings", "payload": { "reportValidation": "trust", "closeAfterHours": 48 } },
     { "name": "pasar el servidor", "type": "club.transferOwnership", "payload": { "memberId": "p2" } },
+    { "name": "perfil del servidor", "type": "club.updateProfile", "payload": { "name": "Los Pinos", "description": "Los sábados en el Pre", "province": "hab", "city": "Playa", "color": 3 } },
+    { "name": "quitar provincia y ciudad", "type": "club.updateProfile", "payload": { "province": null, "city": null } },
+    { "name": "hacer público y abierto", "type": "club.setVisibility", "payload": { "visibility": "public", "joinPolicy": "open" } },
+    { "name": "hacer privado", "type": "club.setVisibility", "payload": { "visibility": "private" } },
+    { "name": "no compartir estadísticas", "type": "club.updateSettings", "payload": { "shareStats": false } },
     { "name": "irme del servidor", "type": "member.leave", "payload": {} },
     { "name": "jugador sin cuenta", "type": "member.createGuest", "payload": { "id": "<uuid>", "displayName": "Yoandry" } }
   ]

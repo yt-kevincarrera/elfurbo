@@ -19,6 +19,8 @@ describe("club.updateSettings", () => {
       confirmationsNeeded: 2,
       closeAfterHours: 48,
       timezone: "America/Havana",
+      joinPolicy: "request",
+      shareStats: true,
     });
     const next = (await pullAll(owner.token, { [clubId]: cursor })).clubs[clubId]!;
     expect(next.upserts.club).toMatchObject([{ settings: { reportValidation: "trust", closeAfterHours: 48 } }]);

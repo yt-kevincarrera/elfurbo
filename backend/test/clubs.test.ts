@@ -20,6 +20,8 @@ describe("POST /clubs (solicitar servidor)", () => {
       confirmationsNeeded: 2,
       closeAfterHours: 72,
       timezone: "America/Havana",
+      joinPolicy: "request",
+      shareStats: true,
     });
 
     const me = await api("/me", { token });

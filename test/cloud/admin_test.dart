@@ -163,7 +163,7 @@ void main() {
       await settleIo(tester, until: find.text('ABCD-EFGH'));
       expect(find.text('ABCD-EFGH'), findsOneWidget);
       expect(find.textContaining('3 de 10'), findsOneWidget);
-      expect(find.text('Ajustes del servidor'), findsOneWidget);
+      expect(find.text('Perfil del servidor'), findsOneWidget);
 
       await tester.tap(find.text('Invitar'));
       await settleIo(tester);

@@ -175,6 +175,34 @@ void main() {
     },
   );
 
+  testWidgets(
+    'la hoja de servidores lleva a la agenda de todos, y desde ahí se dice "Voy"',
+    (tester) async {
+      final cloud = await tester.runAsync(() => loggedIn('player'));
+      await pump(tester, cloud!);
+      await tester.tap(find.text('Unción y Fuego').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Tus servidores'), findsOneWidget);
+      expect(find.text('1 jornada en los próximos 14 días'), findsOneWidget);
+      expect(find.text('Unirme con un código'), findsOneWidget);
+
+      await tester.tap(find.text('Agenda de todos'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('El Pre'), findsOneWidget);
+      ChoiceChip chip(String label) =>
+          tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
+      expect(chip('Voy').selected, isFalse);
+      await tester.runAsync(() => tester.tap(find.text('Voy')));
+      await settleIo(tester, until: find.textContaining('1 va'));
+      expect(
+        chip('Voy').selected,
+        isTrue,
+        reason: 'el cambio se ve al momento',
+      );
+      expect(find.textContaining('1 va'), findsOneWidget);
+    },
+  );
+
   testWidgets('un jugador no ve la pestaña Admin pero sí crea jornadas', (
     tester,
   ) async {

@@ -59,6 +59,12 @@ export const errors = {
     new ApiError(409, "owner_cannot_leave", "Eres el dueño: transfiere el servidor antes de salir"),
   appOutdated: () =>
     new ApiError(426, "app_outdated", "Actualiza la app para seguir sincronizando"),
+  clubDelisted: () =>
+    new ApiError(
+      409,
+      "club_delisted",
+      "El superadmin sacó este servidor del directorio. Habla con él para volver a ponerlo",
+    ),
   ownerMustTransfer: () =>
     new ApiError(409, "owner_must_transfer", "Eres dueño de un servidor: transfiérelo antes de borrar tu cuenta"),
 };

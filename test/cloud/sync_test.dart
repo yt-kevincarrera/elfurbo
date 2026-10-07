@@ -234,6 +234,47 @@ void main() {
       expect(view.one('member', 'o')!['role'], 'admin');
       expect(view.one('member', 'p')!['role'], 'owner');
     });
+
+    test('perfil y visibilidad del servidor', () {
+      final server = ClubData(clubId: 'c1')
+        ..table('club')['c1'] = {
+          'id': 'c1',
+          'name': 'Pachanga',
+          'description': '',
+          'province': 'hab',
+          'city': 'Playa',
+          'color': 0,
+          'visibility': 'private',
+          'settings': {'joinPolicy': 'request', 'closeAfterHours': 72},
+        };
+      final view = clubView(server, [
+        Command.create('c1', 'club.updateProfile', {
+          'name': 'Los Pinos',
+          'province': null,
+          'color': 5,
+        }),
+        Command.create('c1', 'club.setVisibility', {
+          'visibility': 'public',
+          'joinPolicy': 'open',
+        }),
+      ], myMemberId: 'o');
+      expect(view.club, {
+        'id': 'c1',
+        'name': 'Los Pinos',
+        'description': '',
+        'province': null,
+        'city': 'Playa',
+        'color': 5,
+        'visibility': 'public',
+        'settings': {'joinPolicy': 'open', 'closeAfterHours': 72},
+      });
+      // Volver a privado no toca cómo se entra.
+      final back = clubView(view, [
+        Command.create('c1', 'club.setVisibility', {'visibility': 'private'}),
+      ], myMemberId: 'o');
+      expect(back.club!['visibility'], 'private');
+      expect(back.club!['settings'], containsPair('joinPolicy', 'open'));
+    });
   });
 
   group('SyncEngine', () {

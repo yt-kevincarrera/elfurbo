@@ -35,7 +35,8 @@ superadminRoutes.get("/clubs", async (c) => {
   if (!status.success) throw errors.invalidInput({ status: ["Estado no válido"] });
   const q = (c.req.query("q") ?? "").trim().toLowerCase();
   const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.name, c.status, c.request_note, c.created_at, u.username AS owner_username,
+    `SELECT c.id, c.name, c.status, c.request_note, c.created_at, c.kind, c.visibility, c.official, c.delisted,
+            u.username AS owner_username,
             (SELECT COUNT(*) FROM members m WHERE m.club_id = c.id AND m.status = 'active') AS members
        FROM clubs c LEFT JOIN users u ON u.id = c.owner_user_id
       WHERE (?1 IS NULL OR c.status = ?1)
@@ -43,7 +44,19 @@ superadminRoutes.get("/clubs", async (c) => {
       ORDER BY c.created_at DESC LIMIT 100`,
   )
     .bind(status.data ?? null, q, likePattern(q))
-    .all<{ id: string; name: string; status: ClubStatus; request_note: string; created_at: string; owner_username: string | null; members: number }>();
+    .all<{
+      id: string;
+      name: string;
+      status: ClubStatus;
+      request_note: string;
+      created_at: string;
+      kind: string;
+      visibility: string;
+      official: number;
+      delisted: number;
+      owner_username: string | null;
+      members: number;
+    }>();
   return c.json({
     clubs: results.map((r) => ({
       id: r.id,
@@ -51,6 +64,10 @@ superadminRoutes.get("/clubs", async (c) => {
       status: r.status,
       requestNote: r.request_note,
       createdAt: r.created_at,
+      kind: r.kind,
+      visibility: r.visibility,
+      official: r.official === 1,
+      delisted: r.delisted === 1,
       ownerUsername: r.owner_username,
       members: r.members,
     })),
@@ -67,7 +84,20 @@ superadminRoutes.get("/clubs/:id", async (c) => {
     .all<{ role: string; n: number }>();
   const owner = await findUserById(c.env.DB, club.ownerUserId);
   return c.json({
-    club: { id: club.id, name: club.name, description: club.description, status: club.status, settings: club.settings },
+    club: {
+      id: club.id,
+      name: club.name,
+      description: club.description,
+      status: club.status,
+      settings: club.settings,
+      kind: club.kind,
+      visibility: club.visibility,
+      official: club.official,
+      delisted: club.delisted,
+      province: club.province,
+      city: club.city,
+      color: club.color,
+    },
     owner: owner ? { id: owner.id, username: owner.username, displayName: owner.displayName } : null,
     membersByRole: Object.fromEntries(results.map((r) => [r.role, r.n])),
   });
@@ -159,6 +189,53 @@ async function setClubStatus(
     auditStatement(db, { clubId: club.id, actorUserId: actor, action, entity: "club", entityKey: club.id, summary: note ? { note } : {} }, now),
   ]);
   return { club: { id: club.id, status: to } };
+}
+
+const officialSchema = z.object({ official: z.boolean(), note: z.string().trim().max(300).default("") });
+const delistSchema = z.object({ delisted: z.boolean(), note: z.string().trim().max(300).default("") });
+
+/** Marca o desmarca un servidor (o un torneo) como oficial: sus estadísticas cuentan como las de más prestigio. */
+superadminRoutes.post("/clubs/:id/official", async (c) => {
+  const { official, note } = await readJson(c, officialSchema);
+  const club = await loadClubIn(c.env.DB, c.req.param("id"), ["active", "suspended"]);
+  await updateClubFlag(c.env.DB, c.var.auth.user.id, club.id, "official = ?", official ? 1 : 0, official ? "club.official" : "club.unofficial", note);
+  return c.json({ club: { id: club.id, official } });
+});
+
+/**
+ * Lo saca del directorio (pasa a privado) y su dueño ya no lo puede volver a hacer público; o lo
+ * permite otra vez. Para nombres o descripciones que no son aptos.
+ */
+superadminRoutes.post("/clubs/:id/delist", async (c) => {
+  const { delisted, note } = await readJson(c, delistSchema);
+  const club = await loadClubIn(c.env.DB, c.req.param("id"), ["active", "suspended"]);
+  await updateClubFlag(
+    c.env.DB,
+    c.var.auth.user.id,
+    club.id,
+    delisted ? "delisted = ?, visibility = 'private'" : "delisted = ?",
+    delisted ? 1 : 0,
+    delisted ? "club.delist" : "club.relist",
+    note,
+  );
+  return c.json({ club: { id: club.id, delisted } });
+});
+
+async function updateClubFlag(
+  db: D1Database,
+  actor: string,
+  clubId: string,
+  set: string,
+  value: number,
+  action: string,
+  note: string,
+) {
+  const now = new Date();
+  await db.batch([
+    db.prepare(`UPDATE clubs SET ${set}, updated_at = ? WHERE id = ?`).bind(value, now.toISOString(), clubId),
+    changeStatement(db, clubId, upsert("club", clubId), now),
+    auditStatement(db, { clubId, actorUserId: actor, action, entity: "club", entityKey: clubId, summary: note ? { note } : {} }, now),
+  ]);
 }
 
 /** El dueño actual pasa a admin y el miembro elegido (con cuenta) pasa a dueño. */
