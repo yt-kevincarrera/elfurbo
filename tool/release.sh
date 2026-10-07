@@ -4,12 +4,12 @@
 #   tool/release.sh 0.2.0 [--notes "Qué cambió"]
 #
 # 1. Sube `version:` en pubspec.yaml (versionName X.Y.Z, versionCode +1).
-# 2. Compila los APK de release con --split-per-abi (firmados con la clave de
-#    debug de esta PC, cuyo SHA-1 está registrado en Firebase).
+# 2. Compila los APK de release con --split-per-abi, firmados con la clave de
+#    las releases (android/key.properties, fuera del repo).
 # 3. Commitea el bump, crea el tag vX.Y.Z y la release con los APK adjuntos.
 #
-# La app consulta /releases/latest y ofrece el APK de su ABI, así que con esto
-# alcanza para que los teléfonos se enteren (en primer o segundo plano).
+# Nuestro servidor lee la última release de GitHub (/app/latest) y sirve los APK
+# (/app/apk/...): los teléfonos se enteran solos, sin tocar GitHub.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -26,6 +26,13 @@ done
 
 if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Uso: tool/release.sh X.Y.Z [--notes \"texto\"]" >&2
+  exit 1
+fi
+
+# Nunca más con la clave de debug: un APK firmado con otra clave no se instala
+# encima, y la de debug se pierde con la PC.
+if [[ ! -f android/key.properties ]]; then
+  echo "Falta android/key.properties (la clave de las releases). Ver README, «Firmar las releases»." >&2
   exit 1
 fi
 

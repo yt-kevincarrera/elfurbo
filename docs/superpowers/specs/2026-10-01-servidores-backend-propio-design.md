@@ -570,8 +570,23 @@ GitHub no abre desde Cuba. El Worker hace de intermediario:
 - La clave (`.jks`) y sus contraseñas se guardan fuera del repo, con copia de
   seguridad en un sitio seguro. `release.sh` y Gradle la leen desde
   `key.properties`, que está en `.gitignore`.
-- El proyecto de Firebase y los datos de Firestore se conservan sin cambios.
-  Solo se sigue usando FCM.
+- La app ya no usa nada de Firebase (ni FCM, ver §7): fuera los paquetes, el
+  plugin de Google en Gradle, las Functions y las reglas. El proyecto de
+  Firebase queda sin tocar en su consola.
+- Producción: Worker `furbo-api` y D1 `furbo-prod`; la app apunta ahí por
+  defecto. Staging queda para probar.
+- Orden del corte, para no perder nada:
+  1. Publicar la 1.0.0 (clave nueva, apunta a producción).
+  2. Staging con `MIN_SUPPORTED_BUILD` = build de la 1.0.0: las 0.x dejan de
+     escribir ahí y piden actualizar.
+  3. `wrangler d1 export` de staging → importar en `furbo-prod` → desplegar
+     producción. Quien instale la 1.0.0 en medio la ve sin conexión un rato y
+     sus cambios esperan en la cola.
+  4. Avisar al grupo: antes de desinstalar, comprobar "Todo al día" (lo que
+     esté por enviar se perdería al desinstalar).
+- Los enlaces `elfurbo://invite/CODIGO` de la página de invitación abren la
+  app (`MainActivity` los pasa por un canal propio) con el código ya puesto.
+  La página también ofrece **Descargar El Furbo** (`/app/download`).
 - El Worker de prueba `furbo-probe` y su D1 se borran al terminar el
   subproyecto.
 
@@ -588,7 +603,8 @@ GitHub no abre desde Cuba. El Worker hace de intermediario:
 5. **App, pachanga portada**: jornadas, asistencia, reportes, MVP, equipos,
    tabla y perfil sobre la base local. Admin del servidor y panel del
    superadmin.
-6. **Notificaciones y actualizaciones**: FCM desde el Worker, cron, `/app/*`.
+6. **Notificaciones y actualizaciones**: avisos locales desde el sync (sin
+   FCM), cron de purga, `/app/*`.
 7. **Corte a 1.0**: clave de release, quitar Firebase Auth, Firestore y
    Functions, actualizar README, release 1.0.0 y borrar `furbo-probe`.
 

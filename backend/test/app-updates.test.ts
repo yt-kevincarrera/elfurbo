@@ -112,6 +112,22 @@ describe("GET /app/latest", () => {
   });
 });
 
+describe("GET /app/download", () => {
+  it("lleva al APK de la última release (arm64 por defecto, o el que se pida)", async () => {
+    const res = await exports.default.fetch("https://api.test/app/download", { redirect: "manual" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/app/apk/v0.6.0/arm64-v8a");
+    const old = await exports.default.fetch("https://api.test/app/download?abi=armeabi-v7a", { redirect: "manual" });
+    expect(old.headers.get("location")).toBe("/app/apk/v0.6.0/armeabi-v7a");
+  });
+
+  it("una ABI rara o sin releases: 404", async () => {
+    expect((await api("/app/download?abi=mips")).status).toBe(404);
+    github = () => new Response("{}", { status: 404 });
+    expect((await api("/app/download")).status).toBe(404);
+  });
+});
+
 async function apk(path: string, headers: Record<string, string> = {}) {
   return exports.default.fetch(`https://api.test${path}`, { headers });
 }

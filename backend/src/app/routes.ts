@@ -33,6 +33,24 @@ appRoutes.get("/latest", async (c) => {
 });
 
 /**
+ * Para bajar la app desde el navegador (la página de invitación): la última release para
+ * `?abi=` (por defecto arm64-v8a, la de casi todos los teléfonos de hoy).
+ */
+appRoutes.get("/download", async (c) => {
+  const abi = (c.req.query("abi") ?? "arm64-v8a") as Abi;
+  if (!ABIS.includes(abi)) throw errors.notFound();
+  let release;
+  try {
+    release = await latestRelease(c.env.DB, c.env.GITHUB_TOKEN);
+  } catch (e) {
+    if (e instanceof UpstreamError) throw upstream();
+    throw e;
+  }
+  if (!release?.assets.some((a) => a.abi === abi)) throw errors.notFound();
+  return c.redirect(`/app/apk/${release.tag}/${abi}`, 302);
+});
+
+/**
  * Transmite el APK desde GitHub (el teléfono nunca toca GitHub; en Cloudflare no se guarda nada).
  * Respeta `Range`: con la conexión de Cuba, una descarga cortada sigue donde se quedó.
  */

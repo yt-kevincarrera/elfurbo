@@ -1,250 +1,155 @@
 # El Furbo ⚽
 
-App Android para el grupo de amigos que juega al fútbol: cada uno carga sus goles y
-asistencias después de cada jornada, los compañeros (o el admin) confirman que es verdad, y
-las estadísticas se acumulan jornada a jornada. Se juegan muchos partidos cortos con equipos que rotan, así que la unidad es la jornada, no el partido, y no se registran marcadores. Funciona **sin internet** y sincroniza sola
-cuando vuelve la conexión.
+App Android para los grupos que juegan fútbol: cada uno carga sus goles y asistencias después
+de cada jornada, los compañeros (o el staff) confirman que es verdad, y las estadísticas se
+acumulan jornada a jornada. Se juegan muchos partidos cortos con equipos que rotan, así que la
+unidad es la jornada, no el partido, y no se registran marcadores.
+
+Pensada para Cuba: **no usa nada de Google** (desde allí Firebase y GitHub no abren sin VPN).
+El backend es propio, en Cloudflare, que sí responde desde ETECSA. Todo funciona **sin
+internet** y se sincroniza solo cuando vuelve la señal, también con la app cerrada.
 
 ## Qué hace
 
-| Feature | Cómo funciona |
+| | |
 | --- | --- |
-| **Jornadas** | El admin crea jornadas con fecha, hora, duración (2 h por defecto), cancha y temporada, de a una o repetidas cada semana. Se pueden editar, cancelar, cerrar, reabrir o eliminar (con sus asistencias, reportes y votos). Una jornada está "en curso" entre su hora y hora + duración, y se cierra sola 72 h después de empezar: desde ahí no se aceptan goles, confirmaciones ni votos. |
-| **Asistencia** | Antes de la jornada cada uno marca *Voy / Quizás / No voy*. Después, *Jugué*. |
-| **Reportes** | Cada jugador carga sus goles y asistencias (y un comentario opcional). |
-| **Confirmación** | Un reporte cuenta cuando lo confirman **2 compañeros que jugaron ese día** o **el admin**. El admin también puede rechazarlo. Si el autor edita el reporte, vuelve a pendiente. |
-| **MVP** | Los que jugaron votan al mejor de la jornada. Si hay empate, todos los empatados suman MVP. |
-| **Tabla** | Ranking por goles, asistencias, MVP y G+A. Filtrable por temporada o histórico total. |
-| **Perfil** | Stats del jugador, posición en cada ranking, curva de evolución jornada a jornada, historial. Desde el menú: buscar actualizaciones, cerrar sesión y **eliminar mi cuenta** (borra perfil y acceso; el historial queda a nombre de "Jugador"). |
-| **Logros y rachas** | Hat-trick, Póker, Goleador (10/50/100), Fiel (5/10/25 seguidos), MVP, Imparable, etc. Se recalculan siempre a partir de los datos. |
-| **Equipos parejos** | Con los que marcaron que van, la app propone dos equipos balanceados por rendimiento histórico. "Mezclar de nuevo" da otra combinación igual de pareja. El admin los guarda. |
-| **Compartir** | Tarjeta con goleadores, MVP y top 3 de la temporada, lista para mandar al grupo de WhatsApp. |
-| **Temporadas** | El admin cierra el año y abre una temporada nueva. La tabla arranca de cero; el histórico se conserva. |
-| **Notificaciones** | Hoy hay jornada → marca asistencia. Alguien reportó → confírmalo. Te confirmaron. Nuevo jugador esperando aprobación. |
-| **Offline** | Firestore guarda todo en el teléfono. Puedes cargar goles en la cancha sin señal y se sube después. Una barra arriba avisa si estás offline o con cambios sin subir. |
-| **Acceso** | Login con Google. El primer usuario que entra queda como admin; los siguientes esperan aprobación del admin. |
+| **Servidores** | Cada grupo es un servidor. Cualquiera lo solicita y el superadmin lo aprueba. Se entra por invitación (enlace o código), con roles: dueño, admin, anotador y jugador. Hay jugadores sin cuenta que después reclaman su perfil. |
+| **Jornadas** | Fecha, hora, cancha y temporada, sin duración fija. Se editan, cancelan, cierran, reabren o borran. Se cierran solas pasado el plazo del servidor (72 h por defecto). |
+| **Asistencia** | Antes, *Voy / Quizás / No voy*. Después, *Jugué*. |
+| **Reportes** | Cada uno carga sus goles y asistencias. Cuentan con las confirmaciones de los que jugaron (2 por defecto), en modo confianza al momento, o con el staff. |
+| **MVP, tabla y perfil** | Votación del mejor; ranking por temporada o histórico; perfil con evolución, logros y rachas. |
+| **Equipos parejos** | Propone dos equipos balanceados con los que van. |
+| **Avisos** | Jornada nueva, reportes por confirmar, reporte rechazado y servidor aprobado. Los calcula el teléfono cuando sincroniza, sin push. Recordatorios de "¡Hoy se juega!" y "¿Cuántos metiste hoy?". |
+| **Actualizaciones** | La app baja las versiones nuevas desde nuestro servidor, que las lee de GitHub. Si la descarga se corta, sigue donde se quedó. |
 
 ## Stack
 
-- **Flutter** (Android) + **Riverpod** para estado + **fl_chart** para gráficos.
-- **Firebase**: Authentication (Google), Cloud Firestore (con persistencia offline), Cloud Messaging (push) y Cloud Functions (Node 22) para enviar las notificaciones y auto-nombrar al primer admin.
-- Toda la lógica de estadísticas, logros y balanceo de equipos está en `lib/domain/` en Dart puro, con tests en `test/`.
+- **App:** Flutter (Android), Riverpod, WorkManager para el sync en segundo plano y avisos locales.
+  Las reglas y estadísticas son Dart puro, en `lib/domain/` y `lib/cloud/rules/`, con tests.
+- **Backend** (`backend/`): Cloudflare Workers + D1 + Hono, en el plan gratuito. Diseño completo:
+  `docs/superpowers/specs/2026-10-01-servidores-backend-propio-design.md`.
+- **Sync:** cola de comandos en el teléfono (un archivo por cambio), `POST /sync/push` y
+  `POST /sync/pull` incremental. La vista es el último estado del servidor con lo pendiente
+  encima. Los contratos compartidos están en `shared-fixtures/`, probados desde Dart y TypeScript.
 
-## Puesta en marcha
+## Entornos
 
-### 1. Requisitos
+| | URL | D1 |
+| --- | --- | --- |
+| Producción (la app publicada) | `https://furbo-api.furbo-probe.workers.dev` | `furbo-prod` |
+| Staging | `https://furbo-api-staging.furbo-probe.workers.dev` | `furbo-staging` |
 
-- [Flutter](https://docs.flutter.dev/get-started/install) 3.35 o superior (`flutter doctor` sin errores para Android).
-- [Firebase CLI](https://firebase.google.com/docs/cli) (`npm i -g firebase-tools`) y Node 22 para las Cloud Functions.
-- Una cuenta de Google para crear el proyecto de Firebase.
+## Desarrollo
 
-### 2. Crear el proyecto de Firebase
-
-1. Entra a [console.firebase.google.com](https://console.firebase.google.com) y crea un proyecto (por ejemplo `elfurbo`).
-2. **Agregar app → Android**. Nombre del paquete: `app.elfurbo` (tiene que coincidir con `applicationId` en `android/app/build.gradle.kts`).
-3. Carga la **huella SHA-1** de tu clave de firma. Para la clave de debug:
-
-   ```bash
-   keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android -keypass android
-   ```
-
-   Sin el SHA-1 correcto, el login con Google falla. Cuando firmes el APK de release con otra clave, agrega también ese SHA-1.
-4. Descarga **`google-services.json`** y guárdalo en `android/app/google-services.json` (está en `.gitignore`; hay una plantilla en `google-services.json.example`).
-
-### 3. Authentication
-
-Firebase Console → **Authentication → Sign-in method → Google → Habilitar**. Pon un correo de soporte y guarda.
-
-### 4. Firestore
-
-1. **Firestore Database → Crear base de datos**, modo producción. Elige la región más cercana (este proyecto usa `nam5`).
-2. Vincula el repo al proyecto y sube las reglas de seguridad:
-
-   ```bash
-   cp .firebaserc.example .firebaserc      # edita el project id
-   firebase login
-   firebase deploy --only firestore
-   ```
-
-   Las reglas (`firestore.rules`) son las que garantizan que nadie pueda confirmarse a sí mismo, inflar reportes ajenos o auto-nombrarse admin.
-
-### 5. Cloud Functions (notificaciones)
-
-Las notificaciones push y el "primer usuario es admin" corren en Cloud Functions. Requieren el plan **Blaze** (pago por uso; para un grupo de amigos queda en la franja gratuita).
-
-```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions
-```
-
-Antes de desplegar, revisa en `functions/index.js`:
-
-- `REGION`: debe coincidir con la región de tu Firestore (o `us-central1` si elegiste una multi-región).
-- `TIME_ZONE`: zona horaria del grupo para los recordatorios de las 09:00 y las 22:00.
-
-> Si no quieres usar Functions, la app funciona igual y al primer admin lo tienes que marcar a mano (ver abajo). Sin Blaze no hay push entre teléfonos, pero la app avisa **localmente**: un trabajo en segundo plano cada 12 h revisa si hay jugadores esperando aprobación (admin) o reportes ajenos que te falta confirmar, y al abrirla programa recordatorios para las próximas jornadas (09:00 "¡Hoy se juega!" y 22:00 "¿Cuántos metiste hoy?", salvo que hayas dicho "No voy"). Tocar cualquier notificación abre la jornada o la pestaña Admin. Al cerrar sesión se borra el token de push del teléfono, así otro usuario que entre después no recibe tus avisos.
-
-### 6. Compilar e instalar
+Requisitos: Flutter 3.41, Node 22 y **npm 11** (con npm 10 falla la instalación del backend:
+`npm install -g npm@11`).
 
 ```bash
 flutter pub get
-flutter run                  # con un teléfono conectado o un emulador
-flutter build apk --release --split-per-abi  # un APK por arquitectura en build/app/outputs/flutter-apk/
+flutter run --dart-define=API_URL=https://furbo-api-staging.furbo-probe.workers.dev   # contra staging
+
+cd backend
+npm ci
+npm test              # tests dentro del runtime de Workers, con D1 local
+npm run typecheck
+npm run dev           # API local en http://localhost:8787 (antes: npm run db:migrate:local)
 ```
 
-El release se firma con la clave de debug de tu PC (la del SHA-1 que registraste), así que
-compila siempre desde la misma máquina: Android solo instala una actualización si viene
-firmada con la misma clave. Si prefieres una clave propia, sigue la
-[guía oficial](https://docs.flutter.dev/deployment/android#signing-the-app) y carga también su SHA-1 en Firebase.
+Sin `--dart-define`, la app habla con producción.
 
-### 6b. Publicar actualizaciones (GitHub Releases)
-
-La app se actualiza sola desde las releases de este repo (`/releases/latest`):
-
-- Al abrirla con sesión activa consulta GitHub como mucho cada 12 h y, si hay una versión
-  más nueva que la instalada, muestra un diálogo con las notas y un botón **Actualizar** que
-  descarga el APK de la arquitectura del teléfono y abre el instalador de Android.
-- Con la app cerrada, un `WorkManager` periódico (cada 12 h, con red) hace el mismo chequeo y
-  avisa con una notificación local en el canal "Actualizaciones". Tocarla abre la app y el diálogo.
-- En **Perfil → ⋮ → Buscar actualizaciones** se fuerza el chequeo a mano (ahí se ve la versión).
-
-Para publicar una versión:
-
-```bash
-tool/release.sh 0.2.0 --notes "Qué cambió"
-```
-
-El script sube `version:` en `pubspec.yaml` (nombre X.Y.Z y `versionCode` +1, necesario para que
-Android acepte la actualización), compila con `--split-per-abi`, commitea, crea el tag `vX.Y.Z` y
-la release en GitHub con los tres APK adjuntos. Necesita `gh` logueado con la cuenta dueña del repo.
-La primera vez Android va a pedir permitir "instalar apps desconocidas" a El Furbo.
-
-### 7. Primer uso
-
-1. Entra con tu Google. Si las Functions están desplegadas, **el primer usuario queda como admin activo automáticamente**.
-   Si no, en Firebase Console → Firestore → colección `users` → tu documento, pon `role: "admin"` y `status: "active"`.
-2. Cada amigo entra con su Google y te aparece en la pestaña **Admin → Pendientes**. Apruébalo con un toque.
-3. Crea la primera jornada. Se genera sola una temporada (`Temporada 2026`). En Admin puedes crear, renombrar, editar, activar, cerrar (congela sus jornadas) y eliminar temporadas. No se puede quitar el rol al único admin.
-
-## Si el grupo está en Cuba
-
-Desde IPs cubanas GitHub muestra "acceso restringido" y las API de Firebase (Auth, Firestore) responden 403, por las sanciones de EE. UU. La app está preparada para ese escenario:
-
-- **VPN solo para entrar y sincronizar.** El login y la subida/bajada de datos necesitan VPN. Marcar asistencia, cargar goles, confirmar y votar funcionan sin internet y se suben cuando la app vuelve a conectar (con la VPN activa). Los recordatorios locales no dependen de nada externo.
-- **Mensajes claros.** Si Firebase o GitHub no responden, la app lo dice y recuerda activar la VPN en vez de mostrar el error crudo.
-- **Repartir la app.** El enlace de GitHub Releases no abre desde Cuba: pásales el APK como archivo por WhatsApp o Telegram (`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`). El aviso de nueva versión dentro de la app sí funciona con VPN.
-
-## Backend propio (Cloudflare Workers + D1)
-
-La versión 1.0 deja Firebase Auth y Firestore (bloqueados en Cuba sin VPN) por un backend
-propio en `backend/`: un Cloudflare Worker con base D1, en el plan gratuito. Se probó desde
-ETECSA sin VPN el 2026-10-01. Diseño completo:
-`docs/superpowers/specs/2026-10-01-servidores-backend-propio-design.md`.
-
-Requisitos: Node 22 y **npm 11** (con npm 10 falla la instalación: `npm install -g npm@11`).
+### Desplegar el backend
 
 ```bash
 cd backend
-npm ci
-npm test               # tests dentro del runtime de Workers, con D1 local
-npm run typecheck
-npm run dev            # API local en http://localhost:8787 (antes: npm run db:migrate:local)
-npm run deploy:staging # migraciones + despliegue a staging (requiere `npx wrangler login`)
+npm run deploy:staging      # migraciones + Worker (el CI lo hace solo en cada push a main)
+npm run deploy:production   # a mano, cuando staging está probado
 ```
 
-- Staging: `https://furbo-api-staging.furbo-probe.workers.dev`. El CI despliega solo en cada push a
-  `main` si existen los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.
-- Marcar a alguien como superadmin (no se puede desde la API, a propósito):
+Requiere `npx wrangler login`. El CI usa los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.
+
+Opcional: `npx wrangler secret put GITHUB_TOKEN --env production` (un token de solo lectura).
+Sin él, GitHub limita a 60 consultas por hora la IP compartida de Cloudflare. Aun así, el
+servidor guarda la última release que vio.
+
+### Firmar las releases
+
+Las releases se firman con una clave propia que **no está en el repo**. Si se pierde, los
+teléfonos no aceptan la siguiente versión encima y hay que desinstalar. Guárdala con su
+contraseña en un sitio seguro.
+
+```bash
+keytool -genkeypair -v -keystore ~/elfurbo-release.jks -alias elfurbo -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Después crea `android/key.properties` (está en `.gitignore`):
+
+```properties
+storeFile=C:/Users/<tú>/elfurbo-release.jks
+storePassword=<la contraseña>
+keyAlias=elfurbo
+keyPassword=<la contraseña>
+```
+
+Sin ese archivo, `flutter build` firma con la clave de debug (sirve para probar) y
+`tool/release.sh` se niega a publicar.
+
+### Publicar una versión
+
+```bash
+tool/release.sh 1.0.0 --notes "Qué cambió"
+```
+
+El script:
+1. Sube `version:` en `pubspec.yaml`.
+2. Compila los APK por arquitectura.
+3. Commitea y crea el tag.
+4. Publica la release en GitHub con los APK.
+
+Necesita `gh` con la cuenta dueña del repo. Desde ahí los teléfonos se enteran solos: el
+servidor la ofrece en `/app/latest` (caché de 1 hora). Si un cambio del protocolo de sync
+lo exige, sube `MIN_SUPPORTED_BUILD` en `backend/wrangler.jsonc`: las versiones más viejas
+dejan de sincronizar y piden actualizar.
+
+Para repartir la app a alguien nuevo basta el enlace de invitación: la página tiene
+**Descargar El Furbo** (`/app/download`).
+
+### Administrar
+
+- **Marcarse superadmin** (a propósito, no se puede desde la API):
 
   ```bash
-  cd backend && npx wrangler d1 execute DB --remote --env staging --command "UPDATE users SET is_superadmin = 1 WHERE username = 'kevin'"
+  cd backend && npx wrangler d1 execute DB --remote --env production --command "UPDATE users SET is_superadmin = 1 WHERE username = 'kevin'"
   ```
 
-- Copias de seguridad: D1 Time Travel permite volver a cualquier minuto de los últimos 7 días
-  (`npx wrangler d1 time-travel restore DB --env staging --timestamp=<ISO>`). Export manual:
-  `npx wrangler d1 export DB --remote --env staging --output=backup.sql`.
-- Servidores (PR2):
-  - Cualquiera los solicita con `POST /clubs`, y el superadmin los aprueba en `POST /admin/clubs/:id/approve`.
-  - Se entra por invitación: el staff la crea con `POST /clubs/:id/invites` y la comparte como
-    `https://<api>/i/<CÓDIGO>`.
-  - Con `targetMemberId`, la invitación sirve para que un jugador sin cuenta reclame su perfil.
-  - Si alguien olvida la contraseña, el owner o un admin genera un código con
-    `POST /clubs/:id/members/:memberId/recovery-code` y se lo pasa por WhatsApp.
-- Panel del superadmin: todo lo de `/admin/*` (servidores, usuarios, métricas). Primero hay que marcarse
-  como superadmin con el comando de arriba.
-- Sincronización (PR3a): la app manda sus cambios como comandos con `POST /sync/push` y trae lo nuevo con
-  `POST /sync/pull`.
-  - Comandos: `{ id, clubId, type, payload, clientAt }`, hasta 200 por envío y 256 KB.
-  - Un reintento del mismo comando devuelve `duplicate`, sin aplicarlo otra vez.
-  - Cada respuesta dura como mucho unos 8 s y gasta como mucho 900 consultas a D1 (el límite medido es 1000).
-    Lo que no entra vuelve `deferred`, en orden, y la app lo reenvía. Un tipo de comando que el
-    servidor aún no conoce también vuelve `deferred`, para reintentarlo después del despliegue.
-  - El pull recibe `{ cursors: { clubId: número } }`. Con 0 devuelve una foto completa; si no, solo lo
-    cambiado, de 500 en 500.
-  - Toda escritura sobre una entidad sincronizada añade su fila en `changes` en el mismo `batch`.
-- Pachanga (PR3b):
-  - Comandos `matchday.*`, `attendance.*`, `report.*`, `vote.*` y `teams.save`.
-  - Una jornada cerrada (temporada cerrada, cancelada, cerrada a mano o pasado el plazo sin reabrir) no
-    acepta cambios de nadie.
-  - El plazo cuenta con la hora del teléfono, acotada, para no perder lo hecho sin señal.
-  - Las reglas puras viven en `backend/src/rules/matchday.ts`, y sus casos en
-    `shared-fixtures/matchday-rules.json`, que también ejecutará la app.
-- App 1.0: el núcleo vive en `lib/cloud/` (sesión, cola, sync, vista local) y las pantallas de la
-  pachanga en `lib/ui/` leen esa vista y escriben comandos (`lib/data/club_repo.dart`). Arranca con
-  `flutter run` (por defecto contra staging; otro backend con `--dart-define=API_URL=https://...`).
-  - Firebase ya no se usa en ninguna pantalla; los paquetes y las Cloud Functions se quitan en el corte
-    (PR7).
+- **Copias de seguridad:** D1 Time Travel vuelve a cualquier minuto de los últimos 7 días (plan gratis)
+  (`npx wrangler d1 time-travel restore DB --env production --timestamp=<ISO>`). Export
+  manual: `npx wrangler d1 export DB --remote --env production --output=backup.sql`.
+- **Purga:** un cron a las 08:00 UTC borra lo viejo de la sincronización (cambios de más de
+  90 días, comandos aplicados de más de 30, sesiones caducadas).
 
 ## Tests y CI
 
-- **Dart**: `flutter test` cubre el motor de estadísticas, logros, balanceo de equipos, jornadas (duración, en curso, cierre), presencia real, desempate de MVP, recurrencia semanal, payload de notificaciones y recordatorios.
-- **Reglas de Firestore**: `firestore-tests/` prueba las reglas contra el emulador (cierre, presencia, rechazo definitivo, votos, altas, borrado de cuenta). Requiere Java 11+:
-
-```bash
-cd firestore-tests && npm ci && npm run test:emulator
-```
-
-- **GitHub Actions** (`.github/workflows/ci.yml`): en cada PR y en `main` corre formato, análisis y tests de Flutter, los tests de reglas con el emulador y la sintaxis de las Functions.
-
-## Modelo de datos (Firestore)
-
-Todas las colecciones son de primer nivel para que las reglas sean simples y todo se cachee offline:
-
-| Colección | Doc id | Contenido |
-| --- | --- | --- |
-| `users` | uid | `displayName`, `nickname`, `photoUrl`, `email`, `role` (`admin`/`player`), `status` (`pending`/`active`/`blocked`), `fcmToken` |
-| `seasons` | auto | `name`, `startDate`, `isActive` |
-| `matches` | auto | `date`, `seasonId`, `status` (`scheduled`/`cancelled`), `place`, `notes`, `teams.{a,b}`, `createdBy` |
-| `attendance` | `{matchId}_{uid}` | `status` (`yes`/`no`/`maybe`) |
-| `reports` | `{matchId}_{uid}` | `goals`, `assists`, `note`, `confirmations: [uid]`, `adminStatus` (`confirmed`/`rejected`/null) |
-| `mvpVotes` | `{matchId}_{voterUid}` | `votedFor` |
-
-Estado efectivo de un reporte: `adminStatus` si el admin decidió; si no, `confirmed` cuando
-`confirmations` tiene 2 o más uids, `pending` en caso contrario. Se calcula en el cliente y en las
-Functions con la misma regla, y las reglas de Firestore impiden agregar un uid que no sea el propio,
-confirmarse a sí mismo o confirmar sin haber marcado asistencia.
+- `flutter test` cubre:
+  - estadísticas, logros y equipos;
+  - reglas de jornada;
+  - la cola y el sync (incluido el segundo plano a la vez que la app);
+  - avisos, actualizaciones y pantallas.
+- `cd backend && npm test`: las rutas, los comandos del sync, la purga y las rutas `/app`,
+  contra D1 local.
+- GitHub Actions (`.github/workflows/ci.yml`): formato, análisis y tests de Flutter; tipos y
+  tests del backend; y despliegue a staging en cada push a `main`.
 
 ## Estructura
 
 ```
 lib/
-  main.dart, app.dart        arranque, Firebase, tema, gate de sesión
-  core/                      tema, formateo de fechas, snackbars globales
-  models/                    AppUser, Season, MatchDay, Attendance, MatchReport, MvpVote
-  data/                      FirestoreRepo (escrituras) y providers Riverpod (streams)
-  domain/                    StatsEngine, Achievements, TeamBalancer (Dart puro, testeado)
-  services/                  AuthService (Google), PushService (FCM), ShareService (imagen)
-  ui/                        pantallas: auth, shell, matches, stats, profile, admin
-functions/index.js           Cloud Functions (push + bootstrap de admin)
-firestore.rules              reglas de seguridad
-test/                        tests de la lógica de negocio
+  main.dart, app.dart   arranque, sesión de un servidor (avisos, recordatorios, actualizaciones)
+  cloud/                api, sesión, cola y sync, avisos, pantallas de cuenta y servidores
+  data/                 providers de la vista del servidor y ClubRepo (escribe comandos)
+  domain/, models/      reglas, estadísticas, logros y modelos
+  services/             notificaciones, WorkManager, actualizaciones
+  ui/                   pantallas de la pachanga, admin y superadmin
+backend/                Worker (src/), migraciones de D1 y tests
+shared-fixtures/        contratos y reglas que prueban la app y el backend
+docs/                   spec, tono (docs/tono.md) y diseño "pizarra" (docs/diseno.md)
 ```
-
-## Ideas para después
-
-- Marcador del partido y récord ganados/perdidos por jugador (los equipos ya se guardan).
-- Control de pagos de la cancha.
-- Varios grupos en la misma app.
-- Autogoles, vallas invictas y tarjetas.

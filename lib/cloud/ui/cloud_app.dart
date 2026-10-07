@@ -5,11 +5,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
+import '../../core/deep_links.dart';
 import '../../core/theme.dart';
 import '../../ui/widgets/chalk.dart';
 import '../../services/sync_worker.dart';
 import '../state/providers.dart';
 import 'auth_screens.dart';
+import 'clubs_screens.dart';
 import 'home_screens.dart';
 import '../../ui/widgets/expressive.dart';
 
@@ -65,11 +67,14 @@ class _CloudGateState extends ConsumerState<CloudGate>
       if (ref.read(cloudProvider).visible) SyncWorker.markVisible(true);
     });
     SyncWorker.markVisible(true);
+    DeepLinks.pendingInvite.addListener(_onInvite);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
 
   @override
   void dispose() {
+    DeepLinks.pendingInvite.removeListener(_onInvite);
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
@@ -101,6 +106,25 @@ class _CloudGateState extends ConsumerState<CloudGate>
     await worker.flushWhenOnline();
   }
 
+  /// Llegó un enlace de invitación: con sesión, "Entrar con código" ya relleno;
+  /// sin sesión, primero la cuenta (el código espera hasta que entre).
+  void _onInvite() {
+    final code = DeepLinks.pendingInvite.value;
+    final context = rootNavigatorKey.currentContext;
+    if (code == null || context == null || !mounted) return;
+    final nav = rootNavigatorKey.currentState!..popUntil((r) => r.isFirst);
+    if (ref.read(cloudProvider).session != null) {
+      DeepLinks.pendingInvite.value = null;
+      showJoinWithCode(context, initialCode: code);
+    } else {
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const RegisterScreen(fromInvite: true),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Al cerrarse la sesión (salir, borrar la cuenta o un 401) se vuelve a la raíz:
@@ -108,6 +132,10 @@ class _CloudGateState extends ConsumerState<CloudGate>
     ref.listen(sessionProvider, (prev, next) {
       if (prev?.value != null && next.value == null) {
         rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+      }
+      // Entró con un enlace de invitación pendiente: ahora sí.
+      if (prev?.value == null && next.value != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
       }
     });
     final session = ref.watch(sessionProvider);
