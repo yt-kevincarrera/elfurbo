@@ -16,6 +16,8 @@ import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'settle_io.dart';
+
 /// Un servidor de pruebas para el admin y el superadmin: guarda lo que le llega.
 class _Server {
   _Server(this.role);
@@ -125,14 +127,7 @@ void main() {
   setUpAll(() => initializeDateFormatting('es'));
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    dir = await Directory.systemTemp.createTemp('furbo-admin');
-  });
-  tearDown(() async {
-    try {
-      await dir.delete(recursive: true);
-    } on FileSystemException {
-      // Alguna escritura del sync de fondo todavía en vuelo.
-    }
+    dir = await dataDir('furbo-admin');
   });
 
   Future<CloudController> start(WidgetTester tester, _Server server) async {
@@ -146,16 +141,16 @@ void main() {
       await c.sync();
       return c;
     });
-    await tester.runAsync(() async {
-      await tester.pumpWidget(
+    // Dentro de runAsync: el sync que arranca al abrir corre con el reloj de verdad.
+    await tester.runAsync(
+      () => tester.pumpWidget(
         ProviderScope(
           overrides: [cloudProvider.overrideWithValue(cloud!)],
           child: const CloudApp(),
         ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    await settle(tester);
+      ),
+    );
+    await settleIo(tester);
     return cloud!;
   }
 
@@ -165,17 +160,17 @@ void main() {
       final server = _Server('owner');
       await start(tester, server);
       await tester.tap(find.text('Admin'));
-      await settle(tester);
+      await settleIo(tester, until: find.text('ABCD-EFGH'));
       expect(find.text('ABCD-EFGH'), findsOneWidget);
       expect(find.textContaining('3 de 10'), findsOneWidget);
       expect(find.text('Ajustes del servidor'), findsOneWidget);
 
       await tester.tap(find.text('Invitar'));
-      await settle(tester);
+      await settleIo(tester);
       await tester.tap(find.text('Anotador'));
-      await settle(tester);
+      await settleIo(tester);
       await tester.tap(find.text('Crear y compartir'));
-      await settle(tester);
+      await settleIo(tester);
       expect(server.bodies['POST /clubs/c1/invites'], {
         'role': 'scorer',
         'maxUses': 1,
@@ -190,12 +185,12 @@ void main() {
       final server = _Server('owner');
       await start(tester, server);
       await tester.tap(find.byTooltip('Servidores y cuenta'));
-      await settle(tester);
+      await settleIo(tester);
       await tester.tap(find.text('Panel de superadmin'));
-      await settle(tester);
+      await settleIo(tester, until: find.text('Los del Vedado'));
       expect(find.text('Los del Vedado'), findsOneWidget);
       await tester.tap(find.text('Aprobar'));
-      await settle(tester);
+      await settleIo(tester, until: find.text('Nadie esperando'));
       expect(server.requests, contains('POST /admin/clubs/c9/approve'));
       expect(find.text('Nadie esperando'), findsOneWidget);
     },
@@ -206,14 +201,14 @@ void main() {
   ) async {
     await start(tester, _Server('owner'));
     await tester.tap(find.byTooltip('Servidores y cuenta'));
-    await settle(tester);
+    await settleIo(tester);
     expect(find.text('Salir de este servidor'), findsNothing);
   });
 
   testWidgets('un jugador puede salir del servidor', (tester) async {
     await start(tester, _Server('player'));
     await tester.tap(find.byTooltip('Servidores y cuenta'));
-    await settle(tester);
+    await settleIo(tester);
     expect(find.text('Salir de este servidor'), findsOneWidget);
     expect(find.text('Admin'), findsNothing);
   });
@@ -249,15 +244,4 @@ void main() {
     );
     expect(describeAudit(entry('algo.nuevo', 'k'), users), 'hizo "algo.nuevo"');
   });
-}
-
-/// Deja correr la E/S real (disco, red falsa) y repinta, sin pumpAndSettle
-/// (los indicadores de carga giran sin parar).
-Future<void> settle(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-  }
 }

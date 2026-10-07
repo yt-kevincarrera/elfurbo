@@ -17,6 +17,8 @@ import 'package:http/testing.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'settle_io.dart';
+
 const _user = {
   'id': 'u1',
   'username': 'kevin',
@@ -71,25 +73,20 @@ void main() {
   setUpAll(() => initializeDateFormatting('es'));
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    dir = await Directory.systemTemp.createTemp('furbo-ui');
-  });
-  tearDown(() async {
-    // Puede quedar alguna escritura en vuelo del sync de fondo: no hace fallar el test.
-    try {
-      await dir.delete(recursive: true);
-    } on FileSystemException {
-      // Ya no existe o la está usando otra operación que termina enseguida.
-    }
+    dir = await dataDir('furbo-ui');
   });
 
   Future<void> pumpApp(WidgetTester tester, CloudController cloud) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [cloudProvider.overrideWithValue(cloud)],
-        child: const CloudApp(),
+    // Dentro de runAsync: el sync que arranca al abrir corre con el reloj de verdad.
+    await tester.runAsync(
+      () => tester.pumpWidget(
+        ProviderScope(
+          overrides: [cloudProvider.overrideWithValue(cloud)],
+          child: const CloudApp(),
+        ),
       ),
     );
-    await tester.pumpAndSettle();
+    await settleIo(tester);
   }
 
   testWidgets('sin sesión: bienvenida con entrar, crear cuenta y código', (
@@ -116,11 +113,13 @@ void main() {
       find.widgetWithText(TextField, 'Contraseña'),
       'mala',
     );
-    await tester.runAsync(() async {
-      await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await tester.runAsync(
+      () => tester.tap(find.widgetWithText(FilledButton, 'Entrar')),
+    );
+    await settleIo(
+      tester,
+      until: find.text('Usuario o contraseña incorrectos'),
+    );
     expect(find.text('Usuario o contraseña incorrectos'), findsOneWidget);
   });
 
@@ -132,11 +131,7 @@ void main() {
       await c.login('kevin', 'secreto123');
       return c;
     });
-    await tester.runAsync(() async {
-      await pumpApp(tester, cloud!);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await pumpApp(tester, cloud!);
     expect(find.text('Unirme con un código'), findsOneWidget);
     expect(find.text('Solicitar un servidor'), findsOneWidget);
     expect(find.textContaining('¿Qué bolá, Kevin?'), findsOneWidget);
@@ -161,23 +156,7 @@ void main() {
           dataRoot: dir,
         );
       });
-      // Sin pumpAndSettle: el spinner de "cargando" gira mientras se lee del disco.
-      await tester.runAsync(() async {
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [cloudProvider.overrideWithValue(cloud!)],
-            child: const CloudApp(),
-          ),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
-      for (var i = 0; i < 5; i++) {
-        await tester.pump();
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 100)),
-        );
-      }
-      await tester.pump();
+      await pumpApp(tester, cloud!);
       expect(find.textContaining('Sin conexión'), findsOneWidget);
       expect(find.text('Reintentar'), findsOneWidget);
       expect(find.textContaining('ningún servidor'), findsNothing);
@@ -191,19 +170,12 @@ void main() {
       await c.engine!.enqueue(Command.create('c1', 'member.leave', {}));
       return c;
     });
-    await tester.runAsync(() async {
-      await pumpApp(tester, cloud!);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Cerrar sesión'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await pumpApp(tester, cloud!);
+    await tester.runAsync(() => tester.tap(find.byTooltip('Cerrar sesión')));
+    await settleIo(tester, until: find.text('¿Te vas igual?'));
     expect(find.text('¿Te vas igual?'), findsOneWidget);
     expect(find.textContaining('1 cambio sin enviar'), findsOneWidget);
-    expect(cloud!.session, isNotNull);
+    expect(cloud.session, isNotNull);
   });
 
   test('etiquetas del indicador de sync', () {
