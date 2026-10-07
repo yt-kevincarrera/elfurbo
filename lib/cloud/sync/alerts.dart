@@ -51,35 +51,52 @@ class Alert {
   final String title;
   final String body;
   final String? matchdayId;
+
+  /// Los que van juntos en una notificación (y la reemplazan).
+  String get group =>
+      kind == AlertKind.clubRequest ? kind.name : '${kind.name}@$clubId';
 }
 
 /// Lo que ya se avisó. `seeded` es false hasta la primera pasada: esa solo
 /// marca todo como visto (al instalar o actualizar no salen veinte avisos).
 class AlertLedger {
-  AlertLedger({this.seeded = false, Set<String>? seen}) : seen = seen ?? {};
+  AlertLedger({this.seeded = false, Set<String>? seen, Set<String>? pending})
+    : seen = seen ?? {},
+      pending = pending ?? {};
 
   bool seeded;
   final Set<String> seen;
 
+  /// Mis solicitudes de servidor que estaban pendientes la última vez: solo
+  /// esas, al aparecer activas, son "aprobaron tu servidor" (no una
+  /// transferencia ni una reactivación).
+  final Set<String> pending;
+
   factory AlertLedger.fromJson(Map<String, dynamic>? j) => AlertLedger(
     seeded: j?['seeded'] == true,
     seen: {for (final k in (j?['seen'] as List?) ?? const []) '$k'},
+    pending: {for (final k in (j?['pending'] as List?) ?? const []) '$k'},
   );
 
-  Map<String, Object?> toJson() => {'seeded': seeded, 'seen': seen.toList()};
+  Map<String, Object?> toJson() => {
+    'seeded': seeded,
+    'seen': seen.toList(),
+    'pending': pending.toList(),
+  };
 
-  /// Los avisos de [current] que no se mostraron todavía, y el registro al día.
-  /// Se olvida de los que ya no están (si no, crecería para siempre), salvo los
-  /// que [keep] diga: los de algo que esta vez no se miró.
+  /// Los avisos de [current] que no se mostraron todavía y que [notify] deja
+  /// mostrar (los demás quedan vistos), y el registro al día. Se olvida de los
+  /// que ya no están (si no, crecería para siempre), salvo los que [keep]
+  /// diga: los de algo que esta vez no se miró.
   List<Alert> take(
     List<Alert> current, {
-    required bool notify,
+    required bool Function(Alert) notify,
     bool Function(String key)? keep,
   }) {
-    final fresh = seeded && notify
+    final fresh = seeded
         ? [
             for (final a in current)
-              if (!seen.contains(a.key)) a,
+              if (!seen.contains(a.key) && notify(a)) a,
           ]
         : <Alert>[];
     seen
@@ -219,12 +236,18 @@ List<Alert> clubAlerts(
   return alerts;
 }
 
-/// Avisos de la cuenta, de `GET /me`: servidores aprobados y solicitudes rechazadas.
-List<Alert> accountAlerts(Map<String, dynamic>? me) {
+/// Avisos de la cuenta, de `GET /me`: servidores aprobados (de los que eran
+/// solicitudes pendientes en [wasPending]) y solicitudes rechazadas.
+List<Alert> accountAlerts(
+  Map<String, dynamic>? me, {
+  Set<String> wasPending = const {},
+}) {
   if (me == null) return const [];
   return [
     for (final c in (me['clubs'] as List?) ?? const [])
-      if ((c as Map)['role'] == 'owner' && c['status'] == 'active')
+      if ((c as Map)['role'] == 'owner' &&
+          c['status'] == 'active' &&
+          wasPending.contains('${c['id']}'))
         Alert(
           key: 'own:${c['id']}',
           kind: AlertKind.clubApproved,
@@ -262,10 +285,11 @@ List<Alert> requestAlerts(List<Map<String, Object?>> pending) => [
 ];
 
 /// Varios avisos del mismo tipo y servidor van en uno ("3 jornadas nuevas").
+/// Las solicitudes de servidor, todas en uno.
 List<Alert> grouped(List<Alert> alerts) {
   final groups = <String, List<Alert>>{};
   for (final a in alerts) {
-    groups.putIfAbsent('${a.kind.name}@${a.clubId}', () => []).add(a);
+    groups.putIfAbsent(a.group, () => []).add(a);
   }
   return [
     for (final g in groups.values)
@@ -336,32 +360,50 @@ String _stats(Row r) {
 }
 
 /// Calcula los avisos de la cuenta con lo que hay en el teléfono y pone el
-/// registro al día. Con [notify] false (la app a la vista) solo marca como
-/// visto. [requests]: solicitudes pendientes si soy superadmin; null si esta
-/// vez no se consultaron (se conservan sus marcas).
+/// registro al día. [notify] dice cuáles mostrar (con la app a la vista, los
+/// del servidor que se está mirando solo se marcan como vistos). [requests]:
+/// solicitudes pendientes si soy superadmin; null si esta vez no se
+/// consultaron (se conservan sus marcas).
 Future<List<Alert>> refreshAlerts(
   LocalStore store, {
-  required bool notify,
+  required bool Function(Alert) notify,
   List<Map<String, Object?>>? requests,
   DateTime? now,
 }) async {
   final me = await store.readMe();
+  // Sin /me no se sabe nada: mejor no tocar el registro que vaciarlo.
+  if (me == null) return const [];
   final at = now ?? DateTime.now();
+  final ledger = AlertLedger.fromJson(await store.readAlertLedger());
   final current = <Alert>[
-    ...accountAlerts(me),
+    ...accountAlerts(me, wasPending: ledger.pending),
     if (requests != null) ...requestAlerts(requests),
   ];
-  for (final c in (me?['clubs'] as List?) ?? const []) {
-    final data = await store.readClub('${(c as Map)['id']}');
-    if (data == null) continue;
+  // Servidores que esta vez no se miran (sin datos todavía, o suspendidos):
+  // sus marcas se quedan, para no repetir todo cuando vuelvan.
+  final skipped = <String>{};
+  for (final c in (me['clubs'] as List?) ?? const []) {
+    final id = '${(c as Map)['id']}';
+    final data = await store.readClub(id);
+    if (data == null || data.club?['status'] != 'active') {
+      skipped.add(id);
+      continue;
+    }
     current.addAll(clubAlerts(data, myMemberId: '${c['memberId']}', now: at));
   }
-  final ledger = AlertLedger.fromJson(await store.readAlertLedger());
   final fresh = ledger.take(
     current,
     notify: notify,
-    keep: requests == null ? (k) => k.startsWith('sa:') : null,
+    keep: (k) =>
+        (requests == null && k.startsWith('sa:')) ||
+        skipped.any((id) => k.endsWith('@$id')),
   );
+  ledger.pending
+    ..clear()
+    ..addAll([
+      for (final r in (me['clubRequests'] as List?) ?? const [])
+        if ((r as Map)['status'] == 'pending') '${r['id']}',
+    ]);
   await store.writeAlertLedger(ledger.toJson());
   return grouped(fresh);
 }

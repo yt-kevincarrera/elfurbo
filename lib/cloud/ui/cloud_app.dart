@@ -59,7 +59,12 @@ class _CloudGateState extends ConsumerState<CloudGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _timer = Timer.periodic(const Duration(minutes: 2), (_) => _sync());
+    _timer = Timer.periodic(const Duration(minutes: 2), (_) {
+      _sync();
+      // Mientras siga a la vista, el de segundo plano lo sabe.
+      if (ref.read(cloudProvider).visible) SyncWorker.markVisible(true);
+    });
+    SyncWorker.markVisible(true);
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
 
@@ -72,7 +77,11 @@ class _CloudGateState extends ConsumerState<CloudGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    ref.read(cloudProvider).visible = state == AppLifecycleState.resumed;
+    final visible = state == AppLifecycleState.resumed;
+    if (ref.read(cloudProvider).visible != visible) {
+      ref.read(cloudProvider).visible = visible;
+      unawaited(SyncWorker.markVisible(visible));
+    }
     if (state == AppLifecycleState.resumed) _sync();
     if (state == AppLifecycleState.paused) unawaited(_flushLater());
   }

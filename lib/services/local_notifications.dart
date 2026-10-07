@@ -207,7 +207,7 @@ class LocalNotifications {
     await ensureInitialized();
     for (final a in alerts) {
       await _plugin.show(
-        id: alertIdBase + ('${a.kind.name}@${a.clubId}'.hashCode & 0xFFFFF),
+        id: alertIdBase + (a.group.hashCode & 0xFFFFF),
         title: a.title,
         body: a.body,
         notificationDetails: _details(channelDefault, 'El Furbo'),
@@ -221,7 +221,11 @@ class LocalNotifications {
             AlertKind.clubRequest => NotificationKind.clubRequest,
           },
           matchId: a.matchdayId,
-          clubId: a.kind == AlertKind.requestRejected ? null : a.clubId,
+          clubId:
+              a.kind == AlertKind.requestRejected ||
+                  a.kind == AlertKind.clubRequest
+              ? null
+              : a.clubId,
         ).encode(),
       );
     }
@@ -270,7 +274,13 @@ class LocalNotifications {
   // ------------------------------------------------------------- arranque
 
   /// Payload de la notificación que abrió la app (una sola vez), o null.
+  static bool _launchConsumed = false;
+
   static Future<NotificationPayload?> consumeLaunchPayload() async {
+    // Android da los mismos datos de arranque mientras viva el proceso: si la
+    // sesión se vuelve a montar (salir y entrar), no se atiende otra vez.
+    if (_launchConsumed) return null;
+    _launchConsumed = true;
     await ensureInitialized();
     final details = await _plugin.getNotificationAppLaunchDetails();
     if (details == null || !details.didNotificationLaunchApp) return null;

@@ -205,26 +205,49 @@ void main() {
   });
 
   test('cuenta: mi servidor aprobado y una solicitud rechazada', () {
-    final alerts = accountAlerts({
-      'clubs': [
-        {'id': 'c1', 'name': 'Pachanga', 'status': 'active', 'role': 'owner'},
-        {'id': 'c2', 'name': 'Otra', 'status': 'active', 'role': 'player'},
-      ],
-      'clubRequests': [
-        {
-          'id': 'c3',
-          'name': 'Fútbol 5',
-          'status': 'rejected',
-          'reviewNote': 'Ya existe',
-        },
-        {'id': 'c4', 'name': 'Espera', 'status': 'pending'},
-      ],
-    });
+    final alerts = accountAlerts(
+      {
+        'clubs': [
+          {'id': 'c1', 'name': 'Pachanga', 'status': 'active', 'role': 'owner'},
+          {'id': 'c2', 'name': 'Otra', 'status': 'active', 'role': 'player'},
+        ],
+        'clubRequests': [
+          {
+            'id': 'c3',
+            'name': 'Fútbol 5',
+            'status': 'rejected',
+            'reviewNote': 'Ya existe',
+          },
+          {'id': 'c4', 'name': 'Espera', 'status': 'pending'},
+        ],
+      },
+      wasPending: {'c1'},
+    );
     expect(
       [for (final a in alerts) a.title],
       ['¡Aprobaron Pachanga!', 'No aprobaron Fútbol 5'],
     );
     expect(alerts.last.body, 'Ya existe');
+  });
+
+  test('ser dueño por una transferencia no es "aprobaron tu servidor"', () {
+    final me = {
+      'clubs': [
+        {'id': 'c1', 'name': 'Pachanga', 'status': 'active', 'role': 'owner'},
+      ],
+    };
+    expect(accountAlerts(me), isEmpty);
+  });
+
+  test('las solicitudes de servidor van todas en un aviso', () {
+    final g = grouped(
+      requestAlerts([
+        {'id': 'a', 'name': 'Uno'},
+        {'id': 'b', 'name': 'Dos'},
+        {'id': 'c', 'name': 'Tres'},
+      ]),
+    );
+    expect(g.single.title, '3 solicitudes de servidor');
   });
 
   group('lo ya avisado', () {
@@ -241,24 +264,26 @@ void main() {
       'la primera vez solo se marca todo (al instalar no salen veinte avisos)',
       () {
         final l = AlertLedger();
-        expect(l.take([a('x'), a('y')], notify: true), isEmpty);
+        expect(l.take([a('x'), a('y')], notify: (_) => true), isEmpty);
         expect(
-          l.take([a('x'), a('y'), a('z')], notify: true).map((x) => x.key),
+          l
+              .take([a('x'), a('y'), a('z')], notify: (_) => true)
+              .map((x) => x.key),
           ['z'],
         );
-        expect(l.take([a('x'), a('y'), a('z')], notify: true), isEmpty);
+        expect(l.take([a('x'), a('y'), a('z')], notify: (_) => true), isEmpty);
       },
     );
 
     test('con la app a la vista se marca sin avisar', () {
       final l = AlertLedger(seeded: true);
-      expect(l.take([a('x')], notify: false), isEmpty);
-      expect(l.take([a('x')], notify: true), isEmpty);
+      expect(l.take([a('x')], notify: (_) => false), isEmpty);
+      expect(l.take([a('x')], notify: (_) => true), isEmpty);
     });
 
     test('olvida lo que ya no está, salvo lo que esta vez no se miró', () {
       final l = AlertLedger(seeded: true, seen: {'sa:1', 'md:viejo'});
-      l.take([a('x')], notify: true, keep: (k) => k.startsWith('sa:'));
+      l.take([a('x')], notify: (_) => true, keep: (k) => k.startsWith('sa:'));
       expect(l.seen, {'sa:1', 'x'});
     });
 
@@ -291,15 +316,148 @@ void main() {
     final d = club();
     await store.writeClub(d);
     // Primera vez: solo marca.
-    expect(await refreshAlerts(store, notify: true, now: now), isEmpty);
+    expect(await refreshAlerts(store, notify: (_) => true, now: now), isEmpty);
     matchday(d, 'md1', DateTime.utc(2026, 10, 10, 20));
     matchday(d, 'md2', DateTime.utc(2026, 10, 11, 20));
     await store.writeClub(d);
-    final fresh = await refreshAlerts(LocalStore(dir), notify: true, now: now);
+    final fresh = await refreshAlerts(
+      LocalStore(dir),
+      notify: (_) => true,
+      now: now,
+    );
     expect(fresh.single.title, '2 jornadas nuevas en Pachanga');
     expect(
-      await refreshAlerts(LocalStore(dir), notify: true, now: now),
+      await refreshAlerts(LocalStore(dir), notify: (_) => true, now: now),
       isEmpty,
+    );
+  });
+
+  group('con lo guardado en el teléfono', () {
+    late Directory dir;
+    late LocalStore store;
+    Map<String, Object?> meWith({
+      String status = 'active',
+      String role = 'player',
+      List<Object?> requests = const [],
+    }) => {
+      'clubs': [
+        {
+          'id': 'c1',
+          'name': 'Pachanga',
+          'status': status,
+          'role': role,
+          'memberId': me,
+        },
+      ],
+      'clubRequests': requests,
+    };
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('alerts');
+      store = LocalStore(dir);
+    });
+    tearDown(() => dir.delete(recursive: true));
+
+    Future<List<Alert>> pass({bool Function(Alert)? notify}) =>
+        refreshAlerts(LocalStore(dir), notify: notify ?? (_) => true, now: now);
+
+    test(
+      'sin /me no se toca el registro (después no llueven avisos repetidos)',
+      () async {
+        final d = club();
+        matchday(d, 'md1', DateTime.utc(2026, 10, 10, 20));
+        await store.writeClub(d);
+        expect(await pass(), isEmpty);
+        expect(await store.readAlertLedger(), isNull);
+        await store.writeMe(meWith());
+        expect(await pass(), isEmpty); // la primera de verdad solo marca
+        expect(await pass(), isEmpty);
+      },
+    );
+
+    test(
+      'un servidor suspendido no pierde sus marcas: al reactivarlo no se repite nada',
+      () async {
+        final d = club();
+        matchday(d, 'md1', DateTime.utc(2026, 10, 10, 20));
+        await store.writeClub(d);
+        await store.writeMe(meWith());
+        await pass();
+        (d.table('club')['c1']!)['status'] = 'suspended';
+        await store.writeClub(d);
+        await store.writeMe(meWith(status: 'suspended'));
+        expect(await pass(), isEmpty);
+        (d.table('club')['c1']!)['status'] = 'active';
+        await store.writeClub(d);
+        await store.writeMe(meWith());
+        expect(await pass(), isEmpty);
+      },
+    );
+
+    test('mi solicitud pendiente que pasa a activa: "¡Aprobaron!"', () async {
+      await store.writeMe({
+        'clubs': [],
+        'clubRequests': [
+          {'id': 'c9', 'name': 'Nuevo', 'status': 'pending'},
+        ],
+      });
+      await pass();
+      await store.writeMe({
+        'clubs': [
+          {
+            'id': 'c9',
+            'name': 'Nuevo',
+            'status': 'active',
+            'role': 'owner',
+            'memberId': me,
+          },
+        ],
+        'clubRequests': [],
+      });
+      expect((await pass()).single.title, '¡Aprobaron Nuevo!');
+    });
+
+    test(
+      'con la app a la vista, lo del servidor que se mira queda visto; lo de otro, se avisa',
+      () async {
+        await store.writeMe({
+          'clubs': [
+            {
+              'id': 'c1',
+              'name': 'Pachanga',
+              'status': 'active',
+              'role': 'player',
+              'memberId': me,
+            },
+            {
+              'id': 'c2',
+              'name': 'Otra',
+              'status': 'active',
+              'role': 'player',
+              'memberId': me,
+            },
+          ],
+        });
+        final a = club();
+        final b = ClubData(
+          clubId: 'c2',
+          cursor: 1,
+          entities: club().copy().entities,
+        );
+        b.table('club')
+          ..clear()
+          ..['c2'] = {...club().club!, 'id': 'c2', 'name': 'Otra'};
+        await store.writeClub(a);
+        await store.writeClub(b);
+        await pass();
+        matchday(a, 'md1', DateTime.utc(2026, 10, 10, 20));
+        matchday(b, 'md2', DateTime.utc(2026, 10, 10, 20));
+        await store.writeClub(a);
+        await store.writeClub(b);
+        final fresh = await pass(notify: (x) => x.clubId != 'c1');
+        expect([for (final x in fresh) x.clubId], ['c2']);
+        expect(await pass(), isEmpty); // el de c1 quedó visto
+      },
     );
   });
 }

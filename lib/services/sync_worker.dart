@@ -34,6 +34,29 @@ class SyncWorker {
 
   static bool handles(String task) => task == periodicTask || task == flushTask;
 
+  static const _visibleKey = 'alerts.visibleUntil';
+
+  /// La app está a la vista (hasta dentro de unos minutos; se renueva mientras
+  /// siga): el de segundo plano no avisa de lo del servidor que se está mirando.
+  static Future<void> markVisible(bool visible) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (visible) {
+        await prefs.setInt(
+          _visibleKey,
+          DateTime.now().add(const Duration(minutes: 3)).millisecondsSinceEpoch,
+        );
+      } else {
+        await prefs.remove(_visibleKey);
+      }
+    } catch (_) {
+      // Sin esto, como mucho sale un aviso de más.
+    }
+  }
+
+  static bool _isVisible(SharedPreferences prefs) =>
+      (prefs.getInt(_visibleKey) ?? 0) > DateTime.now().millisecondsSinceEpoch;
+
   /// Programa (o mantiene) el sync periódico. Idempotente.
   Future<void> schedule() async {
     try {
@@ -76,6 +99,7 @@ Future<void> _alert(
   ApiClient api,
   LocalStore store, {
   required bool online,
+  String? watching,
 }) async {
   try {
     await initializeDateFormatting('es');
@@ -85,15 +109,25 @@ Future<void> _alert(
       final me = await api.get('/me');
       if (me != null) await store.writeMe(me);
       if ((me?['user'] as Map?)?['isSuperadmin'] == true) {
-        final j = await api.get('/admin/clubs?status=pending');
-        requests = [
-          for (final c in (j?['clubs'] as List?) ?? const [])
-            Map<String, Object?>.from(c as Map),
-        ];
+        try {
+          final j = await api.get('/admin/clubs?status=pending');
+          requests = [
+            for (final c in (j?['clubs'] as List?) ?? const [])
+              Map<String, Object?>.from(c as Map),
+          ];
+        } catch (_) {
+          // Sin la lista, sus marcas se conservan y lo demás se avisa igual.
+        }
       }
     }
     await LocalNotifications.showAlerts(
-      await refreshAlerts(store, notify: true, requests: requests),
+      await refreshAlerts(
+        store,
+        // Con la app a la vista, lo del servidor que se mira no se avisa.
+        notify: (a) =>
+            watching == null || (watching.isNotEmpty && a.clubId != watching),
+        requests: requests,
+      ),
     );
   } catch (e) {
     debugPrint('Avisos: no se pudieron calcular: $e');
@@ -126,7 +160,15 @@ Future<bool> runBackgroundSync() async {
       isOutdated: UpdateService.isOutdated,
     );
     await engine.sync();
-    await _alert(api, store, online: engine.last.state == SyncState.idle);
+    await prefs.reload();
+    await _alert(
+      api,
+      store,
+      online: engine.last.state == SyncState.idle,
+      watching: SyncWorker._isVisible(prefs)
+          ? SessionStore(prefs).readSelectedClub() ?? ''
+          : null,
+    );
     // Sin señal o el servidor falló: otra vez más tarde. Lo demás (al día,
     // sesión caducada, versión vieja) no mejora reintentando.
     return switch (engine.last.state) {

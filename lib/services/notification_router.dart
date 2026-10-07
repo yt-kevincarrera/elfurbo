@@ -18,17 +18,14 @@ class NotificationRouter {
   /// se registra aquí; lo hace `_ActiveSession`.
   static VoidCallback? onUpdateTapped;
 
-  /// Cambia al servidor de la notificación (lo registra `ClubSession`).
-  /// Devuelve false si ya no soy miembro.
-  static bool Function(String clubId)? onSelectClub;
+  /// Cambia al servidor de la notificación y espera a tener sus datos (lo
+  /// registra `ClubSession`). Devuelve false si no soy miembro.
+  static Future<bool> Function(String clubId)? onSelectClub;
 
-  static void handle(NotificationPayload payload) {
+  static Future<void> handle(NotificationPayload payload) async {
     final clubId = payload.clubId;
-    if (clubId != null &&
-        payload.kind != NotificationKind.clubRequest &&
-        !(onSelectClub?.call(clubId) ?? true)) {
-      return;
-    }
+    final select = onSelectClub;
+    if (clubId != null && select != null && !await select(clubId)) return;
     switch (payload.kind) {
       case NotificationKind.update:
         onUpdateTapped?.call();
@@ -38,12 +35,7 @@ class NotificationRouter {
       case NotificationKind.postMatch:
       case NotificationKind.report:
       case NotificationKind.reportStatus:
-        // Tras cambiar de servidor, la jornada se abre cuando ya está a la vista.
-        if (payload.opensMatch) {
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _openMatch(payload.matchId!),
-          );
-        }
+        if (payload.opensMatch) _openMatch(payload.matchId!);
       case NotificationKind.clubRequest:
         final nav = rootNavigatorKey.currentState;
         nav?.popUntil((route) => route.isFirst);

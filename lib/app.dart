@@ -48,13 +48,23 @@ class _ClubSessionState extends ConsumerState<ClubSession>
     NotificationRouter.onUpdateTapped = () {
       if (mounted) openUpdate(context, ref);
     };
-    // Un aviso de otro servidor: primero se cambia a él.
-    NotificationRouter.onSelectClub = (clubId) {
+    // Un aviso de otro servidor: primero se cambia a él, y se espera a sus datos.
+    NotificationRouter.onSelectClub = (clubId) async {
       if (!mounted) return false;
-      final clubs = ref.read(meProvider).value?.clubs ?? const [];
-      if (!clubs.any((c) => c.id == clubId)) return false;
+      final cloud = ref.read(cloudProvider);
+      bool member() => cloud.me?.clubs.any((c) => c.id == clubId) ?? false;
+      // Lo pudo traer el de segundo plano (p. ej. "aprobaron tu servidor").
+      if (!member()) await cloud.loadMe();
+      if (!mounted || !member()) return false;
       ref.read(selectedClubProvider.notifier).select(clubId);
-      return true;
+      try {
+        await ref
+            .read(clubViewProvider(clubId).future)
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // Se abre igual: la pantalla sabe esperar.
+      }
+      return mounted;
     };
     WidgetsBinding.instance.addPostFrameCallback((_) => _startSafely());
   }

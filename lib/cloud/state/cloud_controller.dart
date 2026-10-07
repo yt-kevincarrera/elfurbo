@@ -121,9 +121,14 @@ class CloudController {
   /// Muestra los avisos nuevos (ver `alerts.dart`); en tests, nada.
   final Future<void> Function(List<Alert>)? showAlerts;
 
-  /// La app está a la vista: lo nuevo que trae el sync se marca como visto sin
-  /// avisar. Abierta pero en segundo plano, avisa ella (como el de WorkManager).
+  /// La app está a la vista: lo nuevo del servidor que se está mirando se marca
+  /// como visto sin avisar (lo de los demás, sí). Abierta pero en segundo plano,
+  /// avisa ella (como el de WorkManager).
   bool visible = true;
+
+  /// El servidor que se está mirando (el elegido, o el primero).
+  String? get watchedClub =>
+      sessions.readSelectedClub() ?? _me?.clubs.firstOrNull?.id;
 
   Session? _session;
   Session? get session => _session;
@@ -368,13 +373,23 @@ class CloudController {
     } else if (state == SyncState.idle) {
       // Servidores nuevos, aprobados o de los que me echaron: el selector al día.
       await loadMe();
-      await _alerts(engine.store);
+      // Varios esperan la misma vuelta del sync: los avisos, una vez.
+      if (!identical(last, _alerted)) {
+        _alerted = last;
+        await _alerts(engine.store);
+      }
     }
   }
 
+  SyncStatus? _alerted;
+
   Future<void> _alerts(LocalStore store) async {
     try {
-      final fresh = await refreshAlerts(store, notify: !visible);
+      final watching = visible ? watchedClub : null;
+      final fresh = await refreshAlerts(
+        store,
+        notify: (a) => watching == null || a.clubId != watching,
+      );
       if (fresh.isNotEmpty) await showAlerts?.call(fresh);
     } catch (_) {
       // Avisar es secundario: nunca rompe el sync.
