@@ -35,7 +35,7 @@ describe("/me", () => {
   it("GET devuelve el usuario, sin servidores ni solicitudes al principio", async () => {
     const { token, user } = await register();
     const res = await api("/me", { token });
-    expect(res.body).toEqual({ user, clubs: [], clubRequests: [] });
+    expect(res.body).toEqual({ user, settings: { showPrivateStats: true }, clubs: [], clubRequests: [] });
   });
 
   it("DELETE con la contraseña mal: 401 y la cuenta sigue", async () => {

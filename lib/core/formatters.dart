@@ -19,6 +19,10 @@ class Fmt {
   static String full(DateTime d) => _cap(_full.format(d));
   static String dateOnly(DateTime d) => _dateOnly.format(d);
 
+  /// "octubre de 2026".
+  static String monthYear(DateTime d) =>
+      DateFormat("MMMM 'de' yyyy", 'es').format(d);
+
   /// "Hoy", "Mañana", "Ayer" o el día de la semana.
   static String relative(DateTime d, {DateTime? now}) {
     final n = now ?? DateTime.now();

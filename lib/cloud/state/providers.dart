@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/admin_api.dart';
+import '../api/players_api.dart';
 import '../auth/session.dart';
 import '../sync/club_data.dart';
 import '../sync/sync_engine.dart';
@@ -94,3 +95,20 @@ final invitesProvider = FutureProvider.autoDispose.family<List<Invite>, String>(
 final prestigeProvider = FutureProvider.autoDispose.family<Prestige, String>(
   (ref, clubId) => ref.watch(clubAdminApiProvider).prestige(clubId),
 );
+
+/// Perfil global y búsqueda de jugadores (necesitan señal).
+final playersApiProvider = Provider<PlayersApi>(
+  (ref) => PlayersApi(ref.watch(cloudProvider).api),
+);
+
+/// El perfil global de un usuario. Lo que se trajo bien queda en memoria
+/// mientras la app está abierta (sin señal se ve lo último); un error no se
+/// queda: al volver a abrirlo se pide otra vez. Otra sesión, otra caché (lo
+/// que ve cada cuenta es distinto).
+final globalProfileProvider = FutureProvider.autoDispose
+    .family<GlobalProfile, String>((ref, userId) async {
+      ref.watch(sessionProvider);
+      final profile = await ref.watch(playersApiProvider).profile(userId);
+      ref.keepAlive();
+      return profile;
+    });

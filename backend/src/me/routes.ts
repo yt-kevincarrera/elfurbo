@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { verifyPassword } from "../auth/crypto";
 import { requireAuth } from "../auth/middleware";
 import { assertNotLocked, authLimits, recordAttempt } from "../auth/rate-limit";
@@ -34,8 +35,13 @@ meRoutes.get("/", async (c) => {
     )
     .bind(userId)
     .all<{ id: string; name: string; status: string; review_note: string | null; created_at: string }>();
+  const prefs = await db
+    .prepare("SELECT show_private_stats FROM users WHERE id = ?")
+    .bind(userId)
+    .first<{ show_private_stats: number }>();
   return c.json({
     user: c.var.auth.user,
+    settings: { showPrivateStats: prefs?.show_private_stats !== 0 },
     clubs: clubs.results.map((r) => ({
       id: r.id,
       name: r.name,
@@ -55,6 +61,17 @@ meRoutes.get("/", async (c) => {
       createdAt: r.created_at,
     })),
   });
+});
+
+const meSettingsSchema = z.object({ showPrivateStats: z.boolean() }).strict();
+
+/** Ajustes de la cuenta: si lo de mis servidores privados sale en mi perfil global (spec 2.0 §5). */
+meRoutes.patch("/", async (c) => {
+  const { showPrivateStats } = await readJson(c, meSettingsSchema);
+  await c.env.DB.prepare("UPDATE users SET show_private_stats = ?, updated_at = ? WHERE id = ?")
+    .bind(showPrivateStats ? 1 : 0, new Date().toISOString(), c.var.auth.user.id)
+    .run();
+  return c.json({ settings: { showPrivateStats } });
 });
 
 meRoutes.delete("/", async (c) => {
