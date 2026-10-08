@@ -139,6 +139,7 @@ List<FixtureDraft> cupFixtures(
   required String Function() newId,
   bool thirdPlace = false,
   int firstRound = 1,
+  bool Function(Entrant a, Entrant b)? avoid,
 }) {
   if (entrants.length < 2) return const [];
   final size = _nextPow2(entrants.length);
@@ -148,6 +149,26 @@ List<FixtureDraft> cupFixtures(
   var slots = <Entrant?>[
     for (final s in order) s <= entrants.length ? entrants[s - 1] : null,
   ];
+  // Cruces que no se quieren en la primera ronda (los del mismo grupo): se
+  // cambia el rival por el de otro partido, si así se arreglan los dos.
+  if (avoid != null) {
+    bool bad(int i) =>
+        slots[i] != null &&
+        slots[i + 1] != null &&
+        avoid(slots[i]!, slots[i + 1]!);
+    for (var i = 0; i < slots.length; i += 2) {
+      if (!bad(i)) continue;
+      for (var j = 0; j < slots.length; j += 2) {
+        if (j == i || slots[j + 1] == null) continue;
+        final a = slots[i + 1];
+        slots[i + 1] = slots[j + 1];
+        slots[j + 1] = a;
+        if (!bad(i) && !bad(j)) break;
+        slots[j + 1] = slots[i + 1];
+        slots[i + 1] = a;
+      }
+    }
+  }
   final out = <FixtureDraft>[];
   var round = firstRound;
   List<FixtureDraft> semis = const [];
@@ -248,6 +269,8 @@ groupsCupFixtures(
       newId: newId,
       thirdPlace: thirdPlace,
       firstRound: lastRound + 1,
+      avoid: (a, b) =>
+          a.source?.group != null && a.source?.group == b.source?.group,
     ),
   );
   return (groups: draw, fixtures: fixtures);
@@ -260,8 +283,13 @@ void scheduleWeekly(
   int hour = 15,
 }) {
   for (final f in fixtures) {
-    final day = startsOn.add(Duration(days: 7 * (f.round - 1)));
-    f.startsAt = DateTime(day.year, day.month, day.day, hour);
+    // Por calendario y no por horas: con el cambio de hora no se corre un día.
+    f.startsAt = DateTime(
+      startsOn.year,
+      startsOn.month,
+      startsOn.day + 7 * (f.round - 1),
+      hour,
+    );
   }
 }
 

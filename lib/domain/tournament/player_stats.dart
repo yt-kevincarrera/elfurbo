@@ -87,9 +87,21 @@ Map<String, Set<String>> suspensions({
   final bans = <String, Map<String, int>>{};
   final yellows = <String, int>{};
   final out = <String, Set<String>>{};
-  for (final f in ordered) {
+  // Un partido aplazado de una ronda anterior no "cumple" la suspensión si el
+  // equipo ya jugó después: cuenta desde su último partido jugado.
+  final lastPlayed = <String, int>{};
+  for (final (i, f) in ordered.indexed) {
+    if (f.status != FixtureStatus.played) continue;
+    for (final team in [f.homeTeamId, f.awayTeamId]) {
+      if (team != null) lastPlayed[team] = i;
+    }
+  }
+  for (final (i, f) in ordered.indexed) {
     for (final team in [f.homeTeamId, f.awayTeamId]) {
       if (team == null) continue;
+      if (f.status != FixtureStatus.played && i < (lastPlayed[team] ?? -1)) {
+        continue;
+      }
       final pending = bans[team] ?? {};
       final out0 = out.putIfAbsent(f.id, () => {});
       for (final e in pending.entries.toList()) {

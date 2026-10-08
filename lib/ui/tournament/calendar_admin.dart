@@ -171,6 +171,14 @@ class CalendarAdminSection extends ConsumerWidget {
     if (t.startsOn != null) {
       scheduleWeekly([...group, ...knockout], t.startsOn!);
     }
+    // El servidor admite como mucho 512 partidos por fase.
+    if (group.length > 512 || knockout.length > 512) {
+      showMessage(
+        'Son demasiados partidos (${group.length + knockout.length}). '
+        'Usa una sola vuelta, grupos o menos equipos.',
+      );
+      return;
+    }
     final rounds = {
       for (final f in [...group, ...knockout]) f.round,
     }.length;

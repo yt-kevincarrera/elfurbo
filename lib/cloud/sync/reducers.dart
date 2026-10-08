@@ -415,7 +415,14 @@ void _applyFixtures(ClubData d, Command c, String? me) {
         Fixture.fromCloud(r.cast<String, dynamic>()),
     ];
     for (final (id, side, team) in dependents(decided, all)) {
-      d.one('fixture', id)?['${side}TeamId'] = team;
+      final next = d.one('fixture', id);
+      // Uno ya jugado no cambia (el servidor rechaza la corrección).
+      if (next == null ||
+          next['status'] == 'played' ||
+          next['status'] == 'walkover') {
+        continue;
+      }
+      next['${side}TeamId'] = team;
     }
   }
 
@@ -465,8 +472,13 @@ void _applyFixtures(ClubData d, Command c, String? me) {
         ..['status'] = 'played'
         ..['homeScore'] = p['homeScore']
         ..['awayScore'] = p['awayScore']
-        ..['homePens'] = p['homePens']
-        ..['awayPens'] = p['awayPens']
+        // Los penales van los dos o ninguno, como en el servidor.
+        ..['homePens'] = p['homePens'] != null && p['awayPens'] != null
+            ? p['homePens']
+            : null
+        ..['awayPens'] = p['homePens'] != null && p['awayPens'] != null
+            ? p['awayPens']
+            : null
         ..['walkoverWinner'] = null
         ..['resultBy'] = me;
       final id = '${f['id']}';
