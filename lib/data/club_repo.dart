@@ -311,4 +311,87 @@ class ClubRepo {
     });
     return id;
   }
+
+  // --------------------------------------------------------------- torneos
+
+  /// Cambios del torneo (solo lo que cambia). Organizadores.
+  Future<void> updateTournament({
+    String? format,
+    Map<String, Object?>? rules,
+    DateTime? registrationClosesAt,
+    bool clearRegistrationClose = false,
+    DateTime? startsOn,
+    int? maxTeams,
+    int? minPlayers,
+    int? maxPlayers,
+    String? status,
+  }) => _run('tournament.update', {
+    'format': ?format,
+    'rules': ?rules,
+    if (clearRegistrationClose)
+      'registrationClosesAt': null
+    else if (registrationClosesAt != null)
+      'registrationClosesAt': _instant(registrationClosesAt),
+    if (startsOn != null) 'startsOn': _day(startsOn),
+    'maxTeams': ?maxTeams,
+    'minPlayers': ?minPlayers,
+    'maxPlayers': ?maxPlayers,
+    'status': ?status,
+  });
+
+  /// Inscribe un equipo. Devuelve su id (para abrirlo enseguida).
+  Future<String> createTeam({
+    required String name,
+    required String shortName,
+    int color = 0,
+    String? captainMemberId,
+    String? representsClubId,
+  }) async {
+    final id = newId();
+    await _run('team.create', {
+      'id': id,
+      'name': name.trim(),
+      'shortName': shortName.trim().toUpperCase(),
+      'color': color,
+      'captainMemberId': ?captainMemberId,
+      'representsClubId': ?representsClubId,
+    });
+    return id;
+  }
+
+  Future<void> updateTeam(
+    String teamId, {
+    String? name,
+    String? shortName,
+    int? color,
+    String? captainMemberId,
+  }) => _run('team.update', {
+    'teamId': teamId,
+    if (name != null) 'name': name.trim(),
+    if (shortName != null) 'shortName': shortName.trim().toUpperCase(),
+    'color': ?color,
+    'captainMemberId': ?captainMemberId,
+  });
+
+  /// `approved`, `pending` o `withdrawn`.
+  Future<void> setTeamStatus(String teamId, String status) =>
+      _run('team.setStatus', {'teamId': teamId, 'status': status});
+
+  Future<void> addTeamPlayer(String teamId, String memberId, {int? shirt}) =>
+      _run('team.addPlayer', {
+        'teamId': teamId,
+        'memberId': memberId,
+        'shirt': ?shirt,
+      });
+
+  Future<void> removeTeamPlayer(String teamId, String memberId) =>
+      _run('team.removePlayer', {'teamId': teamId, 'memberId': memberId});
+
+  Future<void> leaveTeam(String teamId) =>
+      _run('team.leave', {'teamId': teamId});
+
+  Future<void> setShirt(String teamId, String memberId, int? shirt) => _run(
+    'team.setShirt',
+    {'teamId': teamId, 'memberId': memberId, 'shirt': shirt},
+  );
 }

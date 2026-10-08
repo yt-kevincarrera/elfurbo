@@ -11,6 +11,7 @@ import '../../core/app_messenger.dart';
 import '../../core/formatters.dart';
 import '../../domain/provinces.dart';
 import '../profile/global_stats.dart';
+import '../tournament/organize.dart';
 import '../widgets/club_token.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
@@ -536,7 +537,7 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
           Navigator.of(context).popUntil((r) => r.isFirst);
         },
         icon: const Icon(Icons.login),
-        label: const Text('Ir al servidor'),
+        label: Text(c.isTournament ? 'Ir al torneo' : 'Ir al servidor'),
       ),
       'pending' => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -550,6 +551,16 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
             child: const Text('Retirar la solicitud'),
           ),
         ],
+      ),
+      // A un torneo se entra inscribiendo un equipo.
+      _ when c.isTournament => FilledButton.icon(
+        onPressed: () => showRegisterTeam(
+          context,
+          tournamentId: c.id,
+          tournamentName: c.name,
+        ),
+        icon: const Icon(Icons.group_add),
+        label: const Text('Inscribir un equipo'),
       ),
       _ => FilledButton.icon(
         onPressed: _join,

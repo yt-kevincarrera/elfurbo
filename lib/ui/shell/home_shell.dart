@@ -9,6 +9,8 @@ import '../admin/admin_screen.dart';
 import '../matches/matches_screen.dart';
 import '../profile/player_profile_screen.dart';
 import '../stats/leaderboard_screen.dart';
+import '../tournament/tournament_shell.dart';
+import '../../cloud/state/providers.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -47,6 +49,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Un torneo tiene sus propias pestañas.
+    if (ref.watch(
+      currentClubProvider.select((c) => c?.isTournament ?? false),
+    )) {
+      return TournamentShell(
+        key: const ValueKey('torneo'),
+        initialIndex: _index,
+      );
+    }
     final isAdmin = ref.watch(isAdminProvider);
     final updatePending = ref.watch(updateProvider.select((u) => u.pending));
     final myUid = ref.watch(myUidProvider);

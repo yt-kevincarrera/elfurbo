@@ -42,6 +42,22 @@
     { "name": "hacer privado", "type": "club.setVisibility", "payload": { "visibility": "private" } },
     { "name": "no compartir estadísticas", "type": "club.updateSettings", "payload": { "shareStats": false } },
     { "name": "irme del servidor", "type": "member.leave", "payload": {} },
-    { "name": "jugador sin cuenta", "type": "member.createGuest", "payload": { "id": "<uuid>", "displayName": "Yoandry" } }
+    { "name": "jugador sin cuenta", "type": "member.createGuest", "payload": { "id": "<uuid>", "displayName": "Yoandry" } },
+    { "name": "reglas del torneo", "type": "tournament.update", "payload": { "rules": { "pointsWin": 2, "legs": 2 }, "maxPlayers": 12 } },
+    { "name": "fechas del torneo", "type": "tournament.update", "payload": { "registrationClosesAt": "2026-10-31T23:59:00.000Z", "startsOn": "2026-11-07" } },
+    { "name": "sin cierre de inscripción", "type": "tournament.update", "payload": { "registrationClosesAt": null } },
+    { "name": "abrir inscripción", "type": "tournament.update", "payload": { "status": "registration" } },
+    { "name": "formato copa", "type": "tournament.update", "payload": { "format": "cup" } },
+    { "name": "inscribir equipo", "type": "team.create", "payload": { "id": "<uuid>", "name": "Los Tigres", "shortName": "TIG", "color": 3 } },
+    { "name": "equipo con capitán", "type": "team.create", "payload": { "id": "<uuid>", "name": "Leones", "shortName": "LEO", "color": 0, "captainMemberId": "p1" } },
+    { "name": "editar equipo", "type": "team.update", "payload": { "teamId": "t1", "name": "Tigres FC", "color": 2 } },
+    { "name": "nuevo capitán", "type": "team.update", "payload": { "teamId": "t1", "captainMemberId": "p2" } },
+    { "name": "aprobar equipo", "type": "team.setStatus", "payload": { "teamId": "t1", "status": "approved" } },
+    { "name": "añadir jugador", "type": "team.addPlayer", "payload": { "teamId": "t1", "memberId": "p2" } },
+    { "name": "añadir jugador con dorsal", "type": "team.addPlayer", "payload": { "teamId": "t1", "memberId": "p3", "shirt": 10 } },
+    { "name": "sacar jugador", "type": "team.removePlayer", "payload": { "teamId": "t1", "memberId": "p2" } },
+    { "name": "salirme del equipo", "type": "team.leave", "payload": { "teamId": "t1" } },
+    { "name": "poner dorsal", "type": "team.setShirt", "payload": { "teamId": "t1", "memberId": "p2", "shirt": 7 } },
+    { "name": "quitar dorsal", "type": "team.setShirt", "payload": { "teamId": "t1", "memberId": "p2", "shirt": null } }
   ]
 }

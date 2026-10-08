@@ -108,7 +108,101 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
     case 'season.delete':
       d.table('season').remove('${p['seasonId']}');
     default:
-      _applyPachanga(d, c, myMemberId);
+      if (c.type.startsWith('team.') || c.type.startsWith('tournament.')) {
+        _applyTournament(d, c, myMemberId);
+      } else {
+        _applyPachanga(d, c, myMemberId);
+      }
+  }
+}
+
+/// Torneo, equipos y plantillas (ids de plantilla: `equipo:miembro`, como el
+/// servidor).
+void _applyTournament(ClubData d, Command c, String? me) {
+  final p = c.payload;
+  final myRole = me == null ? null : d.one('member', me)?['role'];
+  final organizer = const {'owner', 'admin'}.contains(myRole);
+  Row? team() => d.one('team', '${p['teamId']}');
+  String playerKey(Object? team, Object? member) => '$team:$member';
+
+  void addPlayer(Object? teamId, Object? memberId, Object? shirt) {
+    final id = playerKey(teamId, memberId);
+    final previous = d.one('teamPlayer', id);
+    d.table('teamPlayer')[id] = {
+      'id': id,
+      'teamId': '$teamId',
+      'memberId': '$memberId',
+      'shirt': shirt ?? previous?['shirt'],
+      'status': 'active',
+    };
+  }
+
+  switch (c.type) {
+    case 'tournament.update':
+      final t = d.one('tournament', d.clubId);
+      if (t == null) return;
+      for (final f in const [
+        'format',
+        'registrationClosesAt',
+        'startsOn',
+        'maxTeams',
+        'minPlayers',
+        'maxPlayers',
+        'status',
+      ]) {
+        if (p.containsKey(f)) t[f] = p[f];
+      }
+      if (p['rules'] is Map) {
+        t['rules'] = {
+          ...(t['rules'] as Map? ?? const {}),
+          ...(p['rules'] as Map),
+        };
+      }
+    case 'team.create':
+      final captain = organizer ? p['captainMemberId'] : me;
+      d.table('team')['${p['id']}'] = {
+        'id': p['id'],
+        'name': p['name'],
+        'shortName': p['shortName'],
+        'color': p['color'] ?? 0,
+        'captainMemberId': captain,
+        'representsClubId': p['representsClubId'],
+        'status': organizer ? 'approved' : 'pending',
+        'seed': null,
+        'groupLabel': null,
+      };
+      if (captain != null) addPlayer(p['id'], captain, null);
+    case 'team.update':
+      final t = team();
+      if (t == null) return;
+      for (final f in const [
+        'name',
+        'shortName',
+        'color',
+        'captainMemberId',
+        'representsClubId',
+      ]) {
+        if (p.containsKey(f)) t[f] = p[f];
+      }
+    case 'team.setStatus':
+      final t = team();
+      if (t == null) return;
+      t['status'] = p['status'];
+      if (p['status'] == 'withdrawn') {
+        for (final tp in d.all('teamPlayer')) {
+          if (tp['teamId'] == t['id']) tp['status'] = 'removed';
+        }
+      }
+    case 'team.addPlayer':
+      addPlayer(p['teamId'], p['memberId'], p['shirt']);
+    case 'team.removePlayer':
+      d.one('teamPlayer', playerKey(p['teamId'], p['memberId']))?['status'] =
+          'removed';
+    case 'team.leave':
+      d.one('teamPlayer', playerKey(p['teamId'], me))?['status'] = 'removed';
+    case 'team.setShirt':
+      d.one('teamPlayer', playerKey(p['teamId'], p['memberId']))?['shirt'] =
+          p['shirt'];
   }
 }
 

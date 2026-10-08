@@ -15,6 +15,7 @@ import '../widgets/guest_dialog.dart';
 import 'audit_screen.dart';
 import 'club_profile.dart';
 import 'prestige.dart';
+import '../tournament/organize.dart';
 import 'invites.dart';
 import 'join_requests.dart';
 import 'settings.dart';
@@ -58,6 +59,7 @@ class AdminScreen extends ConsumerWidget {
           if (canManageClub(myRole)) const ClubProfileSection(),
           if (canManageClub(myRole)) const ClubSettingsSection(),
           const PrestigeSection(),
+          if (canManageInvites(myRole)) const OrganizeTournamentSection(),
           SectionTitle(
             'Temporadas',
             trailing: readOnly
