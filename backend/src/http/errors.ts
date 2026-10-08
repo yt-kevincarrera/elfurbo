@@ -47,6 +47,8 @@ export const errors = {
       "Esta persona administra la app u otro servidor: el código se lo tiene que dar el superadmin",
     ),
   matchdayClosed: () => new ApiError(409, "matchday_closed", "La jornada está cerrada: ya no acepta cambios"),
+  checkinCode: () => new ApiError(400, "invalid_checkin_code", "Ese código no es el de ahora. Pídele al organizador el que sale en su pantalla"),
+  checkinClosed: () => new ApiError(409, "checkin_closed", "El código solo vale cerca de la hora de la jornada"),
   matchdayNotPlayed: () => new ApiError(409, "matchday_not_played", "La jornada todavía no se ha jugado"),
   matchdayAlreadyPlayed: () =>
     new ApiError(409, "matchday_already_played", "La jornada ya se jugó: marca si jugaste o no"),

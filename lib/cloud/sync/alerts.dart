@@ -1,6 +1,8 @@
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../domain/waitlist.dart';
+import '../../models/attendance.dart';
 import '../rules/matchday_rules.dart';
 import 'local_store.dart';
 import 'club_data.dart';
@@ -46,6 +48,9 @@ enum AlertKind {
 
   /// Torneos: hay resultado de un partido de mi equipo.
   fixtureResult,
+
+  /// Estaba en lista de espera y se liberó un cupo.
+  spotFreed,
 }
 
 class Alert {
@@ -393,6 +398,64 @@ List<Alert> accountAlerts(
   ];
 }
 
+/// Las jornadas por venir con cupo en las que dije "Voy": true si estoy en
+/// espera, false si estoy dentro.
+Map<String, bool> waitingIn(
+  ClubData data, {
+  required String myMemberId,
+  required DateTime now,
+}) {
+  final byMatchday = <String, List<Attendance>>{};
+  for (final a in data.all('attendance')) {
+    byMatchday
+        .putIfAbsent('${a['matchdayId']}', () => [])
+        .add(Attendance.fromCloud(a.cast<String, dynamic>()));
+  }
+  final out = <String, bool>{};
+  for (final md in data.all('matchday')) {
+    final cap = (md['maxPlayers'] as num?)?.toInt() ?? 0;
+    final start = DateTime.tryParse('${md['startsAt']}');
+    if (cap <= 0 || start == null || md['status'] == 'cancelled') continue;
+    if (!now.isBefore(start)) continue;
+    final list = waitlist(byMatchday['${md['id']}'] ?? const [], cap);
+    if (list.waiting.contains(myMemberId)) {
+      out['${md['id']}'] = true;
+    } else if (list.inside.contains(myMemberId)) {
+      out['${md['id']}'] = false;
+    }
+  }
+  return out;
+}
+
+/// "¡Entraste!": de las jornadas en las que estaba en espera ([wasWaiting],
+/// claves `wait:<club>:<jornada>`), las que ahora tienen sitio para mí.
+List<Alert> spotAlerts(
+  ClubData data, {
+  required Map<String, bool> waiting,
+  required Set<String> wasWaiting,
+}) {
+  final club = data.club;
+  if (club == null) return const [];
+  final settings = (club['settings'] as Map?) ?? const {};
+  final timezone = '${settings['timezone'] ?? 'America/Havana'}';
+  return [
+    for (final e in waiting.entries)
+      if (!e.value && wasWaiting.contains('wait:${data.clubId}:${e.key}'))
+        if (data.one('matchday', e.key) case final md?)
+          Alert(
+            key: 'in:${e.key}@${data.clubId}',
+            kind: AlertKind.spotFreed,
+            clubId: data.clubId,
+            clubName: '${club['name'] ?? 'tu servidor'}',
+            title: '¡Entraste! Se liberó un cupo',
+            body:
+                '${whenLabel(DateTime.parse('${md['startsAt']}'), timezone)}'
+                '${_place(md)}. Ya estás en la lista.',
+            matchdayId: e.key,
+          ),
+  ];
+}
+
 /// Superadmin: las solicitudes pendientes (`{id, name}`).
 List<Alert> requestAlerts(List<Map<String, Object?>> pending) => [
   for (final c in pending)
@@ -508,6 +571,7 @@ Future<List<Alert>> refreshAlerts(
   // Servidores que esta vez no se miran (sin datos todavía, o suspendidos):
   // sus marcas se quedan, para no repetir todo cuando vuelvan.
   final skipped = <String>{};
+  final waitingNow = <String>{};
   for (final c in (me['clubs'] as List?) ?? const []) {
     final id = '${(c as Map)['id']}';
     final data = await store.readClub(id);
@@ -515,7 +579,16 @@ Future<List<Alert>> refreshAlerts(
       skipped.add(id);
       continue;
     }
-    current.addAll(clubAlerts(data, myMemberId: '${c['memberId']}', now: at));
+    final memberId = '${c['memberId']}';
+    current.addAll(clubAlerts(data, myMemberId: memberId, now: at));
+    final waiting = waitingIn(data, myMemberId: memberId, now: at);
+    current.addAll(
+      spotAlerts(data, waiting: waiting, wasWaiting: ledger.pending),
+    );
+    waitingNow.addAll([
+      for (final e in waiting.entries)
+        if (e.value) 'wait:$id:${e.key}',
+    ]);
   }
   final fresh = ledger.take(
     current,
@@ -524,8 +597,17 @@ Future<List<Alert>> refreshAlerts(
         (requests == null && k.startsWith('sa:')) ||
         skipped.any((id) => k.endsWith('@$id')),
   );
+  // Las esperas de los servidores que esta vez no se miraron se quedan.
+  final keptWaits = ledger.pending
+      .where(
+        (k) =>
+            k.startsWith('wait:') &&
+            skipped.any((id) => k.startsWith('wait:$id:')),
+      )
+      .toSet();
   ledger.pending
-    ..clear()
+    ..removeWhere((k) => !keptWaits.contains(k))
+    ..addAll(waitingNow)
     ..addAll([
       for (final r in (me['clubRequests'] as List?) ?? const [])
         if ((r as Map)['status'] == 'pending') '${r['id']}',

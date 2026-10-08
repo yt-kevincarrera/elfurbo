@@ -25,6 +25,7 @@ export const updateSettings = command(
       closeAfterHours: z.number().int().min(24).max(168).optional(),
       timezone: z.string().min(1).max(64).refine(isTimeZone, { error: "Zona horaria no válida" }).optional(),
       shareStats: z.boolean().optional(),
+      maxPlayers: z.number().int().min(0).max(60).optional(),
     })
     .strict(),
   async (ctx, p) => {

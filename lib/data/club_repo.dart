@@ -92,6 +92,7 @@ class ClubRepo {
     int? durationMinutes,
     String? place,
     String? notes,
+    int? maxPlayers,
   }) async {
     for (final date in dates) {
       await _run('matchday.create', {
@@ -101,6 +102,7 @@ class ClubRepo {
         'place': _text(place),
         'notes': _text(notes),
         'seasonId': ?seasonId,
+        'maxPlayers': ?maxPlayers,
       });
     }
   }
@@ -112,6 +114,7 @@ class ClubRepo {
     String? seasonId,
     String? place,
     String? notes,
+    int? maxPlayers,
   }) => _run('matchday.update', {
     'matchdayId': id,
     if (date != null) 'startsAt': _instant(date),
@@ -119,6 +122,7 @@ class ClubRepo {
     'seasonId': ?seasonId,
     if (place != null) 'place': _text(place),
     if (notes != null) 'notes': _text(notes),
+    'maxPlayers': ?maxPlayers,
   });
 
   Future<void> setMatchStatus(String id, MatchStatus status) =>
@@ -147,6 +151,10 @@ class ClubRepo {
     'attendance.setIntent',
     {'matchdayId': matchId, 'intent': status?.name},
   );
+
+  /// "Estoy aquí" con el código de asistencia que enseña el staff.
+  Future<void> checkIn(String matchId, String code) =>
+      _run('attendance.checkIn', {'matchdayId': matchId, 'code': code});
 
   /// "Jugué" / "No fui" (mío).
   Future<void> setPlayed(String matchId, bool played) =>
@@ -262,12 +270,14 @@ class ClubRepo {
     int? confirmationsNeeded,
     int? closeAfterHours,
     bool? shareStats,
+    int? maxPlayers,
   }) => _run('club.updateSettings', {
     'matchdayCreators': ?matchdayCreators,
     'reportValidation': ?reportValidation,
     'confirmationsNeeded': ?confirmationsNeeded,
     'closeAfterHours': ?closeAfterHours,
     'shareStats': ?shareStats,
+    'maxPlayers': ?maxPlayers,
   });
 
   /// Nombre, descripción, provincia, ciudad y color (solo lo que cambia). Solo

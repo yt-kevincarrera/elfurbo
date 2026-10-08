@@ -105,6 +105,21 @@ class ClubSettingsSection extends ConsumerWidget {
           options: const {true: 'Se comparten', false: 'Solo aquí'},
           onChanged: (v) => save(repo.updateSettings(shareStats: v)),
         ),
+        setting(
+          title: 'Cupo de las jornadas nuevas',
+          help:
+              'Los primeros en decir "Voy" están dentro; el resto, en lista de '
+              'espera. Se cambia en cada jornada.',
+          value: s.maxPlayers,
+          options: {
+            0: 'Sin límite',
+            for (final n in const [10, 12, 14, 16, 18, 20, 22]) n: '$n',
+            if (s.maxPlayers != 0 &&
+                ![10, 12, 14, 16, 18, 20, 22].contains(s.maxPlayers))
+              s.maxPlayers: '${s.maxPlayers}',
+          },
+          onChanged: (v) => save(repo.updateSettings(maxPlayers: v)),
+        ),
       ],
     );
   }

@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
 import '../profile/player_profile_screen.dart';
+import 'records_screen.dart';
 import '../widgets/common.dart';
 import '../widgets/chalk.dart';
 import '../widgets/expressive.dart';
@@ -37,7 +38,16 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tabla'),
-        actions: const [SeasonSelector()],
+        actions: [
+          IconButton(
+            tooltip: 'Récords',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const RecordsScreen()),
+            ),
+            icon: const Icon(Icons.military_tech_outlined),
+          ),
+          const SeasonSelector(),
+        ],
       ),
       body: Column(
         children: [

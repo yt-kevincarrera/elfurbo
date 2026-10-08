@@ -18,6 +18,8 @@ class Attendance {
     this.status,
     this.played,
     this.playedSetBy,
+    this.checkedInAt,
+    this.intentAt,
   });
 
   final String matchId;
@@ -27,6 +29,14 @@ class Attendance {
   final AttendanceStatus? status;
   final bool? played;
   final String? playedSetBy;
+
+  /// Cuándo comprobó con el código que estaba (null: no lo comprobó).
+  final DateTime? checkedInAt;
+
+  /// Cuándo dijo "Voy" (hora del servidor): su turno en la lista de espera.
+  final DateTime? intentAt;
+
+  bool get checkedIn => checkedInAt != null;
 
   bool get isPresent => played == true;
   bool get isAbsent => played == false;
@@ -46,6 +56,8 @@ class Attendance {
             ),
       played: d['played'] as bool?,
       playedSetBy: d['playedSetBy'] as String?,
+      checkedInAt: DateTime.tryParse('${d['checkedInAt'] ?? ''}'),
+      intentAt: DateTime.tryParse('${d['intentAt'] ?? ''}'),
     );
   }
 }

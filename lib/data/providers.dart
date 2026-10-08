@@ -52,7 +52,11 @@ class ClubSettings {
     this.closeAfterHours = MatchDay.defaultCloseAfterHours,
     this.joinPolicy = 'request',
     this.shareStats = true,
+    this.maxPlayers = 0,
   });
+
+  /// Cupo por defecto de las jornadas nuevas (0 = sin límite).
+  final int maxPlayers;
 
   /// Cómo se entra si es público: `request` (lo acepta un admin) u `open`.
   final String joinPolicy;
@@ -81,6 +85,7 @@ class ClubSettings {
           MatchDay.defaultCloseAfterHours,
       joinPolicy: (s['joinPolicy'] as String?) ?? 'request',
       shareStats: s['shareStats'] != false,
+      maxPlayers: (s['maxPlayers'] as num?)?.toInt() ?? 0,
     );
   }
 }

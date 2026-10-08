@@ -295,6 +295,10 @@ void _applyPachanga(ClubData d, Command c, String? me) {
         'status': 'scheduled',
         'teams': null,
         'createdBy': me,
+        'maxPlayers':
+            p['maxPlayers'] ??
+            ((d.club?['settings'] as Map?)?['maxPlayers'] as num?)?.toInt() ??
+            0,
       };
     case 'matchday.update':
       final md = matchday();
@@ -305,6 +309,7 @@ void _applyPachanga(ClubData d, Command c, String? me) {
         'place',
         'notes',
         'seasonId',
+        'maxPlayers',
       ]) {
         if (p.containsKey(f)) md[f] = p[f];
       }
@@ -318,7 +323,24 @@ void _applyPachanga(ClubData d, Command c, String? me) {
     case 'teams.save':
       matchday()?['teams'] = p['teams'];
     case 'attendance.setIntent':
-      if (me != null) attendance(me)['intent'] = p['intent'];
+      if (me != null) {
+        final a = attendance(me);
+        // El turno en la lista de espera: se toma al decir "Voy" y se pierde
+        // al bajarse (el servidor pone su hora al sincronizar).
+        if (p['intent'] != 'yes') {
+          a['intentAt'] = null;
+        } else if (a['intent'] != 'yes') {
+          a['intentAt'] = c.clientAt.toUtc().toIso8601String();
+        }
+        a['intent'] = p['intent'];
+      }
+    case 'attendance.checkIn':
+      if (me != null) {
+        final a = attendance(me)
+          ..['played'] = true
+          ..['playedSetBy'] = me;
+        a['checkedInAt'] ??= c.clientAt.toUtc().toIso8601String();
+      }
     case 'attendance.setPlayed':
       if (me != null) {
         attendance(me)

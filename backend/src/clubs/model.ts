@@ -16,6 +16,8 @@ export type ClubSettings = {
   joinPolicy: "request" | "open";
   /** Si sus estadísticas salen en el perfil global de sus jugadores. */
   shareStats: boolean;
+  /** Cupo por defecto de las jornadas nuevas (0 = sin límite). */
+  maxPlayers: number;
 };
 
 export const DEFAULT_SETTINGS: ClubSettings = {
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: ClubSettings = {
   timezone: "America/Havana",
   joinPolicy: "request",
   shareStats: true,
+  maxPlayers: 0,
 };
 
 export type ClubRecord = {

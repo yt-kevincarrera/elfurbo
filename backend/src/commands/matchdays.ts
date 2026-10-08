@@ -11,6 +11,8 @@ const durationMinutes = z.number().int().min(0).max(600);
 const place = z.string().trim().max(80).nullable();
 const notes = z.string().trim().max(300).nullable();
 const seasonId = z.string().min(1).max(64);
+/** Cupo de la jornada (0 = sin límite); los de más quedan en lista de espera. */
+const maxPlayers = z.number().int().min(0).max(60);
 
 /** ¿Hay datos de alguien que no sea quien la creó? (asistencia, reportes o votos). */
 async function hasOthersData(ctx: CommandContext, md: Matchday) {
@@ -57,6 +59,7 @@ export const createMatchday = command(
     place: place.optional(),
     notes: notes.optional(),
     seasonId: seasonId.optional(),
+    maxPlayers: maxPlayers.optional(),
   }),
   async (ctx, p) => {
     if (!canCreateMatchday(ctx.member.role, ctx.club.settings.matchdayCreators)) throw errors.forbidden();
@@ -66,10 +69,22 @@ export const createMatchday = command(
       statements: [
         ctx.db
           .prepare(
-            `INSERT INTO matchdays (id, club_id, season_id, starts_at, duration_minutes, place, notes, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO matchdays (id, club_id, season_id, starts_at, duration_minutes, place, notes, max_players, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .bind(p.id, ctx.club.id, season, p.startsAt, p.durationMinutes, p.place ?? null, p.notes ?? null, ctx.member.id, at, at),
+          .bind(
+            p.id,
+            ctx.club.id,
+            season,
+            p.startsAt,
+            p.durationMinutes,
+            p.place ?? null,
+            p.notes ?? null,
+            p.maxPlayers ?? ctx.club.settings.maxPlayers,
+            ctx.member.id,
+            at,
+            at,
+          ),
       ],
       touched: [upsert("matchday", p.id)],
     };
@@ -86,6 +101,7 @@ export const updateMatchday = command(
       place: place.optional(),
       notes: notes.optional(),
       seasonId: seasonId.optional(),
+      maxPlayers: maxPlayers.optional(),
     })
     .refine((p) => Object.keys(p).length > 1, { error: "Nada que cambiar" }),
   async (ctx, p) => {
@@ -104,7 +120,7 @@ export const updateMatchday = command(
             `UPDATE matchdays SET starts_at = ?, duration_minutes = ?,
                     place = CASE WHEN ? THEN ? ELSE place END,
                     notes = CASE WHEN ? THEN ? ELSE notes END,
-                    season_id = ?, updated_at = ?
+                    max_players = COALESCE(?, max_players), season_id = ?, updated_at = ?
               WHERE id = ?`,
           )
           .bind(
@@ -114,6 +130,7 @@ export const updateMatchday = command(
             p.place ?? null,
             p.notes !== undefined ? 1 : 0,
             p.notes ?? null,
+            p.maxPlayers ?? null,
             season,
             ctx.now.toISOString(),
             md.id,
