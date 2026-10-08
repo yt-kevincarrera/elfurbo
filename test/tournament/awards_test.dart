@@ -71,6 +71,28 @@ void main() {
     },
   );
 
+  test('fair play: uno que se retiró no se lo lleva', () {
+    final p = proposeAwards(
+      tournament: Tournament.fromCloud({
+        'id': 't',
+        'format': 'league',
+        'status': 'in_progress',
+      }),
+      teams: [
+        team('A'),
+        team('B'),
+        Team(id: 'X', name: 'X', shortName: 'X', status: TeamStatus.withdrawn),
+      ],
+      fixtures: [
+        fixture('f1', 'league', 1, 'A', 'B', 1, 0),
+        fixture('f2', 'league', 1, 'X', 'A', 0, 1),
+      ],
+      events: [event('f1', 'A', 'a1', 'yellow'), event('f1', 'B', 'b1', 'red')],
+      lineups: const [],
+    );
+    expect(p.firstWhere((a) => a.kind == 'fair_play').teamId, 'A');
+  });
+
   test(
     'liga: campeón y subcampeón de la tabla; sin partidos no se propone nada',
     () {

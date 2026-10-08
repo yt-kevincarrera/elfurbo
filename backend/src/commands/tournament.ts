@@ -499,10 +499,14 @@ export const finishTournament = command(
       : { results: [] };
     const known = new Set(members.map((r) => r.id));
     for (const a of p.awards) {
-      if (TEAM_AWARDS.has(a.kind) ? !a.teamId || !approved.has(a.teamId) : !a.memberId || !known.has(a.memberId)) {
-        throw errors.invalidInput({ awards: ["Un premio no cuadra con los equipos o jugadores del torneo"] });
-      }
+      // Cada premio lleva solo lo suyo: un equipo o un jugador de este torneo, nunca los dos.
+      const ok = TEAM_AWARDS.has(a.kind)
+        ? !!a.teamId && approved.has(a.teamId) && !a.memberId
+        : !!a.memberId && known.has(a.memberId) && !a.teamId;
+      if (!ok) throw errors.invalidInput({ awards: ["Un premio no cuadra con los equipos o jugadores del torneo"] });
     }
+    const podium = p.awards.filter((a) => a.kind === "champion" || a.kind === "runner_up" || a.kind === "third").map((a) => a.teamId);
+    if (new Set(podium).size !== podium.length) throw errors.invalidInput({ awards: ["Un equipo no puede tener dos puestos del podio"] });
     const at = ctx.now.toISOString();
     const statements = [
       ...clearAwards(ctx),

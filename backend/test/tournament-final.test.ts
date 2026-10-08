@@ -76,6 +76,16 @@ describe("terminar un torneo", () => {
     expect(await rejection(host.owner.token, cmd(id, "tournament.finish", { awards: [{ kind: "champion", memberId: rosters[0]![0] }] }))).toBe(
       "invalid_input",
     );
+    // Un premio de jugador no se cuelga de un equipo (de este u otro torneo), ni dos puestos al mismo.
+    expect(
+      await rejection(host.owner.token, cmd(id, "tournament.finish", { awards: [{ kind: "best_player", memberId: rosters[0]![0], teamId: teams[1] }] })),
+    ).toBe("invalid_input");
+    expect(
+      await rejection(
+        host.owner.token,
+        cmd(id, "tournament.finish", { awards: [{ kind: "champion", teamId: teams[0] }, { kind: "third", teamId: teams[0] }] }),
+      ),
+    ).toBe("invalid_input");
     await apply(host.owner.token, cmd(id, "tournament.finish", { awards }));
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM awards WHERE club_id = ?").bind(id).first<{ n: number }>();
     expect(n!.n).toBe(4);

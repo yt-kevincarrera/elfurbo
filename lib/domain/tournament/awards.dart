@@ -89,10 +89,12 @@ List<AwardProposal> proposeAwards({
     }
   }
   // Fair play: entre los que jugaron algo, el de menos tarjetas (1 por amarilla, 3 por roja).
+  // Solo los aprobados: uno que se retiró no puede llevarse un premio.
+  final approvedIds = {for (final t in approved) t.id};
   final playedTeams = {
     for (final f in fixtures)
       if (f.status == FixtureStatus.played) ...[f.homeTeamId, f.awayTeamId],
-  }.whereType<String>();
+  }.whereType<String>().where(approvedIds.contains);
   if (playedTeams.isNotEmpty) {
     int cards(String team) => events
         .where((e) => e.teamId == team)

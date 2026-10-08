@@ -297,6 +297,7 @@ void main() {
           'kind': 'tournament',
           'settings': {},
         }
+        ..table('tournament')['t1'] = {'id': 't1', 'status': 'in_progress'}
         ..table('team')['a'] = {'id': 'a', 'name': 'Águilas'}
         ..table('team')['b'] = {'id': 'b', 'name': 'Búhos'}
         ..table('teamPlayer')['a:$me'] = {
@@ -336,6 +337,9 @@ void main() {
         ['Te toca anotar Águilas - Búhos', 'Búhos 0 - 2 Águilas'],
       );
       expect(pendingCount(d, myMemberId: me, now: now), 1);
+      // Terminado, ya no hay nada que anotar.
+      d.table('tournament')['t1'] = {'id': 't1', 'status': 'finished'};
+      expect(pendingCount(d, myMemberId: me, now: now), 0);
     },
   );
 

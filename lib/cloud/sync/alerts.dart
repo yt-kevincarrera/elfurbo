@@ -269,6 +269,8 @@ List<Alert> _tournamentAlerts(
     for (final p in data.all('teamPlayer'))
       if (p['memberId'] == me && p['status'] == 'active') '${p['teamId']}',
   };
+  // Terminado (o sin empezar), ya no hay nada que anotar.
+  final inPlay = data.all('tournament').firstOrNull?['status'] == 'in_progress';
   final out = <Alert>[];
   for (final f in data.all('fixture')) {
     final home = f['homeTeamId'];
@@ -276,10 +278,11 @@ List<Alert> _tournamentAlerts(
     if (home == null || away == null) continue;
     final vs = '${names['$home'] ?? '?'} - ${names['$away'] ?? '?'}';
     final starts = DateTime.tryParse('${f['startsAt']}');
-    if (f['scorerMemberId'] == me &&
+    if (inPlay &&
+        f['scorerMemberId'] == me &&
         f['status'] == 'scheduled' &&
-        (starts == null ||
-            !now.isBefore(starts.subtract(const Duration(days: 1))))) {
+        starts != null &&
+        !now.isBefore(starts.subtract(const Duration(days: 1)))) {
       out.add(
         alert(
           'sc:${f['id']}',

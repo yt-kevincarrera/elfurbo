@@ -187,21 +187,26 @@ playerRoutes.get("/:userId", async (c) => {
   // La vitrina: los premios de los torneos visibles, a su nombre o al de su equipo.
   const trophies = [];
   const tournaments = visible.filter((m) => m.kind === "tournament" && counted(m));
-  for (let i = 0; i < tournaments.length; i += 40) {
-    const chunk = tournaments.slice(i, i + 40).map((m) => m.member_id);
+  // Tres veces cada trozo en la consulta: 30 por vuelta para no pasar de 100 parámetros.
+  for (let i = 0; i < tournaments.length; i += 30) {
+    const part = tournaments.slice(i, i + 30);
+    const chunk = part.map((m) => m.member_id);
+    const clubs = part.map((m) => m.club_id);
     const marks = chunk.map(() => "?").join(", ");
     const { results } = await db
       .prepare(
         `SELECT a.club_id, a.kind, a.value, a.created_at, t.name AS team_name
            FROM awards a LEFT JOIN teams t ON t.id = a.team_id
-          WHERE a.member_id IN (${marks})
-             OR a.team_id IN (SELECT team_id FROM team_players WHERE status = 'active' AND member_id IN (${marks}))
+          WHERE a.club_id IN (${marks})
+            AND (a.member_id IN (${marks})
+                 OR a.team_id IN (SELECT team_id FROM team_players WHERE status = 'active' AND member_id IN (${marks})))
           ORDER BY a.created_at DESC`,
       )
-      .bind(...chunk, ...chunk)
+      .bind(...clubs, ...chunk, ...chunk)
       .all<{ club_id: string; kind: string; value: number | null; created_at: string; team_name: string | null }>();
     for (const r of results) {
-      const m = tournaments.find((x) => x.club_id === r.club_id)!;
+      const m = part.find((x) => x.club_id === r.club_id);
+      if (!m) continue;
       const named = self || m.visibility === "public" || viewerClubs.has(m.club_id);
       trophies.push({
         kind: r.kind,
