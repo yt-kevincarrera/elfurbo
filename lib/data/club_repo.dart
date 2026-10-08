@@ -394,4 +394,88 @@ class ClubRepo {
     'team.setShirt',
     {'teamId': teamId, 'memberId': memberId, 'shirt': shirt},
   );
+
+  // ------------------------------------------------------------- partidos
+
+  /// El calendario de una fase (`league`, `group` o `knockout`). En grupos,
+  /// [groups] dice el grupo de cada equipo.
+  Future<void> generateFixtures(
+    String stage,
+    List<Map<String, Object?>> fixtures, {
+    Map<String, String>? groups,
+  }) => _run('fixtures.generate', {
+    'stage': stage,
+    'fixtures': fixtures,
+    if (groups != null)
+      'groups': [
+        for (final e in groups.entries)
+          {'teamId': e.key, 'groupLabel': e.value},
+      ],
+  });
+
+  Future<void> clearFixtures(String stage) =>
+      _run('fixtures.clear', {'stage': stage});
+
+  /// Fecha, terreno y anotador (solo lo que cambia; '' quita el terreno).
+  Future<void> scheduleFixture(
+    String fixtureId, {
+    DateTime? startsAt,
+    String? place,
+    String? scorerMemberId,
+    bool clearScorer = false,
+  }) => _run('fixture.schedule', {
+    'fixtureId': fixtureId,
+    if (startsAt != null) 'startsAt': _instant(startsAt),
+    if (place != null) 'place': _text(place),
+    if (clearScorer)
+      'scorerMemberId': null
+    else if (scorerMemberId != null)
+      'scorerMemberId': scorerMemberId,
+  });
+
+  /// El resultado con su detalle (eventos y quién jugó).
+  Future<void> fixtureResult({
+    required String fixtureId,
+    required int homeScore,
+    required int awayScore,
+    int? homePens,
+    int? awayPens,
+    List<Map<String, Object?>> events = const [],
+    List<String> lineupHome = const [],
+    List<String> lineupAway = const [],
+  }) => _run('fixture.result', {
+    'fixtureId': fixtureId,
+    'homeScore': homeScore,
+    'awayScore': awayScore,
+    'homePens': ?homePens,
+    'awayPens': ?awayPens,
+    'events': events,
+    'lineups': {'home': lineupHome, 'away': lineupAway},
+  });
+
+  /// `scheduled` (borra el resultado), `cancelled` o `walkover` (con el que gana).
+  Future<void> setFixtureStatus(
+    String fixtureId,
+    String status, {
+    String? walkoverWinner,
+  }) => _run('fixture.setStatus', {
+    'fixtureId': fixtureId,
+    'status': status,
+    'walkoverWinner': ?walkoverWinner,
+  });
+
+  /// De los grupos al cuadro: qué equipos van en cada partido.
+  Future<void> advanceStage(
+    List<({String fixtureId, String? homeTeamId, String? awayTeamId})>
+    assignments,
+  ) => _run('stage.advance', {
+    'assignments': [
+      for (final a in assignments)
+        {
+          'fixtureId': a.fixtureId,
+          'homeTeamId': ?a.homeTeamId,
+          'awayTeamId': ?a.awayTeamId,
+        },
+    ],
+  });
 }

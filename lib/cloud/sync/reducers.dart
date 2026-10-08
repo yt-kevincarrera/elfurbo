@@ -1,4 +1,6 @@
 import 'club_data.dart';
+import '../../domain/tournament/knockout.dart';
+import '../../models/tournament.dart';
 import 'command.dart';
 
 /// La vista de un servidor: el último estado del servidor con los comandos
@@ -112,7 +114,10 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
     case 'season.delete':
       d.table('season').remove('${p['seasonId']}');
     default:
-      if (c.type.startsWith('team.') || c.type.startsWith('tournament.')) {
+      if (c.type.startsWith('fixture') || c.type.startsWith('stage.')) {
+        _applyFixtures(d, c, myMemberId);
+      } else if (c.type.startsWith('team.') ||
+          c.type.startsWith('tournament.')) {
         _applyTournament(d, c, myMemberId);
       } else {
         _applyPachanga(d, c, myMemberId);
@@ -365,5 +370,139 @@ void _releaseFromTeams(ClubData d, String memberId) {
   }
   for (final t in d.all('team')) {
     if (t['captainMemberId'] == memberId) t['captainMemberId'] = null;
+  }
+}
+
+const _families = {
+  'league': {'league'},
+  'group': {'group'},
+  'knockout': {'knockout', 'third'},
+};
+
+/// Calendario, resultados y el paso de los grupos al cuadro. Como el
+/// servidor: un resultado de eliminatoria pone al que pasa en el partido
+/// siguiente (`knockout.dart`).
+void _applyFixtures(ClubData d, Command c, String? me) {
+  final p = c.payload;
+  Row? fixture() => d.one('fixture', '${p['fixtureId']}');
+
+  void clearDetail(String fixtureId) {
+    d.table('fixtureEvent').removeWhere((_, e) => e['fixtureId'] == fixtureId);
+    d.table('fixtureLineup').removeWhere((_, l) => l['fixtureId'] == fixtureId);
+  }
+
+  void propagate(Row f) {
+    final decided = Fixture.fromCloud(f.cast<String, dynamic>());
+    final all = [
+      for (final r in d.all('fixture'))
+        Fixture.fromCloud(r.cast<String, dynamic>()),
+    ];
+    for (final (id, side, team) in dependents(decided, all)) {
+      d.one('fixture', id)?['${side}TeamId'] = team;
+    }
+  }
+
+  switch (c.type) {
+    case 'fixtures.generate':
+      for (final raw in (p['fixtures'] as List? ?? const [])) {
+        final f = Map<String, Object?>.from(raw as Map);
+        d.table('fixture')['${f['id']}'] = {
+          'id': f['id'],
+          'stage': f['stage'],
+          'round': f['round'],
+          'groupLabel': f['groupLabel'],
+          'leg': f['leg'] ?? 1,
+          'slot': f['slot'],
+          'homeTeamId': f['homeTeamId'],
+          'awayTeamId': f['awayTeamId'],
+          'homeSource': f['homeSource'],
+          'awaySource': f['awaySource'],
+          'startsAt': f['startsAt'],
+          'place': null,
+          'scorerMemberId': null,
+          'status': 'scheduled',
+          'homeScore': null,
+          'awayScore': null,
+          'homePens': null,
+          'awayPens': null,
+          'walkoverWinner': null,
+        };
+      }
+      for (final g in (p['groups'] as List? ?? const [])) {
+        d.one('team', '${(g as Map)['teamId']}')?['groupLabel'] =
+            g['groupLabel'];
+      }
+    case 'fixtures.clear':
+      final family = _families[p['stage']] ?? const <String>{};
+      d.table('fixture').removeWhere((_, f) => family.contains(f['stage']));
+    case 'fixture.schedule':
+      final f = fixture();
+      if (f == null) return;
+      for (final k in const ['startsAt', 'place', 'scorerMemberId']) {
+        if (p.containsKey(k)) f[k] = p[k];
+      }
+    case 'fixture.result':
+      final f = fixture();
+      if (f == null) return;
+      f
+        ..['status'] = 'played'
+        ..['homeScore'] = p['homeScore']
+        ..['awayScore'] = p['awayScore']
+        ..['homePens'] = p['homePens']
+        ..['awayPens'] = p['awayPens']
+        ..['walkoverWinner'] = null
+        ..['resultBy'] = me;
+      final id = '${f['id']}';
+      clearDetail(id);
+      for (final raw in (p['events'] as List? ?? const [])) {
+        final e = Map<String, Object?>.from(raw as Map);
+        d.table('fixtureEvent')['${e['id']}'] = {
+          'id': e['id'],
+          'fixtureId': id,
+          'teamId': e['teamId'],
+          'memberId': e['memberId'],
+          'kind': e['kind'],
+          'assistMemberId': e['assistMemberId'],
+          'minute': e['minute'],
+        };
+      }
+      final lineups = (p['lineups'] as Map?) ?? const {};
+      for (final (side, team) in [
+        ('home', f['homeTeamId']),
+        ('away', f['awayTeamId']),
+      ]) {
+        for (final m in (lineups[side] as List? ?? const [])) {
+          final key = '$id:$m';
+          d.table('fixtureLineup')[key] = {
+            'id': key,
+            'fixtureId': id,
+            'teamId': team,
+            'memberId': m,
+          };
+        }
+      }
+      propagate(f);
+    case 'fixture.setStatus':
+      final f = fixture();
+      if (f == null) return;
+      f
+        ..['status'] = p['status']
+        ..['homeScore'] = null
+        ..['awayScore'] = null
+        ..['homePens'] = null
+        ..['awayPens'] = null
+        ..['walkoverWinner'] = p['status'] == 'walkover'
+            ? p['walkoverWinner']
+            : null;
+      clearDetail('${f['id']}');
+      propagate(f);
+    case 'stage.advance':
+      for (final raw in (p['assignments'] as List? ?? const [])) {
+        final a = raw as Map;
+        final f = d.one('fixture', '${a['fixtureId']}');
+        if (f == null) continue;
+        if (a['homeTeamId'] != null) f['homeTeamId'] = a['homeTeamId'];
+        if (a['awayTeamId'] != null) f['awayTeamId'] = a['awayTeamId'];
+      }
   }
 }

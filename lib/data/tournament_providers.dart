@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/tournament/player_stats.dart';
+import '../domain/tournament/standings.dart';
 import '../models/tournament.dart';
 import 'providers.dart';
 
@@ -66,3 +68,111 @@ final teamOfMemberProvider = Provider.family<Team?, String>((ref, memberId) {
 final myTeamProvider = Provider<Team?>(
   (ref) => ref.watch(teamOfMemberProvider(ref.watch(myUidProvider))),
 );
+
+// ------------------------------------------------------------- partidos
+
+final fixturesProvider = Provider<List<Fixture>>((ref) {
+  final data = ref.watch(clubDataProvider).value;
+  if (data == null) return const [];
+  return [
+    for (final r in data.all('fixture'))
+      Fixture.fromCloud(r.cast<String, dynamic>()),
+  ]..sort((a, b) {
+    if (a.round != b.round) return a.round.compareTo(b.round);
+    if (a.stage != b.stage) return a.stage.index.compareTo(b.stage.index);
+    final ga = a.groupLabel ?? '';
+    final gb = b.groupLabel ?? '';
+    if (ga != gb) return ga.compareTo(gb);
+    return (a.slot ?? 0).compareTo(b.slot ?? 0);
+  });
+});
+
+final fixtureByIdProvider = Provider.family<Fixture?, String>(
+  (ref, id) => ref.watch(fixturesProvider).where((f) => f.id == id).firstOrNull,
+);
+
+final fixtureEventsProvider = Provider<List<FixtureEvent>>((ref) {
+  final data = ref.watch(clubDataProvider).value;
+  if (data == null) return const [];
+  return [
+    for (final r in data.all('fixtureEvent'))
+      FixtureEvent.fromCloud(r.cast<String, dynamic>()),
+  ]..sort((a, b) => (a.minute ?? 999).compareTo(b.minute ?? 999));
+});
+
+final fixtureLineupsProvider = Provider<List<FixtureLineup>>((ref) {
+  final data = ref.watch(clubDataProvider).value;
+  if (data == null) return const [];
+  return [
+    for (final r in data.all('fixtureLineup'))
+      FixtureLineup.fromCloud(r.cast<String, dynamic>()),
+  ];
+});
+
+final eventsOfFixtureProvider = Provider.family<List<FixtureEvent>, String>(
+  (ref, id) =>
+      ref.watch(fixtureEventsProvider).where((e) => e.fixtureId == id).toList(),
+);
+
+final lineupOfFixtureProvider = Provider.family<List<FixtureLineup>, String>(
+  (ref, id) => ref
+      .watch(fixtureLineupsProvider)
+      .where((l) => l.fixtureId == id)
+      .toList(),
+);
+
+/// La tabla de la liga (null) o de un grupo.
+final standingsProvider = Provider.family<List<StandingRow>, String?>((
+  ref,
+  group,
+) {
+  final t = ref.watch(tournamentProvider);
+  if (t == null) return const [];
+  final teams = ref
+      .watch(teamsProvider)
+      .where((x) => x.status == TeamStatus.approved)
+      .where((x) => group == null || x.groupLabel == group)
+      .toList();
+  final fixtures = ref
+      .watch(fixturesProvider)
+      .where(
+        (f) => group == null
+            ? f.stage == FixtureStage.league
+            : f.stage == FixtureStage.group && f.groupLabel == group,
+      );
+  return standings(
+    teams: teams,
+    fixtures: fixtures,
+    events: ref.watch(fixtureEventsProvider),
+    rules: t.rules,
+  );
+});
+
+/// Los grupos del torneo (A, B, …), de sus partidos.
+final groupLabelsProvider = Provider<List<String>>((ref) {
+  final labels = {
+    for (final f in ref.watch(fixturesProvider))
+      if (f.stage == FixtureStage.group && f.groupLabel != null) f.groupLabel!,
+  };
+  return labels.toList()..sort();
+});
+
+/// Quién no puede jugar cada partido (suspendidos por tarjetas).
+final suspensionsProvider = Provider<Map<String, Set<String>>>((ref) {
+  final t = ref.watch(tournamentProvider);
+  if (t == null) return const {};
+  return suspensions(
+    fixtures: ref.watch(fixturesProvider),
+    events: ref.watch(fixtureEventsProvider),
+    rules: t.rules,
+  );
+});
+
+final tournamentPlayerStatsProvider =
+    Provider<Map<String, TournamentPlayerStats>>(
+      (ref) => tournamentPlayerStats(
+        fixtures: ref.watch(fixturesProvider),
+        events: ref.watch(fixtureEventsProvider),
+        lineups: ref.watch(fixtureLineupsProvider),
+      ),
+    );
