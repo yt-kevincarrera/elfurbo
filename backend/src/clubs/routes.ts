@@ -8,6 +8,7 @@ import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
 import { prestigeOf } from "../stats/job";
+import { joinRoutes } from "./join";
 import type { AppEnv } from "../types";
 import { assertWritable, DEFAULT_SETTINGS, findMember, requireMembership } from "./model";
 import { clubRequestSchema, createInviteSchema } from "./schemas";
@@ -216,3 +217,5 @@ clubRoutes.get("/:clubId/prestige", async (c) => {
   const { club } = await requireMembership(c.env.DB, c.req.param("clubId"), c.var.auth.user.id);
   return c.json(await prestigeOf(c.env.DB, club));
 });
+
+clubRoutes.route("/", joinRoutes);

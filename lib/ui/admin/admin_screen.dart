@@ -16,6 +16,7 @@ import 'audit_screen.dart';
 import 'club_profile.dart';
 import 'prestige.dart';
 import 'invites.dart';
+import 'join_requests.dart';
 import 'settings.dart';
 import '../widgets/player_avatar.dart';
 
@@ -52,6 +53,7 @@ class AdminScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
+          if (canManageInvites(myRole)) const JoinRequestsSection(),
           if (canManageInvites(myRole)) const InvitesSection(),
           if (canManageClub(myRole)) const ClubProfileSection(),
           if (canManageClub(myRole)) const ClubSettingsSection(),

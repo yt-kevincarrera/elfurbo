@@ -31,6 +31,15 @@ enum AlertKind {
 
   /// Superadmin: hay una solicitud de servidor nueva.
   clubRequest,
+
+  /// Admin: alguien pidió entrar en mi servidor público.
+  joinRequest,
+
+  /// Me aceptaron en un servidor que pedí.
+  joinAccepted,
+
+  /// No me aceptaron.
+  joinRejected,
 }
 
 class Alert {
@@ -269,6 +278,38 @@ List<Alert> accountAlerts(
           title: '¡Aprobaron ${c['name']}!',
           body: 'Ya puedes invitar a los tuyos y crear la primera jornada.',
         ),
+    for (final c in (me['clubs'] as List?) ?? const [])
+      if ((c as Map)['role'] != 'owner' &&
+          wasPending.contains('join:${c['id']}'))
+        Alert(
+          key: 'join:${c['id']}:in',
+          kind: AlertKind.joinAccepted,
+          clubId: '${c['id']}',
+          clubName: '${c['name']}',
+          title: '¡Entraste en ${c['name']}!',
+          body: 'Te aceptaron. Ya puedes decir si vas a la próxima jornada.',
+        ),
+    for (final r in (me['joinRequests'] as List?) ?? const [])
+      if ((r as Map)['status'] == 'rejected')
+        Alert(
+          key: 'jrej:${r['id']}',
+          kind: AlertKind.joinRejected,
+          clubId: '${r['clubId']}',
+          clubName: '${r['clubName']}',
+          title: 'No te aceptaron en ${r['clubName']}',
+          body: '${r['note'] ?? ''}'.trim().isEmpty
+              ? 'Puedes pedirlo otra vez más adelante.'
+              : '${r['note']}',
+        ),
+    for (final r in (me['pendingJoinRequests'] as List?) ?? const [])
+      Alert(
+        key: 'jr:${(r as Map)['id']}',
+        kind: AlertKind.joinRequest,
+        clubId: '${r['clubId']}',
+        clubName: '${r['clubName']}',
+        title: 'Quieren entrar en ${r['clubName']}',
+        body: '${r['displayName']} pidió entrar. Contéstale en Admin.',
+      ),
     for (final r in (me['clubRequests'] as List?) ?? const [])
       if ((r as Map)['status'] == 'rejected')
         Alert(
@@ -329,6 +370,10 @@ Alert _summary(List<Alert> g) {
     AlertKind.clubRequest => (
       '$n solicitudes de servidor',
       'Esperan tu aprobación.',
+    ),
+    AlertKind.joinRequest => (
+      '$n personas quieren entrar en ${a.clubName}',
+      'Contéstales en Admin.',
     ),
     _ => (a.title, a.body),
   };
@@ -416,6 +461,9 @@ Future<List<Alert>> refreshAlerts(
     ..addAll([
       for (final r in (me['clubRequests'] as List?) ?? const [])
         if ((r as Map)['status'] == 'pending') '${r['id']}',
+      // Mis solicitudes para entrar: al aparecer el servidor en /me, "¡Entraste!".
+      for (final r in (me['joinRequests'] as List?) ?? const [])
+        if ((r as Map)['status'] == 'pending') 'join:${r['clubId']}',
     ]);
   await store.writeAlertLedger(ledger.toJson());
   return grouped(fresh);

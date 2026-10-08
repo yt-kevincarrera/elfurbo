@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../services/local_notifications.dart';
+import '../../ui/directory/directory_screen.dart';
 import '../../ui/superadmin/superadmin_screen.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
@@ -102,11 +103,18 @@ class NoClubsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Todavía no estás en ningún servidor. Pídele a quien organiza tu grupo una invitación '
-              '(un enlace o un código), o solicita un servidor propio.',
+              'Todavía no estás en ningún servidor. Busca uno público cerca de ti, pídele a '
+              'quien organiza tu grupo una invitación (un enlace o un código), o solicita un '
+              'servidor propio.',
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
+              onPressed: () => DirectoryScreen.open(context),
+              icon: const Icon(Icons.travel_explore),
+              label: const Text('Buscar servidores'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
               onPressed: () => showJoinWithCode(context),
               icon: const Icon(Icons.vpn_key),
               label: const Text('Unirme con un código'),
@@ -121,6 +129,33 @@ class NoClubsScreen extends ConsumerWidget {
               const SizedBox(height: 32),
               Text('Mis solicitudes', style: text.titleMedium),
               for (final r in me.requests) ClubRequestTile(request: r),
+            ],
+            if (me != null && me.joinRequests.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              Text('Pedí entrar en', style: text.titleMedium),
+              for (final r in me.joinRequests)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(r.clubName),
+                  subtitle: Text(
+                    r.status == 'pending'
+                        ? 'Esperando a que un admin conteste'
+                        : 'No te aceptaron${(r.note ?? '').isEmpty ? '' : ': ${r.note}'}',
+                  ),
+                  trailing: r.status == 'pending'
+                      ? TextButton(
+                          onPressed: () => fireAndForget(
+                            ref
+                                .read(directoryApiProvider)
+                                .cancelJoin(r.clubId)
+                                .then((_) => ref.read(cloudProvider).loadMe()),
+                            success: 'Listo, retiraste la solicitud',
+                          ),
+                          child: const Text('Retirar'),
+                        )
+                      : null,
+                  onTap: () => DirectoryClubScreen.open(context, r.clubId),
+                ),
             ],
           ],
         ),

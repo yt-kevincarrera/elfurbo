@@ -219,11 +219,15 @@ class LocalNotifications {
             AlertKind.clubApproved ||
             AlertKind.requestRejected => NotificationKind.club,
             AlertKind.clubRequest => NotificationKind.clubRequest,
+            AlertKind.joinRequest => NotificationKind.pendingUser,
+            AlertKind.joinAccepted ||
+            AlertKind.joinRejected => NotificationKind.club,
           },
           matchId: a.matchdayId,
           clubId:
               a.kind == AlertKind.requestRejected ||
-                  a.kind == AlertKind.clubRequest
+                  a.kind == AlertKind.clubRequest ||
+                  a.kind == AlertKind.joinRejected
               ? null
               : a.clubId,
         ).encode(),

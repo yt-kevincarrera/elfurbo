@@ -6,6 +6,7 @@ import '../../data/club_repo.dart';
 import '../../models/attendance.dart';
 import '../../models/notification_payload.dart';
 import '../../services/notification_router.dart';
+import '../../ui/directory/directory_screen.dart';
 import '../../ui/widgets/club_token.dart';
 import '../../ui/widgets/common.dart';
 import '../../ui/widgets/expressive.dart';
@@ -38,9 +39,13 @@ final minuteProvider = StreamProvider<DateTime>((ref) async* {
 /// Lo que tengo pendiente en cada servidor (ver `pendingCount`).
 final pendingByClubProvider = Provider<Map<String, int>>((ref) {
   final now = ref.watch(minuteProvider).value ?? DateTime.now();
+  // Más las solicitudes para entrar que me toca contestar (de /me).
+  final joins = ref.watch(meProvider).value?.pendingJoins ?? const {};
   return {
     for (final s in ref.watch(_sourcesProvider))
-      s.data.clubId: pendingCount(s.data, myMemberId: s.myMemberId, now: now),
+      s.data.clubId:
+          pendingCount(s.data, myMemberId: s.myMemberId, now: now) +
+          (joins[s.data.clubId] ?? 0),
   };
 });
 
@@ -163,6 +168,15 @@ class _ClubPickerSheet extends ConsumerWidget {
           const SizedBox(height: 8),
           GroupedSection(
             children: [
+              ListTile(
+                leading: const Icon(Icons.travel_explore),
+                title: const Text('Buscar servidores'),
+                subtitle: const Text('Públicos, torneos y jugadores'),
+                onTap: () {
+                  Navigator.pop(context);
+                  DirectoryScreen.open(context);
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.vpn_key_outlined),
                 title: const Text('Unirme con un código'),

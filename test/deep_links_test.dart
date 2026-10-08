@@ -33,4 +33,25 @@ void main() {
     DeepLinks.handle('https://ejemplo.com');
     expect(DeepLinks.pendingInvite.value, isNull);
   });
+
+  test('el id de un enlace a un servidor público', () {
+    const id = '00000000-0000-4000-8000-000000000001';
+    expect(DeepLinks.clubId('elfurbo://club/$id'), id);
+    expect(
+      DeepLinks.clubId('https://furbo-api.furbo-probe.workers.dev/s/$id'),
+      id,
+    );
+    for (final link in [
+      'elfurbo://club/',
+      'elfurbo://club/<script>',
+      'elfurbo://invite/$id',
+      'https://ejemplo.com/x/$id',
+    ]) {
+      expect(DeepLinks.clubId(link), isNull, reason: link);
+    }
+    DeepLinks.handle('elfurbo://club/$id');
+    expect(DeepLinks.pendingClub.value, id);
+    expect(DeepLinks.pendingInvite.value, isNull);
+    DeepLinks.pendingClub.value = null;
+  });
 }

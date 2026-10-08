@@ -17,17 +17,19 @@ main{max-width:420px}h1{font-size:1.6rem;margin:.2em 0}p{line-height:1.5;opacity
 border-radius:12px;padding:.4em .6em;display:inline-block;margin:.4em 0}
 a.button{display:inline-block;margin-top:1em;background:#ffc107;color:#000;font-weight:700;
 padding:.8em 1.4em;border-radius:999px;text-decoration:none}
-a.ghost{background:transparent;color:#fff;border:2px solid #fff}small a{color:#fff}`;
+a.ghost{background:transparent;color:#fff;border:2px solid #fff}small a{color:#fff}
+h2{font-size:1.1rem;margin:1.2em 0 .3em}.list{text-align:left;display:inline-block;margin:0;padding-left:1.4em}
+.list li{margin:.25em 0}`;
 
-function layout(body: string) {
+export function layout(body: string, title = "El Furbo · Invitación") {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>El Furbo · Invitación</title><style>${STYLE}</style></head>
+<title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
 <body><main>${body}</main></body></html>`;
 }
 
 /** Bajar la app, también cuando la invitación ya no vale (el que llegó aquí la quiere). */
-const DOWNLOAD = `<p><a class="button ghost" href="/app/download">Descargar El Furbo</a></p>
+export const DOWNLOAD = `<p><a class="button ghost" href="/app/download">Descargar El Furbo</a></p>
 <p><small>¿Teléfono viejo y no instala? <a href="/app/download?abi=armeabi-v7a">Prueba esta otra</a>.</small></p>`;
 
 /** Para quien baja la app desde el navegador y algo falla. */

@@ -6,6 +6,8 @@ import { clubRoutes } from "./clubs/routes";
 import { scheduled } from "./cron";
 import { errorResponse, errors, handleError } from "./http/errors";
 import { invitePageRoutes, inviteRoutes } from "./invites/routes";
+import { clubPageRoutes } from "./directory/page";
+import { directoryRoutes } from "./directory/routes";
 import { meRoutes } from "./me/routes";
 import { playerRoutes } from "./players/routes";
 import { superadminRoutes } from "./superadmin/routes";
@@ -23,8 +25,10 @@ app.route("/auth", authRoutes);
 app.route("/me", meRoutes);
 app.route("/players", playerRoutes);
 app.route("/clubs", clubRoutes);
+app.route("/directory", directoryRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/i", invitePageRoutes);
+app.route("/s", clubPageRoutes);
 app.route("/admin", superadminRoutes);
 // Una versión de la app más vieja que la que admite el protocolo de sync no envía ni trae nada
 // (spec §8). La app manda su build en `x-app-build`; las que no lo mandan son anteriores a la 0.6.
