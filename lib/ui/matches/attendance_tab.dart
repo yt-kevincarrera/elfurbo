@@ -48,7 +48,11 @@ class _IntentionView extends ConsumerWidget {
         users.where((u) => attendance[u.uid]?.status == s).toList();
     final byId = {for (final u in users) u.uid: u};
     final cap = match.maxPlayers;
-    final list = waitlist(attendance.values, cap);
+    // Solo los miembros activos ocupan sitio: el que se fue no cuenta.
+    final list = waitlist(
+      attendance.values.where((a) => byId.containsKey(a.uid)),
+      cap,
+    );
     List<AppUser> inOrder(List<String> ids) => [
       for (final id in ids)
         if (byId[id] != null) byId[id]!,

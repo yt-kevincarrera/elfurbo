@@ -80,7 +80,7 @@ class CheckinCard extends ConsumerWidget {
     if (code == null) return;
     fireAndForget(
       ref.read(repoProvider).checkIn(match.id, code),
-      success: 'Listo, ya saben que estás aquí',
+      success: 'Listo, se manda el código. Si no vale, te avisamos',
     );
   }
 }
@@ -174,15 +174,18 @@ class _CheckinCodeScreenState extends ConsumerState<CheckinCodeScreen> {
       return;
     }
     try {
+      // Lo guardado sirve sin señal; con señal se pide otra vez, por si
+      // cambió (al dejar alguien de ser staff, el servidor pone uno nuevo).
       final saved = await store.readCheckinSecrets();
-      var secret = saved[clubId] as String?;
-      if (secret == null) {
-        secret = await ref.read(clubAdminApiProvider).checkinSecret(clubId);
-        await store.writeCheckinSecrets({...saved, clubId: secret});
+      final cached = saved[clubId] as String?;
+      if (cached != null && mounted) setState(() => _secret = cached);
+      final fresh = await ref.read(clubAdminApiProvider).checkinSecret(clubId);
+      if (fresh != cached) {
+        await store.writeCheckinSecrets({...saved, clubId: fresh});
       }
-      if (mounted) setState(() => _secret = secret);
+      if (mounted) setState(() => _secret = fresh);
     } catch (_) {
-      if (mounted) setState(() => _failed = true);
+      if (mounted && _secret == null) setState(() => _failed = true);
     }
   }
 

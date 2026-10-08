@@ -405,8 +405,13 @@ Map<String, bool> waitingIn(
   required String myMemberId,
   required DateTime now,
 }) {
+  final active = {
+    for (final m in data.all('member'))
+      if (m['status'] == 'active') '${m['id']}',
+  };
   final byMatchday = <String, List<Attendance>>{};
   for (final a in data.all('attendance')) {
+    if (!active.contains('${a['memberId']}')) continue;
     byMatchday
         .putIfAbsent('${a['matchdayId']}', () => [])
         .add(Attendance.fromCloud(a.cast<String, dynamic>()));

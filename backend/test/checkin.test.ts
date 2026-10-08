@@ -56,6 +56,41 @@ describe("código de asistencia", () => {
     await apply(pepe.token, cmd(clubId, "attendance.checkIn", { matchdayId: id, code: await checkinCode(secret, before) }, { clientAt: before.toISOString() }));
   });
 
+  it("10 intentos por hora: el código no se adivina probando", async () => {
+    const { clubId, owner } = await activeClub();
+    const { raul } = await squad(clubId);
+    const secret = await secretOf(owner.token, clubId);
+    const id = await matchday(owner.token, clubId, { startsAt: hoursAgo(0.5) });
+    const good = await checkinCode(secret, new Date());
+    const wrong = good === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 10; i++) {
+      expect(await rejection(raul.token, cmd(clubId, "attendance.checkIn", { matchdayId: id, code: wrong }))).toBe("invalid_checkin_code");
+    }
+    expect(await rejection(raul.token, cmd(clubId, "attendance.checkIn", { matchdayId: id, code: good }))).toBe("too_many_attempts");
+  });
+
+  it("quien deja de ser staff se lleva un secreto que ya no vale", async () => {
+    const { clubId, owner } = await activeClub();
+    const { scorer } = await squad(clubId);
+    const before = await secretOf(scorer.token, clubId);
+    await apply(owner.token, cmd(clubId, "member.setRole", { memberId: scorer.memberId, role: "player" }));
+    expect(await secretOf(owner.token, clubId)).not.toBe(before);
+  });
+
+  it("un código de ayer no vale aunque el teléfono diga que es de ayer", async () => {
+    const { clubId, owner } = await activeClub();
+    const { raul } = await squad(clubId);
+    const secret = await secretOf(owner.token, clubId);
+    const id = await matchday(owner.token, clubId, { startsAt: hoursAgo(26) });
+    const then = new Date(Date.now() - 25 * 3600_000);
+    expect(
+      await rejection(
+        raul.token,
+        cmd(clubId, "attendance.checkIn", { matchdayId: id, code: await checkinCode(secret, then) }, { clientAt: then.toISOString() }),
+      ),
+    ).toBe("checkin_closed");
+  });
+
   it("solo cerca de la hora de la jornada", async () => {
     const { clubId, owner } = await activeClub();
     const { raul } = await squad(clubId);

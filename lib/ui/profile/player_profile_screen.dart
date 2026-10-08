@@ -202,7 +202,7 @@ class PlayerProfileScreen extends ConsumerWidget {
           // Las temporadas cerradas en las que jugó: su resumen para compartir.
           for (final season in [
             ...?ref.watch(seasonsProvider).value,
-          ].where((x) => x.isClosed).toList().reversed.take(3))
+          ].where((x) => x.isClosed).take(3))
             if (_playedIn(ref, season.id))
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

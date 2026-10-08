@@ -359,6 +359,8 @@ void main() {
         'status': 'scheduled',
         'maxPlayers': 1,
       }
+      ..table('member')['otro'] = {'id': 'otro', 'status': 'active'}
+      ..table('member')[me] = {'id': me, 'status': 'active'}
       ..table('attendance')['m1:otro'] = {
         'id': 'm1:otro',
         'matchdayId': 'm1',

@@ -11,7 +11,7 @@ import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
 
 /// Los récords del servidor, del histórico y de cada temporada.
-final clubRecordsProvider = Provider<List<ClubRecord>>((ref) {
+final clubRecordsProvider = Provider.autoDispose<List<ClubRecord>>((ref) {
   final matches = ref.watch(matchesProvider).value ?? const [];
   final reports = ref.watch(reportsProvider).value ?? const [];
   final votes = ref.watch(mvpVotesProvider).value ?? const [];

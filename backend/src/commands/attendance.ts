@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { canActForOthers } from "../authz";
 import { errors } from "../http/errors";
+import { consumeAttempt } from "../auth/rate-limit";
 import { checkinValid } from "../rules/checkin";
 import { acceptsIntent } from "../rules/matchday";
 import { upsert } from "../sync/changes";
@@ -47,6 +48,10 @@ export const setIntent = command(
 );
 
 const CHECKIN_SPAN_MS = 3 * 60 * 60 * 1000;
+/** Sin señal se manda después, pero no días después: así no se usa un código de otro día. */
+const CHECKIN_LATE_MS = 24 * 60 * 60 * 1000;
+/** Cada intento cuenta: 10 por hora y jugador, para que el código no se adivine a fuerza de probar. */
+const CHECKIN_ATTEMPTS = { max: 10, windowMinutes: 60 };
 
 /**
  * "Estoy aquí" con el código que enseña el staff (spec 2.0 §8.1): marca que jugó y que lo comprobó.
@@ -55,11 +60,14 @@ const CHECKIN_SPAN_MS = 3 * 60 * 60 * 1000;
 export const checkIn = command(z.object({ matchdayId, code: z.string().regex(/^\d{6}$/) }), async (ctx, p) => {
   const md = await findMatchday(ctx, p.matchdayId);
   assertOpen(ctx, md);
-  if (md.status === "cancelled") throw errors.invalidState("La jornada se suspendió");
   const start = new Date(md.startsAt).getTime();
   const end = start + md.durationMinutes * 60_000;
   const at = ctx.clientAt.getTime();
-  if (at < start - CHECKIN_SPAN_MS || at > end + CHECKIN_SPAN_MS) throw errors.checkinClosed();
+  if (at < start - CHECKIN_SPAN_MS || at > end + CHECKIN_SPAN_MS || ctx.now.getTime() - at > CHECKIN_LATE_MS) {
+    throw errors.checkinClosed();
+  }
+  // Fuera del batch del comando: el intento se cuenta aunque el código no valga.
+  await consumeAttempt(ctx.db, { key: `checkin:${ctx.member.id}`, ...CHECKIN_ATTEMPTS }, ctx.now);
   const row = await ctx.db.prepare("SELECT checkin_secret FROM clubs WHERE id = ?").bind(ctx.club.id).first<{ checkin_secret: string | null }>();
   if (!row?.checkin_secret || !(await checkinValid(row.checkin_secret, ctx.clientAt, p.code))) throw errors.checkinCode();
   const id = key(md.id, ctx.member.id);

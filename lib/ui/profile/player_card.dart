@@ -275,7 +275,9 @@ class _CardSheetState extends ConsumerState<_CardSheet> {
       await ShareService.shareBoundary(
         _key,
         fileName: 'elfurbo_carta.png',
-        text: 'Mi carta en El Furbo ⚽',
+        text: widget.uid == ref.read(myUidProvider)
+            ? 'Mi carta en El Furbo ⚽'
+            : 'La carta de ${ref.read(usersByIdProvider)[widget.uid]?.name ?? 'un jugador'} en El Furbo ⚽',
       );
     } catch (e) {
       showError(e);
