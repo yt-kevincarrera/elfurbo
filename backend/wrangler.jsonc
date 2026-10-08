@@ -22,7 +22,7 @@
     // Lo que usa la app publicada. Desplegar a mano: npm run deploy:production.
     "production": {
       "name": "furbo-api",
-      "vars": { "ENVIRONMENT": "production", "MIN_SUPPORTED_BUILD": "0" },
+      "vars": { "ENVIRONMENT": "production", "MIN_SUPPORTED_BUILD": "12" },
       "triggers": { "crons": ["*/10 * * * *"] },
       "d1_databases": [
         {
@@ -35,7 +35,7 @@
     },
     "staging": {
       "name": "furbo-api-staging",
-      "vars": { "ENVIRONMENT": "staging", "MIN_SUPPORTED_BUILD": "0" },
+      "vars": { "ENVIRONMENT": "staging", "MIN_SUPPORTED_BUILD": "12" },
       "triggers": { "crons": ["*/10 * * * *"] },
       "d1_databases": [
         {
