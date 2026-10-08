@@ -59,7 +59,11 @@ List<StandingRow> standings({
 
   final byId = {for (final t in teams) t.id: t};
   var groups = [rows.values.toList()];
-  for (final criterion in rules.tiebreakers) {
+  // Siempre por puntos primero; la lista dice cómo se desempata.
+  for (final criterion in [
+    'points',
+    ...rules.tiebreakers.where((c) => c != 'points'),
+  ]) {
     groups = [for (final g in groups) ..._split(g, criterion, counted, rules)];
   }
   int bySeed(StandingRow a, StandingRow b) {
@@ -157,11 +161,21 @@ List<List<StandingRow>> _split(
       return [group];
   }
   final keys = value.values.toSet().toList()..sort((a, b) => b.compareTo(a));
-  return [
+  final out = [
     for (final k in keys)
       [
         for (final r in group)
           if (value[r.teamId] == k) r,
       ],
+  ];
+  // Con el enfrentamiento directo, los que siguen empatados entre menos se
+  // vuelven a mirar solo entre ellos.
+  if (criterion != 'headToHead' || out.length == 1) return out;
+  return [
+    for (final g in out)
+      if (g.length > 1 && g.length < group.length)
+        ..._split(g, criterion, fixtures, rules)
+      else
+        g,
   ];
 }

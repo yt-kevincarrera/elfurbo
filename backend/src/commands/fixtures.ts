@@ -117,6 +117,7 @@ export const generateFixtures = command(
         if (team && !approved.has(team)) throw errors.invalidInput({ fixtures: ["Un equipo no está aprobado"] });
       }
       for (const s of [f.homeSource, f.awaySource]) {
+        if (s?.winnerOf && s.loserOf) throw errors.invalidInput({ fixtures: ["Una fuente es ganador o perdedor, no los dos"] });
         const ref = s?.winnerOf ?? s?.loserOf;
         if (ref && !ids.has(ref)) throw errors.invalidInput({ fixtures: ["Una fuente apunta a un partido que no existe"] });
       }
@@ -453,10 +454,16 @@ export const setFixtureStatus = command(
   z.object({ fixtureId: id, status: z.enum(["scheduled", "cancelled", "walkover"]), walkoverWinner: id.optional() }).strict(),
   async (ctx, p) => {
     requireOrganizer(ctx);
-    assertNotFinished(await loadTournament(ctx));
+    const t = await loadTournament(ctx);
+    assertNotFinished(t);
     const f = await findFixture(ctx, p.fixtureId);
-    if (p.status === "walkover" && (!p.walkoverWinner || (p.walkoverWinner !== f.homeTeamId && p.walkoverWinner !== f.awayTeamId))) {
-      throw errors.invalidInput({ walkoverWinner: ["Tiene que ser uno de los dos equipos"] });
+    if (p.status === "walkover") {
+      // Como un resultado: con el torneo en juego y los dos equipos conocidos.
+      if (t.status !== "in_progress") throw errors.invalidState("Los resultados se ponen con el torneo en juego");
+      if (!f.homeTeamId || !f.awayTeamId) throw errors.invalidState("Todavía no se sabe quién juega");
+      if (p.walkoverWinner !== f.homeTeamId && p.walkoverWinner !== f.awayTeamId) {
+        throw errors.invalidInput({ walkoverWinner: ["Tiene que ser uno de los dos equipos"] });
+      }
     }
     const after: KnockoutFixture = {
       ...f,
@@ -502,9 +509,26 @@ export const advanceStage = command(
     const approved = await approvedTeamIds(ctx);
     const ids = p.assignments.map((a) => a.fixtureId);
     const { results } = await ctx.db
-      .prepare(`SELECT id, stage, status FROM fixtures WHERE club_id = ? AND id IN (${ids.map(() => "?").join(", ")})`)
+      .prepare(
+        `SELECT id, stage, status, home_team_id, away_team_id, home_source, away_source FROM fixtures
+          WHERE club_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
+      )
       .bind(ctx.club.id, ...ids)
-      .all<{ id: string; stage: string; status: string }>();
+      .all<{
+        id: string;
+        stage: string;
+        status: string;
+        home_team_id: string | null;
+        away_team_id: string | null;
+        home_source: string | null;
+        away_source: string | null;
+      }>();
+    // Solo se ponen equipos en huecos que salen de un grupo (o sin fuente), no en los de "ganador de".
+    const fromGroup = (raw: string | null) => {
+      if (!raw) return true;
+      const s = JSON.parse(raw) as { group?: string };
+      return s.group !== undefined;
+    };
     const byId = new Map(results.map((r) => [r.id, r]));
     const statements: D1PreparedStatement[] = [];
     const touched: Touch[] = [];
@@ -515,6 +539,12 @@ export const advanceStage = command(
       for (const team of [a.homeTeamId, a.awayTeamId]) {
         if (team && !approved.has(team)) throw errors.invalidInput({ assignments: ["Un equipo no está aprobado"] });
       }
+      if ((a.homeTeamId && !fromGroup(f.home_source)) || (a.awayTeamId && !fromGroup(f.away_source))) {
+        throw errors.invalidInput({ assignments: ["Ese hueco lo decide otro partido"] });
+      }
+      const home = a.homeTeamId ?? f.home_team_id;
+      const away = a.awayTeamId ?? f.away_team_id;
+      if (home && home === away) throw errors.invalidInput({ assignments: ["Un equipo contra sí mismo"] });
       const sets: string[] = [];
       const binds: unknown[] = [];
       if (a.homeTeamId) {

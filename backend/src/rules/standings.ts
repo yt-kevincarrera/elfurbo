@@ -73,7 +73,7 @@ function apply(home: StandingRow, away: StandingRow, f: StandingsFixture, rules:
 }
 
 /** Parte un grupo de empatados por un criterio, de mejor a peor. */
-function split(group: StandingRow[], criterion: string, fixtures: StandingsFixture[], rules: StandingsRules) {
+function split(group: StandingRow[], criterion: string, fixtures: StandingsFixture[], rules: StandingsRules): StandingRow[][] {
   if (group.length < 2) return [group];
   let value: Map<string, number>;
   switch (criterion) {
@@ -103,7 +103,10 @@ function split(group: StandingRow[], criterion: string, fixtures: StandingsFixtu
       return [group];
   }
   const keys = [...new Set(value.values())].sort((a, b) => b - a);
-  return keys.map((k) => group.filter((r) => value.get(r.teamId) === k));
+  const out = keys.map((k) => group.filter((r) => value.get(r.teamId) === k));
+  // Con el enfrentamiento directo, los que siguen empatados entre menos se vuelven a mirar solo entre ellos.
+  if (criterion !== "headToHead" || out.length === 1) return out;
+  return out.flatMap((g) => (g.length > 1 && g.length < group.length ? split(g, criterion, fixtures, rules) : [g]));
 }
 
 export function standings(
@@ -124,7 +127,9 @@ export function standings(
   }
   const byId = new Map(teams.map((t) => [t.id, t]));
   let groups = [[...rows.values()]];
-  for (const criterion of rules.tiebreakers) groups = groups.flatMap((g) => split(g, criterion, counted, rules));
+  // Siempre por puntos primero; la lista dice cómo se desempata.
+  const criteria = ["points", ...rules.tiebreakers.filter((c) => c !== "points")];
+  for (const criterion of criteria) groups = groups.flatMap((g) => split(g, criterion, counted, rules));
   const bySeed = (a: StandingRow, b: StandingRow) => {
     const sa = byId.get(a.teamId)?.seed ?? null;
     const sb = byId.get(b.teamId)?.seed ?? null;

@@ -112,6 +112,34 @@ void main() {
     });
   });
 
+  test(
+    '3 grupos, pasan 2: nadie se cruza con uno de su grupo en la primera ronda',
+    () {
+      final r = groupsCupFixtures(
+        [for (var i = 1; i <= 9; i++) 't$i'],
+        newId: ids(),
+        groups: 3,
+      );
+      final ko = r.fixtures.where((f) => f.stage == FixtureStage.knockout);
+      final first = ko.where(
+        (f) =>
+            f.round == ko.map((x) => x.round).reduce((a, b) => a < b ? a : b),
+      );
+      for (final f in first) {
+        final hg = f.homeSource?.group;
+        final ag = f.awaySource?.group;
+        if (hg != null && ag != null) expect(hg, isNot(ag));
+      }
+    },
+  );
+
+  test('las fechas no se corren con el cambio de hora', () {
+    final f = leagueFixtures(['a', 'b', 'c', 'd'], newId: ids());
+    // En Cuba se atrasa la hora el primer domingo de noviembre.
+    scheduleWeekly(f, DateTime(2026, 10, 24));
+    expect(f.last.startsAt, DateTime(2026, 11, 7, 15));
+  });
+
   test('una ronda por semana desde el día de inicio', () {
     final f = leagueFixtures(['a', 'b', 'c', 'd'], newId: ids());
     scheduleWeekly(f, DateTime(2026, 11, 7));
