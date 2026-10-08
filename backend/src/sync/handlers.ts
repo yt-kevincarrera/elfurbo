@@ -36,6 +36,14 @@ import {
   updateTeam,
   updateTournament,
 } from "../commands/tournament";
+import {
+  advanceStage,
+  clearFixtures,
+  fixtureResult,
+  generateFixtures,
+  scheduleFixture,
+  setFixtureStatus,
+} from "../commands/fixtures";
 import type { CommandHandler } from "./command";
 
 /** Todos los tipos de comando que entiende el servidor (spec §5). */
@@ -81,6 +89,12 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "team.removePlayer": removePlayer,
   "team.leave": leaveTeam,
   "team.setShirt": setShirt,
+  "fixtures.generate": generateFixtures,
+  "fixtures.clear": clearFixtures,
+  "fixture.schedule": scheduleFixture,
+  "fixture.result": fixtureResult,
+  "fixture.setStatus": setFixtureStatus,
+  "stage.advance": advanceStage,
 };
 
 /** Los comandos de la pachanga de siempre: solo en servidores (grupos). */

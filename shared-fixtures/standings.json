@@ -1,0 +1,591 @@
+{
+  "about": "Tabla de una liga o un grupo. La calculan la app (lib/domain/tournament/standings.dart, test/tournament/shared_tournament_test.dart) y el backend (backend/src/rules/standings.ts, backend/test/tournament-rules.test.ts). `expected` va en el orden de la tabla. Un partido ganado sin jugar (walkover) da los puntos de ganar sin goles.",
+  "cases": [
+    {
+      "name": "por puntos y luego diferencia de goles",
+      "rules": {
+        "pointsWin": 3,
+        "pointsDraw": 1,
+        "pointsLoss": 0,
+        "tiebreakers": [
+          "points",
+          "goalDiff",
+          "goalsFor",
+          "headToHead",
+          "fairPlay"
+        ]
+      },
+      "teams": [
+        {
+          "id": "A",
+          "name": "Águilas",
+          "seed": 1
+        },
+        {
+          "id": "B",
+          "name": "Búhos",
+          "seed": 2
+        },
+        {
+          "id": "C",
+          "name": "Cóndores",
+          "seed": 3
+        },
+        {
+          "id": "D",
+          "name": "Delfines",
+          "seed": 4
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "f1",
+          "homeTeamId": "A",
+          "awayTeamId": "B",
+          "status": "played",
+          "homeScore": 2,
+          "awayScore": 1
+        },
+        {
+          "id": "f2",
+          "homeTeamId": "C",
+          "awayTeamId": "D",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 0
+        },
+        {
+          "id": "f3",
+          "homeTeamId": "A",
+          "awayTeamId": "C",
+          "status": "played",
+          "homeScore": 1,
+          "awayScore": 1
+        },
+        {
+          "id": "f4",
+          "homeTeamId": "B",
+          "awayTeamId": "D",
+          "status": "played",
+          "homeScore": 3,
+          "awayScore": 0
+        },
+        {
+          "id": "f5",
+          "homeTeamId": "A",
+          "awayTeamId": "D",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "f6",
+          "homeTeamId": "B",
+          "awayTeamId": "C",
+          "status": "played",
+          "homeScore": 2,
+          "awayScore": 2
+        },
+        {
+          "id": "f7",
+          "homeTeamId": "C",
+          "awayTeamId": "A",
+          "status": "scheduled",
+          "homeScore": null,
+          "awayScore": null
+        },
+        {
+          "id": "f8",
+          "homeTeamId": "D",
+          "awayTeamId": "B",
+          "status": "cancelled",
+          "homeScore": null,
+          "awayScore": null
+        }
+      ],
+      "events": [],
+      "expected": [
+        {
+          "teamId": "B",
+          "played": 3,
+          "won": 1,
+          "drawn": 1,
+          "lost": 1,
+          "goalsFor": 6,
+          "goalsAgainst": 4,
+          "points": 4
+        },
+        {
+          "teamId": "A",
+          "played": 3,
+          "won": 1,
+          "drawn": 1,
+          "lost": 1,
+          "goalsFor": 3,
+          "goalsAgainst": 3,
+          "points": 4
+        },
+        {
+          "teamId": "D",
+          "played": 3,
+          "won": 1,
+          "drawn": 1,
+          "lost": 1,
+          "goalsFor": 1,
+          "goalsAgainst": 3,
+          "points": 4
+        },
+        {
+          "teamId": "C",
+          "played": 3,
+          "won": 0,
+          "drawn": 3,
+          "lost": 0,
+          "goalsFor": 3,
+          "goalsAgainst": 3,
+          "points": 3
+        }
+      ]
+    },
+    {
+      "name": "con el enfrentamiento directo antes que la diferencia, gana el que le ganó al otro",
+      "rules": {
+        "pointsWin": 3,
+        "pointsDraw": 1,
+        "pointsLoss": 0,
+        "tiebreakers": [
+          "points",
+          "headToHead",
+          "goalDiff"
+        ]
+      },
+      "teams": [
+        {
+          "id": "E",
+          "name": "Emús",
+          "seed": 2
+        },
+        {
+          "id": "F",
+          "name": "Focas",
+          "seed": 1
+        },
+        {
+          "id": "G",
+          "name": "Gansos",
+          "seed": 3
+        },
+        {
+          "id": "H",
+          "name": "Halcones",
+          "seed": 4
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "g1",
+          "homeTeamId": "E",
+          "awayTeamId": "F",
+          "status": "played",
+          "homeScore": 1,
+          "awayScore": 0
+        },
+        {
+          "id": "g2",
+          "homeTeamId": "F",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 4,
+          "awayScore": 0
+        },
+        {
+          "id": "g3",
+          "homeTeamId": "E",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g4",
+          "homeTeamId": "H",
+          "awayTeamId": "E",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g5",
+          "homeTeamId": "H",
+          "awayTeamId": "F",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g6",
+          "homeTeamId": "H",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 0
+        }
+      ],
+      "events": [],
+      "expected": [
+        {
+          "teamId": "E",
+          "played": 3,
+          "won": 2,
+          "drawn": 0,
+          "lost": 1,
+          "goalsFor": 2,
+          "goalsAgainst": 1,
+          "points": 6
+        },
+        {
+          "teamId": "F",
+          "played": 3,
+          "won": 2,
+          "drawn": 0,
+          "lost": 1,
+          "goalsFor": 5,
+          "goalsAgainst": 1,
+          "points": 6
+        },
+        {
+          "teamId": "G",
+          "played": 3,
+          "won": 1,
+          "drawn": 1,
+          "lost": 1,
+          "goalsFor": 1,
+          "goalsAgainst": 4,
+          "points": 4
+        },
+        {
+          "teamId": "H",
+          "played": 3,
+          "won": 0,
+          "drawn": 1,
+          "lost": 2,
+          "goalsFor": 0,
+          "goalsAgainst": 2,
+          "points": 1
+        }
+      ]
+    },
+    {
+      "name": "los mismos partidos por diferencia de goles",
+      "rules": {
+        "pointsWin": 3,
+        "pointsDraw": 1,
+        "pointsLoss": 0,
+        "tiebreakers": [
+          "points",
+          "goalDiff",
+          "headToHead"
+        ]
+      },
+      "teams": [
+        {
+          "id": "E",
+          "name": "Emús",
+          "seed": 2
+        },
+        {
+          "id": "F",
+          "name": "Focas",
+          "seed": 1
+        },
+        {
+          "id": "G",
+          "name": "Gansos",
+          "seed": 3
+        },
+        {
+          "id": "H",
+          "name": "Halcones",
+          "seed": 4
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "g1",
+          "homeTeamId": "E",
+          "awayTeamId": "F",
+          "status": "played",
+          "homeScore": 1,
+          "awayScore": 0
+        },
+        {
+          "id": "g2",
+          "homeTeamId": "F",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 4,
+          "awayScore": 0
+        },
+        {
+          "id": "g3",
+          "homeTeamId": "E",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g4",
+          "homeTeamId": "H",
+          "awayTeamId": "E",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g5",
+          "homeTeamId": "H",
+          "awayTeamId": "F",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 1
+        },
+        {
+          "id": "g6",
+          "homeTeamId": "H",
+          "awayTeamId": "G",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 0
+        }
+      ],
+      "events": [],
+      "expected": [
+        {
+          "teamId": "F",
+          "played": 3,
+          "won": 2,
+          "drawn": 0,
+          "lost": 1,
+          "goalsFor": 5,
+          "goalsAgainst": 1,
+          "points": 6
+        },
+        {
+          "teamId": "E",
+          "played": 3,
+          "won": 2,
+          "drawn": 0,
+          "lost": 1,
+          "goalsFor": 2,
+          "goalsAgainst": 1,
+          "points": 6
+        },
+        {
+          "teamId": "G",
+          "played": 3,
+          "won": 1,
+          "drawn": 1,
+          "lost": 1,
+          "goalsFor": 1,
+          "goalsAgainst": 4,
+          "points": 4
+        },
+        {
+          "teamId": "H",
+          "played": 3,
+          "won": 0,
+          "drawn": 1,
+          "lost": 2,
+          "goalsFor": 0,
+          "goalsAgainst": 2,
+          "points": 1
+        }
+      ]
+    },
+    {
+      "name": "fair play: menos tarjetas va primero (y si siguen igual, el cabeza de serie)",
+      "rules": {
+        "pointsWin": 3,
+        "pointsDraw": 1,
+        "pointsLoss": 0,
+        "tiebreakers": [
+          "points",
+          "goalDiff",
+          "fairPlay"
+        ]
+      },
+      "teams": [
+        {
+          "id": "I",
+          "name": "Iguanas",
+          "seed": 1
+        },
+        {
+          "id": "J",
+          "name": "Jaguares",
+          "seed": 2
+        },
+        {
+          "id": "K",
+          "name": "Koalas",
+          "seed": null
+        },
+        {
+          "id": "L",
+          "name": "Lobos",
+          "seed": null
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "h1",
+          "homeTeamId": "I",
+          "awayTeamId": "J",
+          "status": "played",
+          "homeScore": 1,
+          "awayScore": 1
+        },
+        {
+          "id": "h2",
+          "homeTeamId": "K",
+          "awayTeamId": "L",
+          "status": "played",
+          "homeScore": 0,
+          "awayScore": 0
+        }
+      ],
+      "events": [
+        {
+          "fixtureId": "h1",
+          "teamId": "I",
+          "kind": "yellow"
+        },
+        {
+          "fixtureId": "h1",
+          "teamId": "J",
+          "kind": "goal"
+        },
+        {
+          "fixtureId": "h2",
+          "teamId": "L",
+          "kind": "red"
+        }
+      ],
+      "expected": [
+        {
+          "teamId": "J",
+          "played": 1,
+          "won": 0,
+          "drawn": 1,
+          "lost": 0,
+          "goalsFor": 1,
+          "goalsAgainst": 1,
+          "points": 1
+        },
+        {
+          "teamId": "K",
+          "played": 1,
+          "won": 0,
+          "drawn": 1,
+          "lost": 0,
+          "goalsFor": 0,
+          "goalsAgainst": 0,
+          "points": 1
+        },
+        {
+          "teamId": "I",
+          "played": 1,
+          "won": 0,
+          "drawn": 1,
+          "lost": 0,
+          "goalsFor": 1,
+          "goalsAgainst": 1,
+          "points": 1
+        },
+        {
+          "teamId": "L",
+          "played": 1,
+          "won": 0,
+          "drawn": 1,
+          "lost": 0,
+          "goalsFor": 0,
+          "goalsAgainst": 0,
+          "points": 1
+        }
+      ]
+    },
+    {
+      "name": "sin jugar: el que gana por walkover suma los puntos sin goles; los otros por cabeza de serie y nombre",
+      "rules": {
+        "pointsWin": 2,
+        "pointsDraw": 1,
+        "pointsLoss": 0,
+        "tiebreakers": [
+          "points"
+        ]
+      },
+      "teams": [
+        {
+          "id": "M",
+          "name": "Monos",
+          "seed": null
+        },
+        {
+          "id": "N",
+          "name": "Nutrias",
+          "seed": null
+        },
+        {
+          "id": "O",
+          "name": "Osos",
+          "seed": 5
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "w1",
+          "homeTeamId": "N",
+          "awayTeamId": "M",
+          "status": "walkover",
+          "homeScore": null,
+          "awayScore": null,
+          "walkoverWinner": "M"
+        }
+      ],
+      "events": [],
+      "expected": [
+        {
+          "teamId": "M",
+          "played": 1,
+          "won": 1,
+          "drawn": 0,
+          "lost": 0,
+          "goalsFor": 0,
+          "goalsAgainst": 0,
+          "points": 2
+        },
+        {
+          "teamId": "O",
+          "played": 0,
+          "won": 0,
+          "drawn": 0,
+          "lost": 0,
+          "goalsFor": 0,
+          "goalsAgainst": 0,
+          "points": 0
+        },
+        {
+          "teamId": "N",
+          "played": 1,
+          "won": 0,
+          "drawn": 0,
+          "lost": 1,
+          "goalsFor": 0,
+          "goalsAgainst": 0,
+          "points": 0
+        }
+      ]
+    }
+  ]
+}

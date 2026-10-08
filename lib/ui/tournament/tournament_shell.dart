@@ -5,9 +5,9 @@ import '../../cloud/state/providers.dart';
 import '../../cloud/ui/home_screens.dart';
 import '../../data/providers.dart';
 import '../../data/tournament_providers.dart';
-import '../../models/tournament.dart';
 import '../profile/global_stats.dart';
 import '../widgets/common.dart';
+import 'fixtures_screen.dart';
 import 'teams_screen.dart';
 import 'tournament_admin.dart';
 
@@ -37,7 +37,7 @@ class _TournamentShellState extends ConsumerState<TournamentShell> {
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
     final pages = <Widget>[
-      const FixturesPlaceholder(),
+      const FixturesScreen(),
       const TeamsScreen(),
       const TournamentProfileTab(),
       if (isAdmin) const TournamentAdminScreen(),
@@ -82,28 +82,6 @@ class _TournamentShellState extends ConsumerState<TournamentShell> {
               label: 'Admin',
             ),
         ],
-      ),
-    );
-  }
-}
-
-/// Partidos: el calendario llega cuando el organizador lo genera.
-class FixturesPlaceholder extends ConsumerWidget {
-  const FixturesPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(tournamentProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Partidos')),
-      body: EmptyState(
-        icon: Icons.calendar_month_outlined,
-        title: 'Todavía no hay calendario',
-        subtitle: switch (t?.status) {
-          TournamentStatus.draft ||
-          TournamentStatus.registration => 'Sale cuando cierre la inscripción.',
-          _ => 'El organizador lo genera desde Admin.',
-        },
       ),
     );
   }

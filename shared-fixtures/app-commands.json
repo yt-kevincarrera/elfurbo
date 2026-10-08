@@ -58,6 +58,17 @@
     { "name": "sacar jugador", "type": "team.removePlayer", "payload": { "teamId": "t1", "memberId": "p2" } },
     { "name": "salirme del equipo", "type": "team.leave", "payload": { "teamId": "t1" } },
     { "name": "poner dorsal", "type": "team.setShirt", "payload": { "teamId": "t1", "memberId": "p2", "shirt": 7 } },
-    { "name": "quitar dorsal", "type": "team.setShirt", "payload": { "teamId": "t1", "memberId": "p2", "shirt": null } }
+    { "name": "quitar dorsal", "type": "team.setShirt", "payload": { "teamId": "t1", "memberId": "p2", "shirt": null } },
+    { "name": "generar liga", "type": "fixtures.generate", "payload": { "stage": "league", "fixtures": [{ "id": "00000000-0000-4000-8000-000000000001", "stage": "league", "round": 1, "leg": 1, "homeTeamId": "t1", "awayTeamId": "t2", "startsAt": "2026-11-07T19:00:00.000Z" }] } },
+    { "name": "generar grupos", "type": "fixtures.generate", "payload": { "stage": "group", "fixtures": [{ "id": "00000000-0000-4000-8000-000000000002", "stage": "group", "round": 1, "groupLabel": "A", "leg": 1, "homeTeamId": "t1", "awayTeamId": "t2" }], "groups": [{ "teamId": "t1", "groupLabel": "A" }, { "teamId": "t2", "groupLabel": "A" }] } },
+    { "name": "generar cuadro", "type": "fixtures.generate", "payload": { "stage": "knockout", "fixtures": [{ "id": "00000000-0000-4000-8000-000000000003", "stage": "knockout", "round": 2, "leg": 1, "slot": 0, "homeSource": { "winnerOf": "00000000-0000-4000-8000-000000000004" }, "awaySource": { "group": "B", "pos": 2 } }, { "id": "00000000-0000-4000-8000-000000000004", "stage": "knockout", "round": 1, "leg": 1, "slot": 0, "homeTeamId": "t1", "awayTeamId": "t2" }] } },
+    { "name": "borrar calendario", "type": "fixtures.clear", "payload": { "stage": "league" } },
+    { "name": "programar partido", "type": "fixture.schedule", "payload": { "fixtureId": "f1", "startsAt": "2026-11-07T19:00:00.000Z", "place": "El Pre", "scorerMemberId": "p1" } },
+    { "name": "quitar anotador", "type": "fixture.schedule", "payload": { "fixtureId": "f1", "scorerMemberId": null } },
+    { "name": "resultado", "type": "fixture.result", "payload": { "fixtureId": "f1", "homeScore": 2, "awayScore": 1, "events": [{ "id": "00000000-0000-4000-8000-000000000005", "teamId": "t1", "memberId": "p1", "kind": "goal", "assistMemberId": "p2" }, { "id": "00000000-0000-4000-8000-000000000006", "teamId": "t2", "memberId": "p3", "kind": "own_goal" }, { "id": "00000000-0000-4000-8000-000000000007", "teamId": "t2", "memberId": "p4", "kind": "goal" }, { "id": "00000000-0000-4000-8000-000000000008", "teamId": "t1", "memberId": "p1", "kind": "mvp" }], "lineups": { "home": ["p1", "p2"], "away": ["p3", "p4"] } } },
+    { "name": "resultado con penales", "type": "fixture.result", "payload": { "fixtureId": "f1", "homeScore": 1, "awayScore": 1, "homePens": 4, "awayPens": 3, "events": [], "lineups": { "home": [], "away": [] } } },
+    { "name": "ganado sin jugar", "type": "fixture.setStatus", "payload": { "fixtureId": "f1", "status": "walkover", "walkoverWinner": "t2" } },
+    { "name": "borrar resultado", "type": "fixture.setStatus", "payload": { "fixtureId": "f1", "status": "scheduled" } },
+    { "name": "cerrar grupos", "type": "stage.advance", "payload": { "assignments": [{ "fixtureId": "f9", "homeTeamId": "t1", "awayTeamId": "t4" }] } }
   ]
 }

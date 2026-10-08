@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:elfurbo/data/club_repo.dart';
+import 'package:elfurbo/domain/tournament/generators.dart';
+import 'package:elfurbo/models/tournament.dart';
 import 'package:elfurbo/models/app_user.dart';
 import 'package:elfurbo/models/attendance.dart';
 import 'package:elfurbo/models/match_day.dart';
@@ -124,6 +126,108 @@ void main() {
     'salirme del equipo': (r) => r.leaveTeam('t1'),
     'poner dorsal': (r) => r.setShirt('t1', 'p2', 7),
     'quitar dorsal': (r) => r.setShirt('t1', 'p2', null),
+    'generar liga': (r) => r.generateFixtures('league', [
+      FixtureDraft(
+        id: '00000000-0000-4000-8000-000000000001',
+        stage: FixtureStage.league,
+        round: 1,
+        homeTeamId: 't1',
+        awayTeamId: 't2',
+        startsAt: DateTime.utc(2026, 11, 7, 19),
+      ).toJson(),
+    ]),
+    'generar grupos': (r) => r.generateFixtures(
+      'group',
+      [
+        FixtureDraft(
+          id: '00000000-0000-4000-8000-000000000002',
+          stage: FixtureStage.group,
+          round: 1,
+          groupLabel: 'A',
+          homeTeamId: 't1',
+          awayTeamId: 't2',
+        ).toJson(),
+      ],
+      groups: {'t1': 'A', 't2': 'A'},
+    ),
+    'generar cuadro': (r) => r.generateFixtures('knockout', [
+      FixtureDraft(
+        id: '00000000-0000-4000-8000-000000000003',
+        stage: FixtureStage.knockout,
+        round: 2,
+        slot: 0,
+        homeSource: const TeamSource(
+          winnerOf: '00000000-0000-4000-8000-000000000004',
+        ),
+        awaySource: const TeamSource(group: 'B', pos: 2),
+      ).toJson(),
+      FixtureDraft(
+        id: '00000000-0000-4000-8000-000000000004',
+        stage: FixtureStage.knockout,
+        round: 1,
+        slot: 0,
+        homeTeamId: 't1',
+        awayTeamId: 't2',
+      ).toJson(),
+    ]),
+    'borrar calendario': (r) => r.clearFixtures('league'),
+    'programar partido': (r) => r.scheduleFixture(
+      'f1',
+      startsAt: DateTime.utc(2026, 11, 7, 19),
+      place: ' El Pre ',
+      scorerMemberId: 'p1',
+    ),
+    'quitar anotador': (r) => r.scheduleFixture('f1', clearScorer: true),
+    'resultado': (r) => r.fixtureResult(
+      fixtureId: 'f1',
+      homeScore: 2,
+      awayScore: 1,
+      events: [
+        const FixtureEvent(
+          id: '00000000-0000-4000-8000-000000000005',
+          fixtureId: 'f1',
+          teamId: 't1',
+          memberId: 'p1',
+          kind: EventKind.goal,
+          assistMemberId: 'p2',
+        ).toJson(),
+        const FixtureEvent(
+          id: '00000000-0000-4000-8000-000000000006',
+          fixtureId: 'f1',
+          teamId: 't2',
+          memberId: 'p3',
+          kind: EventKind.ownGoal,
+        ).toJson(),
+        const FixtureEvent(
+          id: '00000000-0000-4000-8000-000000000007',
+          fixtureId: 'f1',
+          teamId: 't2',
+          memberId: 'p4',
+          kind: EventKind.goal,
+        ).toJson(),
+        const FixtureEvent(
+          id: '00000000-0000-4000-8000-000000000008',
+          fixtureId: 'f1',
+          teamId: 't1',
+          memberId: 'p1',
+          kind: EventKind.mvp,
+        ).toJson(),
+      ],
+      lineupHome: ['p1', 'p2'],
+      lineupAway: ['p3', 'p4'],
+    ),
+    'resultado con penales': (r) => r.fixtureResult(
+      fixtureId: 'f1',
+      homeScore: 1,
+      awayScore: 1,
+      homePens: 4,
+      awayPens: 3,
+    ),
+    'ganado sin jugar': (r) =>
+        r.setFixtureStatus('f1', 'walkover', walkoverWinner: 't2'),
+    'borrar resultado': (r) => r.setFixtureStatus('f1', 'scheduled'),
+    'cerrar grupos': (r) =>
+        r.advanceStage([(fixtureId: 'f9', homeTeamId: 't1', awayTeamId: 't4')]),
   };
 
   test('cada caso del fixture tiene su llamada en la app', () {

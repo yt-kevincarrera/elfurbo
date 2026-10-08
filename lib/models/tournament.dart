@@ -218,3 +218,209 @@ class TeamPlayer {
     active: j['status'] != 'removed',
   );
 }
+
+/// Fase de un partido.
+enum FixtureStage {
+  league,
+  group,
+  knockout,
+  third;
+
+  static FixtureStage parse(String? wire) => FixtureStage.values.firstWhere(
+    (s) => s.name == wire,
+    orElse: () => FixtureStage.league,
+  );
+}
+
+enum FixtureStatus {
+  scheduled,
+  played,
+  cancelled,
+  walkover;
+
+  static FixtureStatus parse(String? wire) => FixtureStatus.values.firstWhere(
+    (s) => s.name == wire,
+    orElse: () => FixtureStatus.scheduled,
+  );
+}
+
+/// De dónde sale un equipo de eliminatoria: el ganador (o perdedor) de otro
+/// partido, o el puesto [pos] del grupo [group].
+class TeamSource {
+  const TeamSource({this.winnerOf, this.loserOf, this.group, this.pos});
+
+  final String? winnerOf;
+  final String? loserOf;
+  final String? group;
+  final int? pos;
+
+  static TeamSource? fromCloud(Object? j) {
+    if (j is! Map) return null;
+    return TeamSource(
+      winnerOf: j['winnerOf'] as String?,
+      loserOf: j['loserOf'] as String?,
+      group: j['group'] as String?,
+      pos: (j['pos'] as num?)?.toInt(),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'winnerOf': ?winnerOf,
+    'loserOf': ?loserOf,
+    'group': ?group,
+    'pos': ?pos,
+  };
+}
+
+class Fixture {
+  const Fixture({
+    required this.id,
+    required this.stage,
+    required this.round,
+    required this.status,
+    this.groupLabel,
+    this.leg = 1,
+    this.slot,
+    this.homeTeamId,
+    this.awayTeamId,
+    this.homeSource,
+    this.awaySource,
+    this.startsAt,
+    this.place,
+    this.scorerMemberId,
+    this.homeScore,
+    this.awayScore,
+    this.homePens,
+    this.awayPens,
+    this.walkoverWinner,
+  });
+
+  final String id;
+  final FixtureStage stage;
+  final int round;
+  final String? groupLabel;
+  final int leg;
+  final int? slot;
+  final String? homeTeamId;
+  final String? awayTeamId;
+  final TeamSource? homeSource;
+  final TeamSource? awaySource;
+  final DateTime? startsAt;
+  final String? place;
+  final String? scorerMemberId;
+  final FixtureStatus status;
+  final int? homeScore;
+  final int? awayScore;
+  final int? homePens;
+  final int? awayPens;
+  final String? walkoverWinner;
+
+  bool get isKnockout =>
+      stage == FixtureStage.knockout || stage == FixtureStage.third;
+
+  /// Tiene resultado (jugado o ganado sin jugar).
+  bool get decided =>
+      status == FixtureStatus.played || status == FixtureStatus.walkover;
+
+  bool get hasTeams => homeTeamId != null && awayTeamId != null;
+
+  factory Fixture.fromCloud(Map<String, dynamic> j) => Fixture(
+    id: '${j['id']}',
+    stage: FixtureStage.parse(j['stage'] as String?),
+    round: (j['round'] as num?)?.toInt() ?? 1,
+    groupLabel: j['groupLabel'] as String?,
+    leg: (j['leg'] as num?)?.toInt() ?? 1,
+    slot: (j['slot'] as num?)?.toInt(),
+    homeTeamId: j['homeTeamId'] as String?,
+    awayTeamId: j['awayTeamId'] as String?,
+    homeSource: TeamSource.fromCloud(j['homeSource']),
+    awaySource: TeamSource.fromCloud(j['awaySource']),
+    startsAt: DateTime.tryParse('${j['startsAt']}')?.toLocal(),
+    place: j['place'] as String?,
+    scorerMemberId: j['scorerMemberId'] as String?,
+    status: FixtureStatus.parse(j['status'] as String?),
+    homeScore: (j['homeScore'] as num?)?.toInt(),
+    awayScore: (j['awayScore'] as num?)?.toInt(),
+    homePens: (j['homePens'] as num?)?.toInt(),
+    awayPens: (j['awayPens'] as num?)?.toInt(),
+    walkoverWinner: j['walkoverWinner'] as String?,
+  );
+}
+
+enum EventKind {
+  goal,
+  ownGoal,
+  yellow,
+  red,
+  mvp;
+
+  String get wire => this == ownGoal ? 'own_goal' : name;
+
+  static EventKind parse(String? wire) => switch (wire) {
+    'own_goal' => ownGoal,
+    'yellow' => yellow,
+    'red' => red,
+    'mvp' => mvp,
+    _ => goal,
+  };
+}
+
+/// Algo que pasó en un partido. [teamId] es el equipo del jugador (un
+/// autogol cuenta para el rival).
+class FixtureEvent {
+  const FixtureEvent({
+    required this.id,
+    required this.fixtureId,
+    required this.teamId,
+    required this.memberId,
+    required this.kind,
+    this.assistMemberId,
+    this.minute,
+  });
+
+  final String id;
+  final String fixtureId;
+  final String teamId;
+  final String memberId;
+  final EventKind kind;
+  final String? assistMemberId;
+  final int? minute;
+
+  factory FixtureEvent.fromCloud(Map<String, dynamic> j) => FixtureEvent(
+    id: '${j['id']}',
+    fixtureId: '${j['fixtureId']}',
+    teamId: '${j['teamId']}',
+    memberId: '${j['memberId']}',
+    kind: EventKind.parse(j['kind'] as String?),
+    assistMemberId: j['assistMemberId'] as String?,
+    minute: (j['minute'] as num?)?.toInt(),
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'teamId': teamId,
+    'memberId': memberId,
+    'kind': kind.wire,
+    'assistMemberId': ?assistMemberId,
+    'minute': ?minute,
+  };
+}
+
+/// Quién jugó un partido.
+class FixtureLineup {
+  const FixtureLineup({
+    required this.fixtureId,
+    required this.teamId,
+    required this.memberId,
+  });
+
+  final String fixtureId;
+  final String teamId;
+  final String memberId;
+
+  factory FixtureLineup.fromCloud(Map<String, dynamic> j) => FixtureLineup(
+    fixtureId: '${j['fixtureId']}',
+    teamId: '${j['teamId']}',
+    memberId: '${j['memberId']}',
+  );
+}
