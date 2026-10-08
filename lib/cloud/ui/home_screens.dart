@@ -8,6 +8,7 @@ import '../../ui/widgets/update_dialog.dart';
 import '../../ui/superadmin/superadmin_screen.dart';
 import '../../data/providers.dart';
 import '../../ui/widgets/club_token.dart';
+import '../../ui/widgets/tier_chip.dart';
 import '../../ui/widgets/expressive.dart';
 import '../state/cloud_controller.dart';
 import '../state/providers.dart';
@@ -99,6 +100,21 @@ class ClubBar extends ConsumerWidget {
                                           ),
                                         ),
                                       ),
+                                      // Solo los que pesan: oficial y verificado.
+                                      if (Tier.parse(
+                                        club.official ? 'official' : club.tier,
+                                      ).trusted)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 4,
+                                          ),
+                                          child: TierChip.wire(
+                                            club.official
+                                                ? 'official'
+                                                : club.tier,
+                                            compact: true,
+                                          ),
+                                        ),
                                       Badge(
                                         isLabelVisible: elsewhere,
                                         smallSize: 8,

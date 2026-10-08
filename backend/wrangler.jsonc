@@ -7,8 +7,8 @@
   "workers_dev": true,
   "observability": { "enabled": true },
   "vars": { "ENVIRONMENT": "local", "MIN_SUPPORTED_BUILD": "0" },
-  // Cada hora (a su hora hace la purga diaria).
-  "triggers": { "crons": ["0 * * * *"] },
+  // Cada 10 minutos: estadísticas y prestigio; a las 08:00 UTC, además, la purga diaria.
+  "triggers": { "crons": ["*/10 * * * *"] },
   // Base local para `wrangler dev` y los tests. Los entornos remotos van en "env".
   "d1_databases": [
     {
@@ -23,7 +23,7 @@
     "production": {
       "name": "furbo-api",
       "vars": { "ENVIRONMENT": "production", "MIN_SUPPORTED_BUILD": "0" },
-      "triggers": { "crons": ["0 * * * *"] },
+      "triggers": { "crons": ["*/10 * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",
@@ -36,7 +36,7 @@
     "staging": {
       "name": "furbo-api-staging",
       "vars": { "ENVIRONMENT": "staging", "MIN_SUPPORTED_BUILD": "0" },
-      "triggers": { "crons": ["0 * * * *"] },
+      "triggers": { "crons": ["*/10 * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",

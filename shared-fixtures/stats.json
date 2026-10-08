@@ -1,0 +1,804 @@
+{
+  "about": "Estadísticas de un servidor a partir de las filas del pull. Las calcula la app (lib/domain/report_rules.dart + StatsEngine, test/shared_stats_test.dart) y el backend (backend/src/rules/stats.ts, backend/test/stats-rules.test.ts). Si cambia una regla, cambia aquí y en los dos lados. Los miembros que no están en `expected` no jugaron, ni metieron goles ni salieron MVP. Un caso puede traer sus propios datos (`data`) en vez de los de arriba.",
+  "data": {
+    "member": [
+      {
+        "id": "a",
+        "userId": "ua",
+        "role": "owner",
+        "status": "active",
+        "displayName": "Ana"
+      },
+      {
+        "id": "b",
+        "userId": "ub",
+        "role": "player",
+        "status": "active",
+        "displayName": "Beto"
+      },
+      {
+        "id": "c",
+        "userId": "uc",
+        "role": "scorer",
+        "status": "active",
+        "displayName": "Ciro"
+      },
+      {
+        "id": "d",
+        "userId": "ud",
+        "role": "player",
+        "status": "active",
+        "displayName": "Dani"
+      },
+      {
+        "id": "e",
+        "userId": "ue",
+        "role": "player",
+        "status": "active",
+        "displayName": "Eli"
+      },
+      {
+        "id": "g",
+        "userId": null,
+        "role": "guest",
+        "status": "active",
+        "displayName": "Yoandry"
+      }
+    ],
+    "season": [
+      {
+        "id": "s0",
+        "name": "Verano",
+        "startDate": "2026-07-01",
+        "isActive": false,
+        "isClosed": true
+      },
+      {
+        "id": "s1",
+        "name": "Otoño",
+        "startDate": "2026-09-01",
+        "isActive": true,
+        "isClosed": false
+      }
+    ],
+    "matchday": [
+      {
+        "id": "md6",
+        "seasonId": "s0",
+        "startsAt": "2026-08-01T14:00:00.000Z",
+        "durationMinutes": 0,
+        "status": "closed"
+      },
+      {
+        "id": "md1",
+        "seasonId": "s1",
+        "startsAt": "2026-09-05T14:00:00.000Z",
+        "durationMinutes": 0,
+        "status": "scheduled"
+      },
+      {
+        "id": "md2",
+        "seasonId": "s1",
+        "startsAt": "2026-09-12T14:00:00.000Z",
+        "durationMinutes": 120,
+        "status": "scheduled"
+      },
+      {
+        "id": "md3",
+        "seasonId": "s1",
+        "startsAt": "2026-09-19T14:00:00.000Z",
+        "durationMinutes": 0,
+        "status": "cancelled"
+      },
+      {
+        "id": "md4",
+        "seasonId": "s1",
+        "startsAt": "2026-09-26T14:00:00.000Z",
+        "durationMinutes": 0,
+        "status": "reopened"
+      },
+      {
+        "id": "md5",
+        "seasonId": "s1",
+        "startsAt": "2026-10-20T14:00:00.000Z",
+        "durationMinutes": 0,
+        "status": "scheduled"
+      }
+    ],
+    "attendance": [
+      {
+        "id": "md6:a",
+        "matchdayId": "md6",
+        "memberId": "a",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md6:b",
+        "matchdayId": "md6",
+        "memberId": "b",
+        "intent": null,
+        "played": true
+      },
+      {
+        "id": "md1:a",
+        "matchdayId": "md1",
+        "memberId": "a",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md1:b",
+        "matchdayId": "md1",
+        "memberId": "b",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md1:c",
+        "matchdayId": "md1",
+        "memberId": "c",
+        "intent": null,
+        "played": true
+      },
+      {
+        "id": "md1:e",
+        "matchdayId": "md1",
+        "memberId": "e",
+        "intent": "yes",
+        "played": false
+      },
+      {
+        "id": "md2:a",
+        "matchdayId": "md2",
+        "memberId": "a",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md2:b",
+        "matchdayId": "md2",
+        "memberId": "b",
+        "intent": "maybe",
+        "played": true
+      },
+      {
+        "id": "md2:d",
+        "matchdayId": "md2",
+        "memberId": "d",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md2:e",
+        "matchdayId": "md2",
+        "memberId": "e",
+        "intent": "yes",
+        "played": null
+      },
+      {
+        "id": "md3:a",
+        "matchdayId": "md3",
+        "memberId": "a",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md4:a",
+        "matchdayId": "md4",
+        "memberId": "a",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md4:c",
+        "matchdayId": "md4",
+        "memberId": "c",
+        "intent": "yes",
+        "played": true
+      },
+      {
+        "id": "md5:b",
+        "matchdayId": "md5",
+        "memberId": "b",
+        "intent": "yes",
+        "played": null
+      }
+    ],
+    "report": [
+      {
+        "id": "md6:a",
+        "matchdayId": "md6",
+        "memberId": "a",
+        "goals": 5,
+        "assists": 0,
+        "note": null,
+        "loadedBy": "a",
+        "decision": "confirmed",
+        "correctedBy": null
+      },
+      {
+        "id": "md1:a",
+        "matchdayId": "md1",
+        "memberId": "a",
+        "goals": 3,
+        "assists": 1,
+        "note": null,
+        "loadedBy": "a",
+        "decision": null,
+        "correctedBy": null
+      },
+      {
+        "id": "md1:b",
+        "matchdayId": "md1",
+        "memberId": "b",
+        "goals": 1,
+        "assists": 0,
+        "note": null,
+        "loadedBy": "b",
+        "decision": null,
+        "correctedBy": null
+      },
+      {
+        "id": "md1:c",
+        "matchdayId": "md1",
+        "memberId": "c",
+        "goals": 0,
+        "assists": 2,
+        "note": null,
+        "loadedBy": "c",
+        "decision": "confirmed",
+        "correctedBy": null
+      },
+      {
+        "id": "md2:a",
+        "matchdayId": "md2",
+        "memberId": "a",
+        "goals": 4,
+        "assists": 0,
+        "note": null,
+        "loadedBy": "a",
+        "decision": null,
+        "correctedBy": null
+      },
+      {
+        "id": "md2:b",
+        "matchdayId": "md2",
+        "memberId": "b",
+        "goals": 2,
+        "assists": 1,
+        "note": null,
+        "loadedBy": "b",
+        "decision": "rejected",
+        "correctedBy": null
+      },
+      {
+        "id": "md2:g",
+        "matchdayId": "md2",
+        "memberId": "g",
+        "goals": 1,
+        "assists": 0,
+        "note": null,
+        "loadedBy": "c",
+        "decision": "confirmed",
+        "correctedBy": null
+      },
+      {
+        "id": "md3:a",
+        "matchdayId": "md3",
+        "memberId": "a",
+        "goals": 2,
+        "assists": 0,
+        "note": null,
+        "loadedBy": "a",
+        "decision": "confirmed",
+        "correctedBy": null
+      },
+      {
+        "id": "md4:c",
+        "matchdayId": "md4",
+        "memberId": "c",
+        "goals": 1,
+        "assists": 1,
+        "note": null,
+        "loadedBy": "c",
+        "decision": null,
+        "correctedBy": null
+      }
+    ],
+    "confirmation": [
+      {
+        "id": "md1:a:b",
+        "matchdayId": "md1",
+        "memberId": "a",
+        "confirmerId": "b"
+      },
+      {
+        "id": "md1:a:c",
+        "matchdayId": "md1",
+        "memberId": "a",
+        "confirmerId": "c"
+      },
+      {
+        "id": "md1:b:a",
+        "matchdayId": "md1",
+        "memberId": "b",
+        "confirmerId": "a"
+      },
+      {
+        "id": "md1:b:d",
+        "matchdayId": "md1",
+        "memberId": "b",
+        "confirmerId": "d"
+      },
+      {
+        "id": "md1:b:e",
+        "matchdayId": "md1",
+        "memberId": "b",
+        "confirmerId": "e"
+      },
+      {
+        "id": "md2:a:b",
+        "matchdayId": "md2",
+        "memberId": "a",
+        "confirmerId": "b"
+      },
+      {
+        "id": "md2:a:d",
+        "matchdayId": "md2",
+        "memberId": "a",
+        "confirmerId": "d"
+      },
+      {
+        "id": "md2:b:a",
+        "matchdayId": "md2",
+        "memberId": "b",
+        "confirmerId": "a"
+      },
+      {
+        "id": "md2:b:d",
+        "matchdayId": "md2",
+        "memberId": "b",
+        "confirmerId": "d"
+      },
+      {
+        "id": "md4:c:a",
+        "matchdayId": "md4",
+        "memberId": "c",
+        "confirmerId": "a"
+      }
+    ],
+    "vote": [
+      {
+        "id": "md1:b",
+        "matchdayId": "md1",
+        "voterId": "b",
+        "votedFor": "a"
+      },
+      {
+        "id": "md1:c",
+        "matchdayId": "md1",
+        "voterId": "c",
+        "votedFor": "a"
+      },
+      {
+        "id": "md1:a",
+        "matchdayId": "md1",
+        "voterId": "a",
+        "votedFor": "c"
+      },
+      {
+        "id": "md2:a",
+        "matchdayId": "md2",
+        "voterId": "a",
+        "votedFor": "d"
+      },
+      {
+        "id": "md2:b",
+        "matchdayId": "md2",
+        "voterId": "b",
+        "votedFor": "g"
+      },
+      {
+        "id": "md2:d",
+        "matchdayId": "md2",
+        "voterId": "d",
+        "votedFor": "a"
+      },
+      {
+        "id": "md4:a",
+        "matchdayId": "md4",
+        "voterId": "a",
+        "votedFor": "c"
+      },
+      {
+        "id": "md4:c",
+        "matchdayId": "md4",
+        "voterId": "c",
+        "votedFor": "a"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "con confirmación: solo valen las de quienes jugaron, lo del staff cuenta, lo rechazado no y lo cancelado o futuro no se jugó",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": "s1",
+      "expected": {
+        "a": {
+          "played": 3,
+          "goals": 7,
+          "assists": 1,
+          "mvps": 3,
+          "hatTricks": 2,
+          "pokers": 1,
+          "completeMatches": 1,
+          "bestDayGoals": 4,
+          "bestStreak": 3
+        },
+        "b": {
+          "played": 2,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 2
+        },
+        "c": {
+          "played": 2,
+          "goals": 0,
+          "assists": 2,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "d": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "g": {
+          "played": 1,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        }
+      }
+    },
+    {
+      "name": "confiando: todo cuenta salvo lo rechazado, y el desempate del MVP usa esos goles",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "trust",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": "s1",
+      "expected": {
+        "a": {
+          "played": 3,
+          "goals": 7,
+          "assists": 1,
+          "mvps": 2,
+          "hatTricks": 2,
+          "pokers": 1,
+          "completeMatches": 1,
+          "bestDayGoals": 4,
+          "bestStreak": 3
+        },
+        "b": {
+          "played": 2,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 2
+        },
+        "c": {
+          "played": 2,
+          "goals": 1,
+          "assists": 3,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 1,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        },
+        "d": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "g": {
+          "played": 1,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        }
+      }
+    },
+    {
+      "name": "histórico: suma la temporada vieja y la racha cruza temporadas",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": null,
+      "expected": {
+        "a": {
+          "played": 4,
+          "goals": 12,
+          "assists": 1,
+          "mvps": 3,
+          "hatTricks": 3,
+          "pokers": 2,
+          "completeMatches": 1,
+          "bestDayGoals": 5,
+          "bestStreak": 4
+        },
+        "b": {
+          "played": 3,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 3
+        },
+        "c": {
+          "played": 2,
+          "goals": 0,
+          "assists": 2,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "d": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "g": {
+          "played": 1,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        }
+      }
+    },
+    {
+      "name": "con 1 confirmación basta: el reporte de Beto en md1 cuenta (Dani no jugó, pero Ana sí)",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 1
+      },
+      "seasonId": "s1",
+      "expected": {
+        "a": {
+          "played": 3,
+          "goals": 7,
+          "assists": 1,
+          "mvps": 2,
+          "hatTricks": 2,
+          "pokers": 1,
+          "completeMatches": 1,
+          "bestDayGoals": 4,
+          "bestStreak": 3
+        },
+        "b": {
+          "played": 2,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 2
+        },
+        "c": {
+          "played": 2,
+          "goals": 1,
+          "assists": 3,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 1,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        },
+        "d": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "g": {
+          "played": 1,
+          "goals": 1,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 1,
+          "bestStreak": 1
+        }
+      }
+    },
+    {
+      "name": "dos jornadas a la misma hora: van por id, así las rachas salen igual en los dos lados",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": null,
+      "data": {
+        "member": [
+          {
+            "id": "p",
+            "userId": "up",
+            "role": "player",
+            "status": "active",
+            "displayName": "P"
+          },
+          {
+            "id": "q",
+            "userId": "uq",
+            "role": "player",
+            "status": "active",
+            "displayName": "Q"
+          }
+        ],
+        "season": [
+          {
+            "id": "s1",
+            "name": "2026",
+            "startDate": "2026-01-01",
+            "isActive": true,
+            "isClosed": false
+          }
+        ],
+        "matchday": [
+          {
+            "id": "B",
+            "seasonId": "s1",
+            "startsAt": "2026-09-01T14:00:00.000Z",
+            "durationMinutes": 0,
+            "status": "scheduled"
+          },
+          {
+            "id": "C",
+            "seasonId": "s1",
+            "startsAt": "2026-09-08T14:00:00.000Z",
+            "durationMinutes": 0,
+            "status": "scheduled"
+          },
+          {
+            "id": "A",
+            "seasonId": "s1",
+            "startsAt": "2026-09-01T14:00:00.000Z",
+            "durationMinutes": 0,
+            "status": "scheduled"
+          }
+        ],
+        "attendance": [
+          {
+            "id": "A:p",
+            "matchdayId": "A",
+            "memberId": "p",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "B:q",
+            "matchdayId": "B",
+            "memberId": "q",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "C:p",
+            "matchdayId": "C",
+            "memberId": "p",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "C:q",
+            "matchdayId": "C",
+            "memberId": "q",
+            "intent": null,
+            "played": true
+          }
+        ],
+        "report": [],
+        "confirmation": [],
+        "vote": []
+      },
+      "expected": {
+        "p": {
+          "played": 2,
+          "mvps": 0,
+          "goals": 0,
+          "assists": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "q": {
+          "played": 2,
+          "mvps": 0,
+          "goals": 0,
+          "assists": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 2
+        }
+      }
+    }
+  ]
+}

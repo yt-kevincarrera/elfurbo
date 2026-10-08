@@ -179,9 +179,12 @@ Solo el owner:
 ### Pull
 
 La entidad `club` lleva además:
-- `kind`, `visibility`, `official`, `province`, `city`, `color` y
-  `hostClubId`;
-- `tier` y `tierScore` (§4).
+- `kind`, `visibility`, `official`, `province`, `city`, `color`,
+  `hostClubId` y `delisted`.
+
+El nivel de prestigio (§4) **no** viaja en el pull: va en `/me` (`tier` de cada
+servidor) y en `GET /clubs/:id/prestige`. Así el cálculo no escribe en
+`changes` y no se dispara a sí mismo.
 
 ## 3. Estadísticas en el backend
 
@@ -244,8 +247,7 @@ La entidad `club` lleva además:
 - **Cuántos:** hasta 6 servidores por pasada, con un tope de 600 consultas.
 - **Cómo:** lee las tablas del servidor (7 consultas), calcula todo en memoria
   y reescribe sus filas en un `batch`.
-- **Cambios para el pull:** si el nivel del servidor cambia, escribe un cambio
-  `club` para que lo lleve el pull.
+- **No escribe en `changes`:** el nivel llega a la app por `/me`.
 - **Retraso:** como mucho unos 10 minutos. Las pantallas dicen "se actualiza
   cada pocos minutos".
 

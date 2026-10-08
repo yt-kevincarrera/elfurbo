@@ -91,6 +91,68 @@ class AuditPage {
 }
 
 /// Lo del admin de un servidor que va directo al servidor.
+/// Una parte de la puntuación de prestigio. Las penalizaciones tienen `max` 0
+/// y puntos negativos.
+class PrestigePart {
+  const PrestigePart({
+    required this.key,
+    required this.points,
+    required this.max,
+    this.hint,
+  });
+
+  /// `age`, `activity`, `size`, `validation`, `accounts`, `network`,
+  /// `rejected` o `goals`.
+  final String key;
+  final double points;
+  final int max;
+
+  /// Qué hacer para sumar más (null si ya está completa).
+  final String? hint;
+
+  bool get penalty => max == 0;
+
+  factory PrestigePart.fromJson(Map<String, dynamic> j) => PrestigePart(
+    key: j['key'] as String,
+    points: (j['points'] as num).toDouble(),
+    max: (j['max'] as num).toInt(),
+    hint: j['hint'] as String?,
+  );
+}
+
+class Prestige {
+  const Prestige({
+    required this.tier,
+    required this.score,
+    required this.parts,
+    this.newReason,
+    this.computedAt,
+  });
+
+  final String tier;
+  final int score;
+  final List<PrestigePart> parts;
+
+  /// Por qué todavía es Nuevo.
+  final String? newReason;
+
+  /// Cuándo se calculó (null: todavía nunca).
+  final DateTime? computedAt;
+
+  factory Prestige.fromJson(Map<String, dynamic> j) => Prestige(
+    tier: j['tier'] as String,
+    score: (j['score'] as num).toInt(),
+    parts: [
+      for (final p in (j['parts'] as List))
+        PrestigePart.fromJson(p as Map<String, dynamic>),
+    ],
+    newReason: j['newReason'] as String?,
+    computedAt: j['computedAt'] == null
+        ? null
+        : DateTime.parse(j['computedAt'] as String).toLocal(),
+  );
+}
+
 class ClubAdminApi {
   ClubAdminApi(this._api);
 
@@ -131,6 +193,10 @@ class ClubAdminApi {
       RecoveryCode.fromJson(
         (await _api.post('/clubs/$clubId/members/$memberId/recovery-code'))!,
       );
+
+  /// El prestigio del servidor: nivel, puntuación por partes y qué le falta.
+  Future<Prestige> prestige(String clubId) async =>
+      Prestige.fromJson((await _api.get('/clubs/$clubId/prestige'))!);
 
   Future<AuditPage> audit(String clubId, {int? before}) async {
     final j = await _api.get(

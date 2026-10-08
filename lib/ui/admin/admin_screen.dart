@@ -14,6 +14,7 @@ import '../widgets/expressive.dart';
 import '../widgets/guest_dialog.dart';
 import 'audit_screen.dart';
 import 'club_profile.dart';
+import 'prestige.dart';
 import 'invites.dart';
 import 'settings.dart';
 import '../widgets/player_avatar.dart';
@@ -54,6 +55,7 @@ class AdminScreen extends ConsumerWidget {
           if (canManageInvites(myRole)) const InvitesSection(),
           if (canManageClub(myRole)) const ClubProfileSection(),
           if (canManageClub(myRole)) const ClubSettingsSection(),
+          const PrestigeSection(),
           SectionTitle(
             'Temporadas',
             trailing: readOnly
