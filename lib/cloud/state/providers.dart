@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/admin_api.dart';
+import '../api/players_api.dart';
 import '../auth/session.dart';
 import '../sync/club_data.dart';
 import '../sync/sync_engine.dart';
@@ -93,4 +94,16 @@ final invitesProvider = FutureProvider.autoDispose.family<List<Invite>, String>(
 /// El prestigio de un servidor (necesita señal); se pide de nuevo al invalidarlo.
 final prestigeProvider = FutureProvider.autoDispose.family<Prestige, String>(
   (ref, clubId) => ref.watch(clubAdminApiProvider).prestige(clubId),
+);
+
+/// Perfil global y búsqueda de jugadores (necesitan señal).
+final playersApiProvider = Provider<PlayersApi>(
+  (ref) => PlayersApi(ref.watch(cloudProvider).api),
+);
+
+/// El perfil global de un usuario. Queda en memoria mientras la app está
+/// abierta (sin señal se ve lo último que se trajo); se pide de nuevo al
+/// invalidarlo.
+final globalProfileProvider = FutureProvider.family<GlobalProfile, String>(
+  (ref, userId) => ref.watch(playersApiProvider).profile(userId),
 );

@@ -96,6 +96,15 @@ class ClubSettingsSection extends ConsumerWidget {
           },
           onChanged: (v) => save(repo.updateSettings(closeAfterHours: v)),
         ),
+        setting(
+          title: 'Estadísticas en el perfil de cada uno',
+          help:
+              'Si se comparten, lo que cada jugador hace aquí sale en su perfil '
+              'de toda la app, con el nivel del servidor.',
+          value: s.shareStats,
+          options: const {true: 'Se comparten', false: 'Solo aquí'},
+          onChanged: (v) => save(repo.updateSettings(shareStats: v)),
+        ),
       ],
     );
   }

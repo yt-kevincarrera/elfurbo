@@ -7,6 +7,7 @@ import { scheduled } from "./cron";
 import { errorResponse, errors, handleError } from "./http/errors";
 import { invitePageRoutes, inviteRoutes } from "./invites/routes";
 import { meRoutes } from "./me/routes";
+import { playerRoutes } from "./players/routes";
 import { superadminRoutes } from "./superadmin/routes";
 import { syncRoutes } from "./sync/routes";
 import type { AppEnv, Env } from "./types";
@@ -20,6 +21,7 @@ app.use((c, next) => (c.req.path === "/sync/push" ? next() : smallBodies(c, next
 app.get("/health", (c) => c.json({ ok: true, environment: c.env.ENVIRONMENT }));
 app.route("/auth", authRoutes);
 app.route("/me", meRoutes);
+app.route("/players", playerRoutes);
 app.route("/clubs", clubRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/i", invitePageRoutes);

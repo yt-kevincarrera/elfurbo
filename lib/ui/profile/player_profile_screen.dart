@@ -20,6 +20,7 @@ import '../stats/leaderboard_screen.dart';
 import '../widgets/common.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/update_dialog.dart';
+import 'global_stats.dart';
 
 class PlayerProfileScreen extends ConsumerWidget {
   const PlayerProfileScreen({
@@ -192,6 +193,9 @@ class PlayerProfileScreen extends ConsumerWidget {
               ],
             ),
           ),
+          // Lo de todos sus servidores (necesita señal); los sin cuenta no tienen.
+          if (user?.userId case final userId?)
+            GlobalStatsSection(userId: userId, isMe: isMe),
           const SectionTitle('Evolución'),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 20, 0),
