@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'settle_io.dart';
+
 const _user = {
   'id': 'u1',
   'username': 'kevin',
@@ -35,10 +37,16 @@ void main() {
   late List<String> calls;
   bool offline = false;
   int status401For = -1;
+  // El login deja un sync de fondo que sigue tras acabar el test (y, si quedó un
+  // cambio en cola, un temporal lanza otro). Cada controlador solo ve la red de
+  // su test: si no, sus peticiones contarían en las del siguiente.
+  var testNo = 0;
 
   Future<CloudController> controller() async {
     final prefs = await SharedPreferences.getInstance();
+    final mine = testNo;
     final client = MockClient((req) async {
+      if (mine != testNo) throw const SocketException('test terminado');
       calls.add('${req.method} ${req.url.path}');
       if (offline) throw const SocketException('sin red');
       if (status401For == calls.length) {
@@ -90,19 +98,13 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    dir = await Directory.systemTemp.createTemp('furbo-ctrl');
+    testNo++;
+    // No se borra al terminar: el sync que lanza el login puede seguir leyéndola,
+    // y en Windows una carpeta a medio borrar da "Access is denied" (ver dataDir).
+    dir = await dataDir('furbo-ctrl');
     calls = [];
     offline = false;
     status401For = -1;
-  });
-
-  tearDown(() async {
-    // Puede quedar alguna escritura en vuelo del sync de fondo: no hace fallar el test.
-    try {
-      await dir.delete(recursive: true);
-    } on FileSystemException {
-      // Ya no existe o la está usando otra operación que termina enseguida.
-    }
   });
 
   test(
