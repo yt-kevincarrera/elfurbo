@@ -7,6 +7,7 @@ import { scheduled } from "./cron";
 import { errorResponse, errors, handleError } from "./http/errors";
 import { invitePageRoutes, inviteRoutes } from "./invites/routes";
 import { clubPageRoutes } from "./directory/page";
+import { tournamentPageRoutes } from "./directory/tournament-page";
 import { directoryRoutes } from "./directory/routes";
 import { meRoutes } from "./me/routes";
 import { tournamentRoutes } from "./tournaments/routes";
@@ -31,6 +32,7 @@ app.route("/tournaments", tournamentRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/i", invitePageRoutes);
 app.route("/s", clubPageRoutes);
+app.route("/t", tournamentPageRoutes);
 app.route("/admin", superadminRoutes);
 // Una versión de la app más vieja que la que admite el protocolo de sync no envía ni trae nada
 // (spec §8). La app manda su build en `x-app-build`; las que no lo mandan son anteriores a la 0.6.

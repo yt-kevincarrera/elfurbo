@@ -50,7 +50,8 @@ directoryRoutes.get("/", async (c) => {
 directoryRoutes.get("/:clubId", async (c) => {
   const db = c.env.DB;
   const row = await findPublicClub(db, c.req.param("clubId"), c.var.auth.user.id);
-  return c.json({ club: { ...directoryCard(row), description: row.description, ...(await publicExtras(db, row.id)) } });
+  const extras = row.kind === "tournament" ? await tournamentExtras(db, row.id) : await publicExtras(db, row.id);
+  return c.json({ club: { ...directoryCard(row), description: row.description, ...extras } });
 });
 
 /** Lo que se enseña de un servidor público a cualquiera: también lo usa la página `/s/:id`. */
@@ -81,5 +82,24 @@ export async function publicExtras(db: D1Database, clubId: string) {
     season: season?.name ?? null,
     topScorers: scorers,
     upcoming: upcoming.map((u) => ({ startsAt: u.starts_at, place: u.place })),
+  };
+}
+
+/** Lo que se enseña de un torneo público: sus equipos y, si terminó, el campeón. */
+export async function tournamentExtras(db: D1Database, clubId: string) {
+  const { results: teams } = await db
+    .prepare("SELECT id, name, short_name, color FROM teams WHERE club_id = ? AND status = 'approved' ORDER BY name")
+    .bind(clubId)
+    .all<{ id: string; name: string; short_name: string; color: number }>();
+  const champion = await db
+    .prepare("SELECT t.name FROM awards a JOIN teams t ON t.id = a.team_id WHERE a.club_id = ? AND a.kind = 'champion'")
+    .bind(clubId)
+    .first<{ name: string }>();
+  return {
+    teams: teams.map((t) => ({ id: t.id, name: t.name, shortName: t.short_name, color: t.color })),
+    champion: champion?.name ?? null,
+    topScorers: [],
+    upcoming: [],
+    season: null,
   };
 }

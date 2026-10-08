@@ -446,3 +446,96 @@ export const setShirt = command(
     };
   },
 );
+
+// ------------------------------------------------------------- final
+
+const TEAM_AWARDS = new Set(["champion", "runner_up", "third", "fair_play"]);
+const awardSchema = z
+  .object({
+    kind: z.enum(["champion", "runner_up", "third", "top_scorer", "top_assists", "best_player", "fair_play"]),
+    teamId: id.nullable().optional(),
+    memberId: id.nullable().optional(),
+    value: z.number().int().min(0).max(999).nullable().optional(),
+  })
+  .strict();
+
+/** Borra los premios del torneo, con sus cambios para el pull. */
+function clearAwards(ctx: CommandContext) {
+  return [
+    ctx.db
+      .prepare(
+        `INSERT INTO changes (club_id, entity, entity_key, op, at)
+         SELECT club_id, 'award', id, 'delete', ? FROM awards WHERE club_id = ?`,
+      )
+      .bind(ctx.now.toISOString(), ctx.club.id),
+    ctx.db.prepare("DELETE FROM awards WHERE club_id = ?").bind(ctx.club.id),
+  ];
+}
+
+/**
+ * Terminar el torneo con sus premios (spec 2.0 §7.6): los propone la app y el organizador los
+ * confirma. Uno de cada tipo; los de equipo, a un equipo aprobado; los de jugador, a un miembro.
+ * Terminado, el torneo ya no acepta cambios (salvo `tournament.reopen`).
+ */
+export const finishTournament = command(
+  z.object({ awards: z.array(awardSchema).max(7) }).strict(),
+  async (ctx, p) => {
+    if (!isAdmin(ctx.member.role)) throw errors.forbidden();
+    const t = await loadTournament(ctx);
+    if (t.status !== "in_progress") throw errors.invalidState("Solo se termina un torneo en juego");
+    const kinds = new Set(p.awards.map((a) => a.kind));
+    if (kinds.size !== p.awards.length) throw errors.invalidInput({ awards: ["Un premio de cada tipo"] });
+    const { results: teams } = await ctx.db
+      .prepare("SELECT id FROM teams WHERE club_id = ? AND status = 'approved'")
+      .bind(ctx.club.id)
+      .all<{ id: string }>();
+    const approved = new Set(teams.map((r) => r.id));
+    const memberIds = p.awards.map((a) => a.memberId).filter((m): m is string => !!m);
+    const { results: members } = memberIds.length
+      ? await ctx.db
+          .prepare(`SELECT id FROM members WHERE club_id = ? AND id IN (${memberIds.map(() => "?").join(", ")})`)
+          .bind(ctx.club.id, ...memberIds)
+          .all<{ id: string }>()
+      : { results: [] };
+    const known = new Set(members.map((r) => r.id));
+    for (const a of p.awards) {
+      // Cada premio lleva solo lo suyo: un equipo o un jugador de este torneo, nunca los dos.
+      const ok = TEAM_AWARDS.has(a.kind)
+        ? !!a.teamId && approved.has(a.teamId) && !a.memberId
+        : !!a.memberId && known.has(a.memberId) && !a.teamId;
+      if (!ok) throw errors.invalidInput({ awards: ["Un premio no cuadra con los equipos o jugadores del torneo"] });
+    }
+    const podium = p.awards.filter((a) => a.kind === "champion" || a.kind === "runner_up" || a.kind === "third").map((a) => a.teamId);
+    if (new Set(podium).size !== podium.length) throw errors.invalidInput({ awards: ["Un equipo no puede tener dos puestos del podio"] });
+    const at = ctx.now.toISOString();
+    const statements = [
+      ...clearAwards(ctx),
+      ...p.awards.map((a) =>
+        ctx.db
+          .prepare("INSERT INTO awards (id, club_id, kind, team_id, member_id, value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .bind(`${ctx.club.id}:${a.kind}`, ctx.club.id, a.kind, a.teamId ?? null, a.memberId ?? null, a.value ?? null, at),
+      ),
+      ctx.db.prepare("UPDATE tournaments SET status = 'finished', updated_at = ? WHERE club_id = ?").bind(at, ctx.club.id),
+    ];
+    return {
+      statements,
+      touched: [upsert("tournament", ctx.club.id), ...p.awards.map((a) => upsert("award", `${ctx.club.id}:${a.kind}`))],
+      audit: [{ action: "tournament.finish", entity: "tournament", entityKey: ctx.club.id, summary: { awards: p.awards.length } }],
+    };
+  },
+);
+
+/** Reabrir un torneo terminado (para corregir algo): vuelve a "en juego" y se quitan los premios. */
+export const reopenTournament = command(z.object({}).strict(), async (ctx) => {
+  if (!isAdmin(ctx.member.role)) throw errors.forbidden();
+  const t = await loadTournament(ctx);
+  if (t.status !== "finished") throw errors.invalidState("El torneo no está terminado");
+  return {
+    statements: [
+      ...clearAwards(ctx),
+      ctx.db.prepare("UPDATE tournaments SET status = 'in_progress', updated_at = ? WHERE club_id = ?").bind(ctx.now.toISOString(), ctx.club.id),
+    ],
+    touched: [upsert("tournament", ctx.club.id)],
+    audit: [{ action: "tournament.reopen", entity: "tournament", entityKey: ctx.club.id }],
+  };
+});

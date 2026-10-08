@@ -13,6 +13,7 @@ import '../admin/join_requests.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
 import 'calendar_admin.dart';
+import 'finish.dart';
 import 'teams_screen.dart';
 
 /// Admin de un torneo (organizadores): en qué va, las inscripciones, las
@@ -33,6 +34,7 @@ class TournamentAdminScreen extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 32),
         children: [
           _StatusSection(tournament: t),
+          const FinishSection(),
           const _PendingTeams(),
           const CalendarAdminSection(),
           _RulesSection(tournament: t),

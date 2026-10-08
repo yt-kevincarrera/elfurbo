@@ -19,7 +19,7 @@ a.button{display:inline-block;margin-top:1em;background:#ffc107;color:#000;font-
 padding:.8em 1.4em;border-radius:999px;text-decoration:none}
 a.ghost{background:transparent;color:#fff;border:2px solid #fff}small a{color:#fff}
 h2{font-size:1.1rem;margin:1.2em 0 .3em}.list{text-align:left;display:inline-block;margin:0;padding-left:1.4em}
-.list li{margin:.25em 0}`;
+.list li{margin:.25em 0}table{margin:0 auto;border-collapse:collapse}td,th{padding:.25em .5em}td.team{text-align:left}`;
 
 export function layout(body: string, title = "El Furbo · Invitación") {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">

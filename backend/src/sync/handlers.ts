@@ -34,6 +34,8 @@ import {
   setShirt,
   setTeamStatus,
   updateTeam,
+  finishTournament,
+  reopenTournament,
   updateTournament,
 } from "../commands/tournament";
 import {
@@ -82,6 +84,8 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "vote.cast": castVote,
   "vote.clear": clearVote,
   "tournament.update": updateTournament,
+  "tournament.finish": finishTournament,
+  "tournament.reopen": reopenTournament,
   "team.create": createTeam,
   "team.update": updateTeam,
   "team.setStatus": setTeamStatus,

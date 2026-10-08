@@ -52,8 +52,8 @@ type StatsRow = {
   flag: number;
   tier: Tier | null;
   frozen_at: string | null;
-  season_name: string;
-  start_date: string;
+  season_name: string | null;
+  start_date: string | null;
 };
 
 const CHUNK = 90;
@@ -118,9 +118,10 @@ playerRoutes.get("/:userId", async (c) => {
                 pt.tier, pt.frozen_at, s.name AS season_name, s.start_date
            FROM member_stats ms
            LEFT JOIN period_tiers pt ON pt.club_id = ms.club_id AND pt.period_id = ms.period_id
-           JOIN seasons s ON s.id = ms.period_id
+           LEFT JOIN seasons s ON s.id = ms.period_id
           WHERE ms.member_id IN (${chunk.map(() => "?").join(", ")}) AND ms.played > 0
-          ORDER BY s.start_date DESC, ms.period_id`,
+            AND (s.id IS NOT NULL OR ms.period_id = ms.club_id)
+          ORDER BY COALESCE(s.start_date, ms.updated_at) DESC, ms.period_id`,
       )
       .bind(...chunk)
       .all<StatsRow>();
@@ -144,7 +145,11 @@ playerRoutes.get("/:userId", async (c) => {
         const tier: Tier = s.frozen_at ? s.tier! : m.official === 1 ? "official" : (s.tier ?? current);
         return {
           periodId: named ? s.period_id : `p${anonymous++}`,
-          name: named ? s.season_name : `Temporada ${s.start_date.slice(0, 4)}`,
+          name: named
+            ? (s.season_name ?? m.name)
+            : s.start_date
+              ? `Temporada ${s.start_date.slice(0, 4)}`
+              : "Torneo privado",
           tier,
           frozen: s.frozen_at !== null,
           played: s.played,
@@ -179,6 +184,40 @@ playerRoutes.get("/:userId", async (c) => {
       totals,
     });
   }
+  // La vitrina: los premios de los torneos visibles, a su nombre o al de su equipo.
+  const trophies = [];
+  const tournaments = visible.filter((m) => m.kind === "tournament" && counted(m));
+  // Tres veces cada trozo en la consulta: 30 por vuelta para no pasar de 100 parámetros.
+  for (let i = 0; i < tournaments.length; i += 30) {
+    const part = tournaments.slice(i, i + 30);
+    const chunk = part.map((m) => m.member_id);
+    const clubs = part.map((m) => m.club_id);
+    const marks = chunk.map(() => "?").join(", ");
+    const { results } = await db
+      .prepare(
+        `SELECT a.club_id, a.kind, a.value, a.created_at, t.name AS team_name
+           FROM awards a LEFT JOIN teams t ON t.id = a.team_id
+          WHERE a.club_id IN (${marks})
+            AND (a.member_id IN (${marks})
+                 OR a.team_id IN (SELECT team_id FROM team_players WHERE status = 'active' AND member_id IN (${marks})))
+          ORDER BY a.created_at DESC`,
+      )
+      .bind(...clubs, ...chunk, ...chunk)
+      .all<{ club_id: string; kind: string; value: number | null; created_at: string; team_name: string | null }>();
+    for (const r of results) {
+      const m = part.find((x) => x.club_id === r.club_id);
+      if (!m) continue;
+      const named = self || m.visibility === "public" || viewerClubs.has(m.club_id);
+      trophies.push({
+        kind: r.kind,
+        tournament: named ? m.name : "Torneo privado",
+        tournamentId: named ? m.club_id : null,
+        at: r.created_at,
+        teamName: named ? r.team_name : null,
+        value: r.value,
+      });
+    }
+  }
   // Primero lo que más pesa; a igual nivel, donde más jugó.
   out.sort((a, b) => TIER_RANK[b.tier] - TIER_RANK[a.tier] || b.totals.played - a.totals.played);
 
@@ -187,7 +226,7 @@ playerRoutes.get("/:userId", async (c) => {
     memberships: out,
     totals: { all, trusted },
     index: furboIndex(indexPeriods),
-    trophies: [],
+    trophies,
     ...(self ? { settings: { showPrivateStats: user.show_private_stats === 1 } } : {}),
   });
 });
