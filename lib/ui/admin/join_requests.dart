@@ -72,7 +72,11 @@ class JoinRequestsSection extends ConsumerWidget {
               : GroupedSection(
                   children: [
                     for (final r in list)
-                      _RequestTile(clubId: club.id, request: r),
+                      _RequestTile(
+                        key: ValueKey(r.id),
+                        clubId: club.id,
+                        request: r,
+                      ),
                   ],
                 ),
         ),
@@ -82,7 +86,7 @@ class JoinRequestsSection extends ConsumerWidget {
 }
 
 class _RequestTile extends ConsumerStatefulWidget {
-  const _RequestTile({required this.clubId, required this.request});
+  const _RequestTile({super.key, required this.clubId, required this.request});
 
   final String clubId;
   final JoinRequest request;
@@ -102,16 +106,16 @@ class _RequestTileState extends ConsumerState<_RequestTile> {
       if (n == null) return;
       note = n;
     }
+    if (!mounted) return;
     setState(() => _busy = true);
+    final api = ref.read(directoryApiProvider);
+    final cloud = ref.read(cloudProvider);
     try {
-      final api = ref.read(directoryApiProvider);
       if (accept) {
         await api.accept(widget.clubId, r.id);
       } else {
         await api.reject(widget.clubId, r.id, note: note);
       }
-      ref.invalidate(joinRequestsProvider(widget.clubId));
-      final cloud = ref.read(cloudProvider);
       unawaited(cloud.loadMe());
       // El nuevo miembro llega con el próximo sync.
       if (accept) unawaited(cloud.sync());
@@ -121,9 +125,13 @@ class _RequestTileState extends ConsumerState<_RequestTile> {
             : 'Listo, no entra ${r.displayName}',
       );
     } catch (e) {
+      // Otro admin pudo contestarla ya: la lista al día.
       showError(e);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        ref.invalidate(joinRequestsProvider(widget.clubId));
+      }
     }
   }
 

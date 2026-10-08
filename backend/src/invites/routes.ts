@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { requireAuth } from "../auth/middleware";
+import { closePendingStatement } from "../clubs/join";
 import { findMember, findMemberByUser } from "../clubs/model";
 import { errors } from "../http/errors";
 import { changeStatement, upsert } from "../sync/changes";
@@ -44,6 +45,8 @@ inviteRoutes.post("/:code/accept", requireAuth, async (c) => {
     await db.prepare("UPDATE invites SET uses = uses - 1 WHERE code = ?").bind(invite.code).run();
     throw e;
   }
+  // Si había pedido entrar, esa solicitud queda contestada.
+  await closePendingStatement(db, invite.clubId, user.id, now).run();
   return c.json({ club: { id: invite.clubId, name: invite.club.name }, member }, 201);
 });
 

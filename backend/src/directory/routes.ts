@@ -35,7 +35,7 @@ directoryRoutes.get("/", async (c) => {
        AND (?5 IS NULL OR c.kind = ?5)
      ORDER BY c.official DESC,
               CASE cm.tier WHEN 'verified' THEN 3 WHEN 'established' THEN 2 WHEN 'casual' THEN 1 ELSE 0 END DESC,
-              COALESCE(cm.last_played_at, '') DESC, c.name
+              COALESCE(cm.last_played_at, '') DESC, c.name, c.id
      LIMIT ?6 OFFSET ?7`,
   )
     .bind(c.var.auth.user.id, q, like, province ?? null, kind ?? null, PAGE + 1, cursor)

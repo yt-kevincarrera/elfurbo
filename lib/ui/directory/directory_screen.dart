@@ -452,15 +452,17 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
       if (m == null) return;
       message = m;
     }
+    if (!mounted) return;
     setState(() => _busy = true);
+    // Se toman antes de esperar: si se sale de la pantalla a mitad, igual se termina.
+    final api = ref.read(directoryApiProvider);
+    final cloud = ref.read(cloudProvider);
+    final selected = ref.read(selectedClubProvider.notifier);
     try {
-      final status = await ref
-          .read(directoryApiProvider)
-          .join(c.id, message: message);
-      final cloud = ref.read(cloudProvider);
+      final status = await api.join(c.id, message: message);
       await cloud.loadMe();
       if (status == 'member') {
-        ref.read(selectedClubProvider.notifier).select(c.id);
+        selected.select(c.id);
         unawaited(cloud.sync());
         showMessage('¡Bienvenido a ${c.name}!');
         if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
@@ -469,7 +471,7 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
       showMessage(
         'Listo, se lo pedimos al admin. Te avisamos cuando conteste.',
       );
-      ref.invalidate(directoryDetailProvider(c.id));
+      if (mounted) ref.invalidate(directoryDetailProvider(c.id));
     } catch (e) {
       showError(e);
     } finally {
@@ -509,10 +511,12 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
 
   Future<void> _cancel() async {
     setState(() => _busy = true);
+    final api = ref.read(directoryApiProvider);
+    final cloud = ref.read(cloudProvider);
     try {
-      await ref.read(directoryApiProvider).cancelJoin(widget.club.id);
-      await ref.read(cloudProvider).loadMe();
-      ref.invalidate(directoryDetailProvider(widget.club.id));
+      await api.cancelJoin(widget.club.id);
+      await cloud.loadMe();
+      if (mounted) ref.invalidate(directoryDetailProvider(widget.club.id));
       showMessage('Listo, retiraste la solicitud');
     } catch (e) {
       showError(e);
