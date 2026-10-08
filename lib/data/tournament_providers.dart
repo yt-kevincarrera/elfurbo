@@ -176,3 +176,13 @@ final tournamentPlayerStatsProvider =
         lineups: ref.watch(fixtureLineupsProvider),
       ),
     );
+
+/// Los premios (cuando el torneo terminó).
+final awardsProvider = Provider<List<Award>>((ref) {
+  final data = ref.watch(clubDataProvider).value;
+  if (data == null) return const [];
+  return [
+    for (final r in data.all('award'))
+      Award.fromCloud(r.cast<String, dynamic>()),
+  ];
+});

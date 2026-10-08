@@ -12,6 +12,7 @@ import '../../models/tournament.dart';
 import '../widgets/chalk.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
+import 'finish.dart';
 import 'fixture_detail.dart';
 import 'teams_screen.dart';
 
@@ -240,6 +241,7 @@ class _Tables extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 32),
       children: [
+        const AwardsBanner(),
         if (t.format == TournamentFormat.league)
           const StandingsTable(group: null),
         for (final g in groups) ...[

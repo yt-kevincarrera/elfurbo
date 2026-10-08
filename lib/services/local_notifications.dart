@@ -221,7 +221,9 @@ class LocalNotifications {
             AlertKind.clubRequest => NotificationKind.clubRequest,
             AlertKind.joinRequest => NotificationKind.pendingUser,
             AlertKind.joinAccepted ||
-            AlertKind.joinRejected => NotificationKind.club,
+            AlertKind.joinRejected ||
+            AlertKind.fixtureToScore ||
+            AlertKind.fixtureResult => NotificationKind.club,
           },
           matchId: a.matchdayId,
           clubId:

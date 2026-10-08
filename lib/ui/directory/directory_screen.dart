@@ -242,10 +242,18 @@ class _ClubListState extends ConsumerState<_ClubList>
                           ],
                         ),
                         Text(
-                          [
-                            Fmt.plural(c.members, 'miembro', 'miembros'),
-                            ?playDaysLabel(c.playDays),
-                          ].join(' · '),
+                          c.isTournament
+                              ? [
+                                  if (c.registrationOpen)
+                                    'Inscripción abierta'
+                                  else
+                                    ?tournamentStatusLabel(c.tournamentStatus),
+                                  Fmt.plural(c.teams, 'equipo', 'equipos'),
+                                ].join(' · ')
+                              : [
+                                  Fmt.plural(c.members, 'miembro', 'miembros'),
+                                  ?playDaysLabel(c.playDays),
+                                ].join(' · '),
                           style: text.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -396,6 +404,35 @@ class _DetailBody extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
           child: _JoinButton(club: c),
         ),
+        if (detail.champion != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Text(
+              '🏆 Campeón: ${detail.champion}',
+              style: text.titleMedium,
+            ),
+          ),
+        if (detail.teams.isNotEmpty) ...[
+          SectionTitle('Equipos (${detail.teams.length})'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final t in detail.teams)
+                  Chip(
+                    avatar: ClubToken(
+                      name: t.shortName,
+                      color: t.color,
+                      size: 24,
+                    ),
+                    label: Text(t.name),
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (detail.upcoming.isNotEmpty) ...[
           const SectionTitle('Próximas jornadas'),
           GroupedSection(
@@ -554,13 +591,17 @@ class _JoinButtonState extends ConsumerState<_JoinButton> {
       ),
       // A un torneo se entra inscribiendo un equipo.
       _ when c.isTournament => FilledButton.icon(
-        onPressed: () => showRegisterTeam(
-          context,
-          tournamentId: c.id,
-          tournamentName: c.name,
-        ),
+        onPressed: c.registrationOpen
+            ? () => showRegisterTeam(
+                context,
+                tournamentId: c.id,
+                tournamentName: c.name,
+              )
+            : null,
         icon: const Icon(Icons.group_add),
-        label: const Text('Inscribir un equipo'),
+        label: Text(
+          c.registrationOpen ? 'Inscribir un equipo' : 'Inscripción cerrada',
+        ),
       ),
       _ => FilledButton.icon(
         onPressed: _join,
@@ -668,3 +709,12 @@ class _PlayerSearchState extends ConsumerState<_PlayerSearch>
     );
   }
 }
+
+/// En qué va un torneo, para el directorio.
+String? tournamentStatusLabel(String? status) => switch (status) {
+  'draft' => 'Preparándose',
+  'registration' => 'Inscripción cerrada',
+  'in_progress' => 'En juego',
+  'finished' => 'Terminado',
+  _ => null,
+};

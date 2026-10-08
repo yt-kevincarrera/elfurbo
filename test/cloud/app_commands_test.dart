@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:elfurbo/data/club_repo.dart';
+import 'package:elfurbo/domain/tournament/awards.dart';
 import 'package:elfurbo/domain/tournament/generators.dart';
 import 'package:elfurbo/models/tournament.dart';
 import 'package:elfurbo/models/app_user.dart';
@@ -226,6 +227,11 @@ void main() {
     'ganado sin jugar': (r) =>
         r.setFixtureStatus('f1', 'walkover', walkoverWinner: 't2'),
     'borrar resultado': (r) => r.setFixtureStatus('f1', 'scheduled'),
+    'terminar torneo': (r) => r.finishTournament([
+      const AwardProposal('champion', teamId: 't1').toJson(),
+      const AwardProposal('top_scorer', memberId: 'p1', value: 7).toJson(),
+    ]),
+    'reabrir torneo': (r) => r.reopenTournament(),
     'cerrar grupos': (r) =>
         r.advanceStage([(fixtureId: 'f9', homeTeamId: 't1', awayTeamId: 't4')]),
   };

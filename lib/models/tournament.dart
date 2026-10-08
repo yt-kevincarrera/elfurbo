@@ -424,3 +424,20 @@ class FixtureLineup {
     memberId: '${j['memberId']}',
   );
 }
+
+/// Un premio del torneo (al terminarlo).
+class Award {
+  const Award({required this.kind, this.teamId, this.memberId, this.value});
+
+  final String kind;
+  final String? teamId;
+  final String? memberId;
+  final int? value;
+
+  factory Award.fromCloud(Map<String, dynamic> j) => Award(
+    kind: '${j['kind']}',
+    teamId: j['teamId'] as String?,
+    memberId: j['memberId'] as String?,
+    value: (j['value'] as num?)?.toInt(),
+  );
+}

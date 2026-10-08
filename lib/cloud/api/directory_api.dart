@@ -16,6 +16,9 @@ class DirectoryClub {
     this.official = false,
     this.playDays = const [],
     this.lastPlayedAt,
+    this.tournamentStatus,
+    this.registrationOpen = false,
+    this.teams = 0,
   });
 
   final String id;
@@ -40,7 +43,19 @@ class DirectoryClub {
 
   bool get isTournament => kind == 'tournament';
 
+  /// Torneos: en qué va (`draft`, `registration`, `in_progress`, `finished`).
+  final String? tournamentStatus;
+
+  /// Torneos: se puede inscribir un equipo ahora.
+  final bool registrationOpen;
+
+  /// Torneos: equipos aprobados.
+  final int teams;
+
   factory DirectoryClub.fromJson(Map<String, dynamic> j) => DirectoryClub(
+    tournamentStatus: (j['tournament'] as Map?)?['status'] as String?,
+    registrationOpen: (j['tournament'] as Map?)?['registrationOpen'] == true,
+    teams: ((j['tournament'] as Map?)?['teams'] as num?)?.toInt() ?? 0,
     id: j['id'] as String,
     name: j['name'] as String,
     kind: (j['kind'] as String?) ?? 'group',
@@ -74,7 +89,13 @@ class DirectoryDetail {
     required this.topScorers,
     required this.upcoming,
     this.season,
+    this.teams = const [],
+    this.champion,
   });
+
+  /// Torneos: los equipos aprobados (nombre y sigla) y el campeón, si terminó.
+  final List<({String name, String shortName, int color})> teams;
+  final String? champion;
 
   final DirectoryClub club;
   final String description;
@@ -88,6 +109,15 @@ class DirectoryDetail {
       club: DirectoryClub.fromJson(c),
       description: (c['description'] as String?) ?? '',
       season: c['season'] as String?,
+      champion: c['champion'] as String?,
+      teams: [
+        for (final t in (c['teams'] as List? ?? const []))
+          (
+            name: '${(t as Map)['name']}',
+            shortName: '${t['shortName']}',
+            color: (t['color'] as num?)?.toInt() ?? 0,
+          ),
+      ],
       topScorers: [
         for (final s in (c['topScorers'] as List? ?? const []))
           TopScorer(

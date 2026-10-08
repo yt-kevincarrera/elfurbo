@@ -40,6 +40,12 @@ enum AlertKind {
 
   /// No me aceptaron.
   joinRejected,
+
+  /// Torneos: me toca anotar un partido.
+  fixtureToScore,
+
+  /// Torneos: hay resultado de un partido de mi equipo.
+  fixtureResult,
 }
 
 class Alert {
@@ -242,7 +248,63 @@ List<Alert> clubAlerts(
       ),
     );
   }
+  if (club['kind'] == 'tournament') {
+    alerts.addAll(_tournamentAlerts(data, myMemberId, now, alert));
+  }
   return alerts;
+}
+
+/// Torneos: el partido que me toca anotar (desde el día antes) y los
+/// resultados de mi equipo de los últimos 3 días.
+List<Alert> _tournamentAlerts(
+  ClubData data,
+  String me,
+  DateTime now,
+  Alert Function(String, AlertKind, String, String, [String?]) alert,
+) {
+  final names = {
+    for (final t in data.all('team')) '${t['id']}': '${t['name']}',
+  };
+  final myTeams = {
+    for (final p in data.all('teamPlayer'))
+      if (p['memberId'] == me && p['status'] == 'active') '${p['teamId']}',
+  };
+  final out = <Alert>[];
+  for (final f in data.all('fixture')) {
+    final home = f['homeTeamId'];
+    final away = f['awayTeamId'];
+    if (home == null || away == null) continue;
+    final vs = '${names['$home'] ?? '?'} - ${names['$away'] ?? '?'}';
+    final starts = DateTime.tryParse('${f['startsAt']}');
+    if (f['scorerMemberId'] == me &&
+        f['status'] == 'scheduled' &&
+        (starts == null ||
+            !now.isBefore(starts.subtract(const Duration(days: 1))))) {
+      out.add(
+        alert(
+          'sc:${f['id']}',
+          AlertKind.fixtureToScore,
+          'Te toca anotar $vs',
+          'Cuando terminen, pon el resultado en Partidos.',
+        ),
+      );
+    }
+    final at = DateTime.tryParse('${f['resultAt']}');
+    if (f['status'] == 'played' &&
+        (myTeams.contains(home) || myTeams.contains(away)) &&
+        at != null &&
+        now.difference(at) < const Duration(days: 3)) {
+      out.add(
+        alert(
+          'fr:${f['id']}:${f['homeScore']}-${f['awayScore']}',
+          AlertKind.fixtureResult,
+          '${names['$home'] ?? '?'} ${f['homeScore']} - ${f['awayScore']} ${names['$away'] ?? '?'}',
+          'Resultado de tu equipo. Mira la tabla.',
+        ),
+      );
+    }
+  }
+  return out;
 }
 
 /// Lo que tengo pendiente en un servidor, para el número de la hoja de
@@ -254,7 +316,10 @@ int pendingCount(
   required DateTime now,
 }) => clubAlerts(data, myMemberId: myMemberId, now: now)
     .where(
-      (a) => a.kind == AlertKind.matchday || a.kind == AlertKind.confirmReport,
+      (a) =>
+          a.kind == AlertKind.matchday ||
+          a.kind == AlertKind.confirmReport ||
+          a.kind == AlertKind.fixtureToScore,
     )
     .length;
 

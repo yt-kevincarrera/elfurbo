@@ -69,6 +69,8 @@
     { "name": "resultado con penales", "type": "fixture.result", "payload": { "fixtureId": "f1", "homeScore": 1, "awayScore": 1, "homePens": 4, "awayPens": 3, "events": [], "lineups": { "home": [], "away": [] } } },
     { "name": "ganado sin jugar", "type": "fixture.setStatus", "payload": { "fixtureId": "f1", "status": "walkover", "walkoverWinner": "t2" } },
     { "name": "borrar resultado", "type": "fixture.setStatus", "payload": { "fixtureId": "f1", "status": "scheduled" } },
-    { "name": "cerrar grupos", "type": "stage.advance", "payload": { "assignments": [{ "fixtureId": "f9", "homeTeamId": "t1", "awayTeamId": "t4" }] } }
+    { "name": "cerrar grupos", "type": "stage.advance", "payload": { "assignments": [{ "fixtureId": "f9", "homeTeamId": "t1", "awayTeamId": "t4" }] } },
+    { "name": "terminar torneo", "type": "tournament.finish", "payload": { "awards": [{ "kind": "champion", "teamId": "t1" }, { "kind": "top_scorer", "memberId": "p1", "value": 7 }] } },
+    { "name": "reabrir torneo", "type": "tournament.reopen", "payload": {} }
   ]
 }

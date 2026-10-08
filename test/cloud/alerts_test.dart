@@ -286,6 +286,59 @@ void main() {
     },
   );
 
+  test(
+    'torneos: el partido que me toca anotar y el resultado de mi equipo',
+    () {
+      final d = ClubData(clubId: 't1')
+        ..table('club')['t1'] = {
+          'id': 't1',
+          'name': 'Copa',
+          'status': 'active',
+          'kind': 'tournament',
+          'settings': {},
+        }
+        ..table('team')['a'] = {'id': 'a', 'name': 'Águilas'}
+        ..table('team')['b'] = {'id': 'b', 'name': 'Búhos'}
+        ..table('teamPlayer')['a:$me'] = {
+          'id': 'a:$me',
+          'teamId': 'a',
+          'memberId': me,
+          'status': 'active',
+        }
+        ..table('fixture')['f1'] = {
+          'id': 'f1',
+          'homeTeamId': 'a',
+          'awayTeamId': 'b',
+          'status': 'scheduled',
+          'scorerMemberId': me,
+          'startsAt': now.add(const Duration(hours: 5)).toIso8601String(),
+        }
+        ..table('fixture')['f2'] = {
+          'id': 'f2',
+          'homeTeamId': 'b',
+          'awayTeamId': 'a',
+          'status': 'played',
+          'homeScore': 0,
+          'awayScore': 2,
+          'resultAt': now.subtract(const Duration(hours: 2)).toIso8601String(),
+        }
+        ..table('fixture')['f3'] = {
+          'id': 'f3',
+          'homeTeamId': 'a',
+          'awayTeamId': 'b',
+          'status': 'scheduled',
+          'scorerMemberId': me,
+          'startsAt': now.add(const Duration(days: 5)).toIso8601String(),
+        };
+      final alerts = clubAlerts(d, myMemberId: me, now: now);
+      expect(
+        [for (final a in alerts) a.title],
+        ['Te toca anotar Águilas - Búhos', 'Búhos 0 - 2 Águilas'],
+      );
+      expect(pendingCount(d, myMemberId: me, now: now), 1);
+    },
+  );
+
   test('ser dueño por una transferencia no es "aprobaron tu servidor"', () {
     final me = {
       'clubs': [
