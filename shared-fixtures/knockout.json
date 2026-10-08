@@ -1,0 +1,15 @@
+{
+  "about": "Quién pasa de un partido de eliminatoria. Lo calculan la app (lib/domain/tournament/knockout.dart) y el backend (backend/src/rules/knockout.ts) para poner al ganador (o al perdedor, en el tercer puesto) en el partido siguiente.",
+  "base": { "id": "k1", "homeTeamId": "A", "awayTeamId": "B", "status": "played", "homeScore": null, "awayScore": null, "homePens": null, "awayPens": null, "walkoverWinner": null },
+  "cases": [
+    { "name": "gana el de más goles (local)", "fixture": { "homeScore": 2, "awayScore": 1 }, "winner": "A", "loser": "B" },
+    { "name": "gana el de más goles (visitante)", "fixture": { "homeScore": 0, "awayScore": 3 }, "winner": "B", "loser": "A" },
+    { "name": "empate: deciden los penales", "fixture": { "homeScore": 1, "awayScore": 1, "homePens": 3, "awayPens": 4 }, "winner": "B", "loser": "A" },
+    { "name": "empate sin penales: todavía no se sabe", "fixture": { "homeScore": 1, "awayScore": 1 }, "winner": null, "loser": null },
+    { "name": "penales empatados: tampoco", "fixture": { "homeScore": 0, "awayScore": 0, "homePens": 2, "awayPens": 2 }, "winner": null, "loser": null },
+    { "name": "ganado sin jugar", "fixture": { "status": "walkover", "walkoverWinner": "A" }, "winner": "A", "loser": "B" },
+    { "name": "por jugar", "fixture": { "status": "scheduled" }, "winner": null, "loser": null },
+    { "name": "cancelado", "fixture": { "status": "cancelled", "homeScore": 2, "awayScore": 0 }, "winner": null, "loser": null },
+    { "name": "sin rival todavía", "fixture": { "awayTeamId": null, "homeScore": 2, "awayScore": 0 }, "winner": null, "loser": null }
+  ]
+}
