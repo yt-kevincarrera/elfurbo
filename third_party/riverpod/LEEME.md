@@ -17,11 +17,16 @@ miran, y uno de ellos pide un refresco al `UncontrolledProviderScope` con
 during build»; en release no pasa nada, pero tapa cualquier otro error en los
 tests y en el móvil de desarrollo.
 
-Riverpod lo arregló en 3.4.1 («Fix markNeedsBuild exception when flushing a
-provider inside Widget lifecycle»): `invalidateSelf` ya no pide refresco si el
-provider se está recalculando en ese momento (se recalcula enseguida) ni si está
-pausado (se recalcula al reanudarse). Es lo único que se trae aquí, copiado tal
-cual de 3.4.3.
+Riverpod lo arregló en 3.4.0 («Fix markNeedsBuild exception when flushing a
+provider inside Widget lifecycle»), aunque 3.4.0 no llegó a pub.dev y la primera
+que se puede usar es 3.4.1: `invalidateSelf` ya no pide refresco si el provider
+se está recalculando en ese momento (se recalcula enseguida) ni si está pausado
+(se recalcula al reanudarse). Es lo único que se trae aquí, copiado tal cual de
+3.4.3. Hacen falta las dos condiciones: con una sola, los tests siguen fallando.
+
+No se trae el otro arreglo de `markNeedsBuild` de 3.4.2 (suscripciones que se
+pausan antes de engancharse al provider): el `Consumer` de flutter_riverpod
+3.3.2 primero escucha y después pausa, así que no pasa por ahí.
 
 ## Cuándo quitarlo
 
