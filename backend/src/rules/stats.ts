@@ -118,7 +118,8 @@ export function playedMatchdays(rows: StatsRows, settings: StatsSettings, season
         now,
       ),
     )
-    .sort((a, b) => Date.parse(str(a.startsAt)) - Date.parse(str(b.startsAt)));
+    // A la misma hora, por id (como la app): el orden decide las rachas.
+    .sort((a, b) => Date.parse(str(a.startsAt)) - Date.parse(str(b.startsAt)) || (str(a.id) < str(b.id) ? -1 : str(a.id) > str(b.id) ? 1 : 0));
   const ids = new Set(matchdays.map((m) => str(m.id)));
   const reports = countReports(rows, settings).filter((r) => ids.has(r.matchdayId));
   const byMatchday = new Map<string, PlayedMatchday>();

@@ -11,10 +11,9 @@ void main() {
   final fixture =
       jsonDecode(File('shared-fixtures/stats.json').readAsStringSync())
           as Map<String, dynamic>;
-  final data = (fixture['data'] as Map<String, dynamic>).map(
-    (k, v) => MapEntry(k, (v as List).cast<Map<String, dynamic>>()),
-  );
-  final members = [for (final m in data['member']!) m['id'] as String];
+
+  Map<String, List<Map<String, dynamic>>> rows(Map<String, dynamic> data) =>
+      data.map((k, v) => MapEntry(k, (v as List).cast<Map<String, dynamic>>()));
 
   Map<String, int> numbers(PlayerStats s) => {
     'played': s.matchesPlayed,
@@ -31,6 +30,10 @@ void main() {
   group('shared-fixtures/stats.json', () {
     for (final c in (fixture['cases'] as List).cast<Map<String, dynamic>>()) {
       test(c['name'] as String, () {
+        // Un caso con sus propios datos, o los de arriba.
+        final data = rows(
+          (c['data'] ?? fixture['data']) as Map<String, dynamic>,
+        );
         final engine = statsFromCloud(
           data,
           settings: c['settings'] as Map<String, dynamic>,
@@ -38,7 +41,7 @@ void main() {
           now: DateTime.parse(c['now'] as String),
         );
         final expected = c['expected'] as Map<String, dynamic>;
-        for (final id in members) {
+        for (final id in [for (final m in data['member']!) m['id'] as String]) {
           final got = numbers(engine.statsOf(id));
           if (expected.containsKey(id)) {
             expect(got, expected[id], reason: id);

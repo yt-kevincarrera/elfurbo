@@ -101,7 +101,11 @@ class StatsEngine {
             .where((m) => m.isPlayed(now))
             .where((m) => seasonId == null || m.seasonId == seasonId)
             .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+          // A la misma hora, por id (como el servidor): el orden decide las rachas.
+          ..sort((a, b) {
+            final byDate = a.date.compareTo(b.date);
+            return byDate != 0 ? byDate : a.id.compareTo(b.id);
+          });
     final matchIds = playedMatches.map((m) => m.id).toSet();
 
     reportsByMatch = {};
