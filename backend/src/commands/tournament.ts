@@ -171,6 +171,19 @@ export const updateTournament = command(
     const min = p.minPlayers ?? t.minPlayers;
     const max = p.maxPlayers ?? t.maxPlayers;
     if (min > max) throw errors.invalidInput({ minPlayers: ["No puede ser más que el máximo"] });
+    if (p.maxTeams && p.maxTeams < (await approvedTeams(ctx))) {
+      throw errors.invalidInput({ maxTeams: ["Ya hay más equipos aprobados"] });
+    }
+    if (p.maxPlayers) {
+      const biggest = await ctx.db
+        .prepare(
+          `SELECT COALESCE(MAX(n), 0) AS n FROM (SELECT COUNT(*) AS n FROM team_players
+            WHERE club_id = ? AND status = 'active' GROUP BY team_id)`,
+        )
+        .bind(ctx.club.id)
+        .first<{ n: number }>();
+      if (p.maxPlayers < biggest!.n) throw errors.invalidInput({ maxPlayers: ["Ya hay plantillas más grandes"] });
+    }
     const rules = p.rules ? rulesSchema.parse({ ...t.rules, ...p.rules }) : null;
 
     const sets: string[] = [];
@@ -181,7 +194,10 @@ export const updateTournament = command(
     };
     if (p.format) set("format", p.format);
     if (rules) set("rules", JSON.stringify(rules));
-    if (p.registrationClosesAt !== undefined) set("registration_closes_at", p.registrationClosesAt);
+    // En UTC, como todas las fechas: se comparan como texto.
+    if (p.registrationClosesAt !== undefined) {
+      set("registration_closes_at", p.registrationClosesAt === null ? null : new Date(p.registrationClosesAt).toISOString());
+    }
     if (p.startsOn !== undefined) set("starts_on", p.startsOn);
     if (p.maxTeams) set("max_teams", p.maxTeams);
     if (p.minPlayers) set("min_players", p.minPlayers);
@@ -417,7 +433,9 @@ export const setShirt = command(
     const t = await loadTournament(ctx);
     assertNotFinished(t);
     const team = await findTeam(ctx, p.teamId);
-    if (!isAdmin(ctx.member.role) && !isCaptain(ctx, team) && ctx.member.id !== p.memberId) throw errors.forbidden();
+    // El organizador siempre; el capitán (o el propio jugador) mientras no empiece el torneo.
+    const own = isCaptain(ctx, team) || ctx.member.id === p.memberId;
+    if (!isAdmin(ctx.member.role) && !(own && rostersOpen(t.status))) throw errors.forbidden();
     return {
       statements: [
         ctx.db

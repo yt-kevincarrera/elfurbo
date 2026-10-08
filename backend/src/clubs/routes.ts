@@ -74,6 +74,8 @@ clubRoutes.post("/:clubId/invites", async (c) => {
     maxUses = 1;
   }
   if (body.teamId) {
+    // Una invitación de equipo no sirve para reclamar un perfil sin cuenta (eso es solo del staff).
+    if (body.targetMemberId) throw errors.invalidInput({ teamId: ["Una invitación de equipo no reclama perfiles"] });
     // Invitación de equipo (torneos): la crean los organizadores o el capitán mientras no empiece.
     const team = await db
       .prepare(

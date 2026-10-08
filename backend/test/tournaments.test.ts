@@ -272,6 +272,68 @@ describe("invitaciones de equipo", () => {
     const other = team({ name: "Leones", shortName: "LEO", captainMemberId: pepeMember });
     await apply(host.owner.token, cmd(id, "team.create", other));
     const code = (await post(`/clubs/${id}/invites`, yoan.token, { teamId: t.id })).body.invite.code;
-    expect((await post(`/invites/${code}/accept`, pepe.token)).body.error.code).toBe("already_member");
+    expect((await post(`/invites/${code}/accept`, pepe.token)).body.error.code).toBe("already_in_team");
+  });
+});
+
+describe("lo que no se cuela (revisión)", () => {
+  it("una invitación de equipo no reclama perfiles sin cuenta", async () => {
+    const host = await activeClub();
+    const id = await tournament(host);
+    const yoan = await register("yoan");
+    const captain = await joinTournament(id, yoan);
+    const t = team({ captainMemberId: captain });
+    await apply(host.owner.token, cmd(id, "team.create", t));
+    const guest = crypto.randomUUID();
+    await apply(host.owner.token, cmd(id, "member.createGuest", { id: guest, displayName: "Yoandry" }));
+    const res = await post(`/clubs/${id}/invites`, yoan.token, { teamId: t.id, targetMemberId: guest });
+    expect(res.status).toBe(400);
+  });
+
+  it("irse o ser expulsado libera el sitio en el equipo; el capitán no se puede ir sin nombrar a otro", async () => {
+    const host = await activeClub();
+    const id = await tournament(host);
+    const yoan = await register("yoan");
+    const captain = await joinTournament(id, yoan);
+    const pepe = await register("pepe");
+    const pepeMember = await joinTournament(id, pepe);
+    const t = team({ captainMemberId: captain });
+    await apply(host.owner.token, cmd(id, "team.create", t));
+    await apply(host.owner.token, cmd(id, "team.addPlayer", { teamId: t.id, memberId: pepeMember }));
+    expect(await rejection(yoan.token, cmd(id, "member.leave"))).toBe("invalid_state");
+    await apply(pepe.token, cmd(id, "member.leave"));
+    expect(await players(t.id)).toEqual([captain]);
+    await apply(host.owner.token, cmd(id, "member.ban", { memberId: captain }));
+    expect(await players(t.id)).toEqual([]);
+    expect((await teamRow(t.id))!.captain_member_id).toBeNull();
+  });
+
+  it("quien ya está en el torneo sin equipo puede usar una invitación de equipo", async () => {
+    const host = await activeClub();
+    const id = await tournament(host);
+    const yoan = await register("yoan");
+    const t = team({ captainMemberId: await joinTournament(id, yoan) });
+    await apply(host.owner.token, cmd(id, "team.create", t));
+    const pepe = await register("pepe");
+    const pepeMember = await joinTournament(id, pepe);
+    const code = (await post(`/clubs/${id}/invites`, yoan.token, { teamId: t.id })).body.invite.code;
+    const res = await post(`/invites/${code}/accept`, pepe.token);
+    expect(res.status).toBe(201);
+    expect(res.body.team).toEqual({ id: t.id });
+    expect(await players(t.id)).toContain(pepeMember);
+  });
+
+  it("dorsales: el capitán ya no los cambia cuando empieza el torneo; el máximo de equipos no baja de los aprobados", async () => {
+    const host = await activeClub();
+    const id = await tournament(host);
+    const yoan = await register("yoan");
+    const captain = await joinTournament(id, yoan);
+    const t = team({ captainMemberId: captain });
+    await apply(host.owner.token, cmd(id, "team.create", t));
+    await apply(host.owner.token, cmd(id, "team.create", team({ name: "Leones", shortName: "LEO" })));
+    await apply(yoan.token, cmd(id, "team.setShirt", { teamId: t.id, memberId: captain, shirt: 9 }));
+    expect(await rejection(host.owner.token, cmd(id, "tournament.update", { maxTeams: 1 + 0 }))).toBe("invalid_input");
+    await apply(host.owner.token, cmd(id, "tournament.update", { status: "in_progress" }));
+    expect(await rejection(yoan.token, cmd(id, "team.setShirt", { teamId: t.id, memberId: captain, shirt: 10 }))).toBe("forbidden");
   });
 });

@@ -27,6 +27,13 @@ class _TournamentShellState extends ConsumerState<TournamentShell> {
   late int _index = widget.initialIndex;
 
   @override
+  void didUpdateWidget(TournamentShell old) {
+    super.didUpdateWidget(old);
+    // Un aviso pidió otra pestaña (p. ej. Admin).
+    if (widget.initialIndex != old.initialIndex) _index = widget.initialIndex;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(isAdminProvider);
     final pages = <Widget>[
