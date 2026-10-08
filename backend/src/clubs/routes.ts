@@ -8,6 +8,7 @@ import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
 import { prestigeOf } from "../stats/job";
+import { hostTournamentRoutes } from "../tournaments/routes";
 import { joinRoutes } from "./join";
 import type { AppEnv } from "../types";
 import { assertWritable, DEFAULT_SETTINGS, findMember, requireMembership } from "./model";
@@ -219,3 +220,4 @@ clubRoutes.get("/:clubId/prestige", async (c) => {
 });
 
 clubRoutes.route("/", joinRoutes);
+clubRoutes.route("/", hostTournamentRoutes);

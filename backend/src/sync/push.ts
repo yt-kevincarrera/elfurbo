@@ -5,7 +5,7 @@ import { assertWritable, requireMembership, type ClubRecord, type MemberRecord }
 import { ApiError, errors } from "../http/errors";
 import { changeStatement } from "./changes";
 import { effectiveClientAt } from "./command";
-import { HANDLERS } from "./handlers";
+import { commandFits, HANDLERS } from "./handlers";
 
 export const commandSchema = z.object({
   id: z.uuid(),
@@ -120,6 +120,7 @@ async function applyOne(
   try {
     const { club, member } = await membership(db, cmd.clubId, user.id, memberships);
     assertWritable(club);
+    if (!commandFits(cmd.type, club.kind)) throw errors.wrongKind(club.kind === "tournament");
     parsed = handler.schema.safeParse(cmd.payload);
     if (!parsed.success) throw errors.invalidInput(z.flattenError(parsed.error).fieldErrors);
     ctx = { db, now, clientAt: effectiveClientAt(new Date(cmd.clientAt), now), user, club, member };

@@ -26,6 +26,16 @@ import {
   upsertReport,
 } from "../commands/reports";
 import { castVote, clearVote } from "../commands/votes";
+import {
+  addPlayer,
+  createTeam,
+  leaveTeam,
+  removePlayer,
+  setShirt,
+  setTeamStatus,
+  updateTeam,
+  updateTournament,
+} from "../commands/tournament";
 import type { CommandHandler } from "./command";
 
 /** Todos los tipos de comando que entiende el servidor (spec §5). */
@@ -63,4 +73,24 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "report.correct": correctReport,
   "vote.cast": castVote,
   "vote.clear": clearVote,
+  "tournament.update": updateTournament,
+  "team.create": createTeam,
+  "team.update": updateTeam,
+  "team.setStatus": setTeamStatus,
+  "team.addPlayer": addPlayer,
+  "team.removePlayer": removePlayer,
+  "team.leave": leaveTeam,
+  "team.setShirt": setShirt,
 };
+
+/** Los comandos de la pachanga de siempre: solo en servidores (grupos). */
+const GROUP_ONLY = /^(season|matchday|attendance|report|vote|teams)./;
+/** Los de torneos: solo en torneos. */
+const TOURNAMENT_ONLY = /^(tournament|team|fixture|fixtures|stage)./;
+
+/** En qué tipo de servidor vale un comando (los de miembros y ajustes, en los dos). */
+export function commandFits(type: string, kind: string) {
+  if (GROUP_ONLY.test(type)) return kind === "group";
+  if (TOURNAMENT_ONLY.test(type)) return kind === "tournament";
+  return true;
+}
