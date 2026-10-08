@@ -9,7 +9,7 @@ import 'package:elfurbo/cloud/sync/club_data.dart';
 import 'package:elfurbo/cloud/sync/command.dart';
 import 'package:elfurbo/cloud/sync/reducers.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
-import 'package:elfurbo/data/tournament_providers.dart';
+import 'package:elfurbo/ui/tournament/fixture_detail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -217,12 +217,30 @@ void main() {
       await settleIo(tester, until: find.text('1 - 0'));
       expect(find.text('1 - 0'), findsOneWidget);
 
-      // La tabla, de su provider (volver atrás aquí dispara un aviso de
-      // depuración de Riverpod 3.3 al reanudar la pantalla de abajo).
-      final table = ProviderScope.containerOf(
-        tester.element(find.text('1 - 0')),
-      ).read(standingsProvider(null));
-      expect(table.map((r) => (r.teamId, r.points)), [('ta', 3), ('tb', 0)]);
+      // Volver al calendario: la pantalla de abajo se reanuda con el resultado
+      // (con riverpod 3.3.2 tal cual saltaba una aserción; ver
+      // third_party/riverpod/LEEME.md).
+      Navigator.of(tester.element(find.text('1 - 0'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(FixtureDetailScreen), findsNothing);
+      expect(find.text('1 - 0'), findsOneWidget, reason: 'en el calendario');
+
+      await tester.tap(find.text('Tabla'));
+      await tester.pumpAndSettle();
+      final cells = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byType(Table),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((t) => t.data)
+          .toList();
+      // Cabecera y una fila por equipo: #, equipo, PJ, G, E, P, DG, Pts.
+      expect(cells.sublist(8), [
+        ...['1', 'Águilas', '1', '1', '0', '0', '+1', '3'],
+        ...['2', 'Búhos', '1', '0', '0', '1', '-1', '0'],
+      ]);
     },
   );
 }

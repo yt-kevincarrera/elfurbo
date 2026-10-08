@@ -8,6 +8,7 @@ import 'package:elfurbo/cloud/state/providers.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
 import 'package:elfurbo/data/update_controller.dart';
 import 'package:elfurbo/domain/app_update.dart';
+import 'package:elfurbo/ui/matches/match_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -200,6 +201,30 @@ void main() {
         reason: 'el cambio se ve al momento',
       );
       expect(find.textContaining('1 va'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'decir "Voy" en el detalle de la jornada y volver: la lista ya lo cuenta',
+    (tester) async {
+      final cloud = await tester.runAsync(() => loggedIn('player'));
+      await pump(tester, cloud!);
+      await tester.tap(find.textContaining('El Pre').first);
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => tester.tap(find.text('Voy')));
+      await settleIo(
+        tester,
+        until: find.byWidgetPredicate(
+          (w) => w is SegmentedButton && w.selected.isNotEmpty,
+        ),
+      );
+
+      // La lista se reanuda con el cambio (con riverpod 3.3.2 tal cual
+      // saltaba una aserción; ver third_party/riverpod/LEEME.md).
+      Navigator.of(tester.element(find.text('Voy'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(MatchDetailScreen), findsNothing);
+      expect(find.textContaining('1 van'), findsOneWidget);
     },
   );
 

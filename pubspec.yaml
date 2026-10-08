@@ -9,7 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^3.3.2
+  # Fijo: va con la copia de riverpod de dependency_overrides.
+  flutter_riverpod: 3.3.2
   fl_chart: ^1.2.0
   share_plus: ^12.0.2
   path_provider: ^2.1.5
@@ -34,6 +35,12 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
+
+# riverpod 3.3.2 con el arreglo de 3.4.1 para volver atrás a una pantalla cuyos
+# providers cambiaron (3.4.1 pide Flutter 3.44). Ver third_party/riverpod/LEEME.md.
+dependency_overrides:
+  riverpod:
+    path: third_party/riverpod
 
 flutter:
   uses-material-design: true
