@@ -71,7 +71,12 @@ class GlobalMembership {
     required this.totals,
     this.clubId,
     this.name,
+    this.counted = true,
   });
+
+  /// Cuenta en los totales y el índice (false: el servidor no comparte o está
+  /// suspendido; solo lo ve el propio jugador).
+  final bool counted;
 
   final String? clubId;
   final String? name;
@@ -100,6 +105,7 @@ class GlobalMembership {
         GlobalPeriod.fromJson(p as Map<String, dynamic>),
     ],
     totals: StatTotals.fromJson(j['totals'] as Map<String, dynamic>?),
+    counted: j['counted'] != false,
   );
 }
 

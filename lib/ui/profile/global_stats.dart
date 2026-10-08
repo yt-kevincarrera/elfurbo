@@ -233,6 +233,15 @@ class _MembershipTile extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(roleLabel(m.role), style: text.labelMedium),
           ),
+        if (!m.counted)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Solo lo ves tú: este servidor no comparte sus estadísticas '
+              '(o está suspendido), así que no cuenta en tus totales.',
+              style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
         for (final period in m.periods)
           Padding(
             padding: const EdgeInsets.only(top: 10),

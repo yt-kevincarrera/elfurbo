@@ -101,6 +101,7 @@ describe("perfil global", () => {
     const { yoan } = await scenario();
     const p = await profile(yoan, yoan.user.id);
     expect(p.memberships.map((m: { name: string }) => m.name)).toEqual(["Los Pinos", "La Peña", "Secreto"]);
+    expect(p.memberships.map((m: { counted: boolean }) => m.counted)).toEqual([true, true, false]);
     expect(p.settings).toEqual({ showPrivateStats: true });
   });
 
@@ -150,5 +151,34 @@ describe("perfil global", () => {
     const me = await register();
     expect((await api("/me", { method: "PATCH", token: me.token, body: { showPrivateStats: "no" } })).status).toBe(400);
     expect((await api("/me", { method: "PATCH", token: me.token, body: { otra: true } })).status).toBe(400);
+  });
+});
+
+describe("perfil global: lo que no se cuela", () => {
+  it("de un privado sin ser miembro no llega ni el nombre ni el id de sus temporadas", async () => {
+    const { yoan, pepe, priv } = await scenario();
+    const season = await activeSeason(priv.clubId);
+    const hidden = (await profile(pepe, yoan.user.id)).memberships[1];
+    expect(hidden.periods[0].periodId).not.toBe(season);
+    expect(hidden.periods[0].periodId).toMatch(/^p\d+$/);
+    expect(hidden.periods[0].name).toMatch(/^Temporada \d{4}$/);
+    expect(JSON.stringify(hidden)).not.toContain(priv.clubId);
+    expect(JSON.stringify(hidden)).not.toContain("La Peña");
+  });
+
+  it("lo de un servidor que no comparte o suspendido no cuenta en los totales, ni para él mismo", async () => {
+    const { yoan, pepe, pub, admin } = await (async () => {
+      const s = await scenario();
+      return { ...s, admin: s.pub.admin };
+    })();
+    const own = await profile(yoan, yoan.user.id);
+    const secreto = own.memberships.find((m: { name: string }) => m.name === "Secreto");
+    expect(secreto).toMatchObject({ counted: false, totals: { played: 3, goals: 9 } });
+    expect(own.totals.all).toEqual({ played: 15, goals: 10, assists: 0, mvps: 0 });
+
+    // Lo suspenden: los de fuera ya no lo ven, y para él deja de contar.
+    expect((await api(`/admin/clubs/${pub.clubId}/suspend`, { method: "POST", token: admin.token, body: {} })).status).toBe(200);
+    expect((await profile(pepe, yoan.user.id)).memberships.map((m: { name: string | null }) => m.name)).toEqual([null]);
+    expect((await profile(yoan, yoan.user.id)).totals.all.played).toBe(5);
   });
 });

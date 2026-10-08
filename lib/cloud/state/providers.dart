@@ -101,9 +101,14 @@ final playersApiProvider = Provider<PlayersApi>(
   (ref) => PlayersApi(ref.watch(cloudProvider).api),
 );
 
-/// El perfil global de un usuario. Queda en memoria mientras la app está
-/// abierta (sin señal se ve lo último que se trajo); se pide de nuevo al
-/// invalidarlo.
-final globalProfileProvider = FutureProvider.family<GlobalProfile, String>(
-  (ref, userId) => ref.watch(playersApiProvider).profile(userId),
-);
+/// El perfil global de un usuario. Lo que se trajo bien queda en memoria
+/// mientras la app está abierta (sin señal se ve lo último); un error no se
+/// queda: al volver a abrirlo se pide otra vez. Otra sesión, otra caché (lo
+/// que ve cada cuenta es distinto).
+final globalProfileProvider = FutureProvider.autoDispose
+    .family<GlobalProfile, String>((ref, userId) async {
+      ref.watch(sessionProvider);
+      final profile = await ref.watch(playersApiProvider).profile(userId);
+      ref.keepAlive();
+      return profile;
+    });
