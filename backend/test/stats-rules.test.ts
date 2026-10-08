@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 import fixture from "../../shared-fixtures/stats.json";
 import { computeStats, type StatsRows, type StatsSettings } from "../src/rules/stats";
 
-type Case = { name: string; now: string; settings: StatsSettings; seasonId: string | null; expected: Record<string, Record<string, number>> };
+type Case = { name: string; now: string; data?: unknown; settings: StatsSettings; seasonId: string | null; expected: Record<string, Record<string, number>> };
 
 const KEYS = ["played", "goals", "assists", "mvps", "hatTricks", "pokers", "completeMatches", "bestDayGoals", "bestStreak"] as const;
 
 describe("shared-fixtures/stats.json (los mismos casos que ejecuta la app en Dart)", () => {
-  it.each(fixture.cases as Case[])("$name", (c) => {
-    const stats = computeStats(fixture.data as unknown as StatsRows, c.settings, c.seasonId, new Date(c.now));
-    for (const m of fixture.data.member) {
+  it.each(fixture.cases as unknown as Case[])("$name", (c) => {
+    // Un caso con sus propios datos, o los de arriba.
+    const data = (c.data ?? fixture.data) as StatsRows & { member: { id: string }[] };
+    const stats = computeStats(data, c.settings, c.seasonId, new Date(c.now));
+    for (const m of data.member) {
       const s = stats.get(m.id);
       const got = Object.fromEntries(KEYS.map((k) => [k, s?.[k] ?? 0]));
       if (c.expected[m.id]) expect(got, m.id).toEqual(c.expected[m.id]);

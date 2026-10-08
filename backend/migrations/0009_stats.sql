@@ -46,3 +46,10 @@ CREATE TABLE period_tiers (
   frozen_at TEXT,
   PRIMARY KEY (club_id, period_id)
 );
+
+-- Cuándo se intentó recalcular cada servidor por última vez (haya salido bien o no): el que falla
+-- pasa al final de la cola y no frena a los demás.
+CREATE TABLE stats_attempts (
+  club_id TEXT PRIMARY KEY,
+  at TEXT NOT NULL
+);

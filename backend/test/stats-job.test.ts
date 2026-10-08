@@ -121,6 +121,37 @@ describe("job de estadísticas", () => {
     expect((await staleClubs(env.DB, tomorrow)).sort()).toEqual([a.clubId, b.clubId].sort());
   });
 
+  it("recalcular sin cambios no reescribe filas; lo que ya no está, se borra", async () => {
+    const { clubId } = await activeClub();
+    const staff = await ownerMemberId(clubId);
+    const players = await seedMembers(clubId, 3);
+    await seedWeekly(clubId, players, 2, staff);
+    await recomputeClub(env.DB, clubId, new Date("2026-10-07T10:00:00.000Z"));
+    const before = await memberStats(clubId);
+    await recomputeClub(env.DB, clubId, new Date("2026-10-07T10:10:00.000Z"));
+    expect((await memberStats(clubId)).map((r) => r.updated_at)).toEqual(before.map((r) => r.updated_at));
+
+    // Se borran sus jornadas de uno: su fila desaparece.
+    await env.DB.prepare("DELETE FROM reports WHERE member_id = ?").bind(players[0]).run();
+    await env.DB.prepare("DELETE FROM attendance WHERE member_id = ?").bind(players[0]).run();
+    await recomputeClub(env.DB, clubId, new Date());
+    expect((await memberStats(clubId)).map((r) => r.member_id)).toEqual([players[1], players[2]]);
+  });
+
+  it("en la cola va primero el que hace más que no se intenta (uno que falla no frena a los demás)", async () => {
+    const a = await activeClub("dueno.a", "Uno");
+    const b = await activeClub("dueno.b", "Dos");
+    const now = new Date();
+    await env.DB.prepare("INSERT INTO stats_attempts (club_id, at) VALUES (?, ?), (?, ?)")
+      .bind(a.clubId, new Date(now.getTime() - 60_000).toISOString(), b.clubId, new Date(now.getTime() - 3_600_000).toISOString())
+      .run();
+    expect(await staleClubs(env.DB, now)).toEqual([b.clubId, a.clubId]);
+    // Recalcular deja constancia del intento.
+    await recomputeStats(env.DB, now, { maxClubs: 1 });
+    const at = await env.DB.prepare("SELECT at FROM stats_attempts WHERE club_id = ?").bind(b.clubId).first<{ at: string }>();
+    expect(at!.at).toBe(now.toISOString());
+  });
+
   it("la ruta de prestigio: solo miembros, y antes del primer cálculo dice Nuevo", async () => {
     const { clubId, owner } = await activeClub();
     const res = await api(`/clubs/${clubId}/prestige`, { token: owner.token });
