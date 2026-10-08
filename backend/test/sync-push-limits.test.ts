@@ -53,7 +53,7 @@ describe("límites del push", () => {
     const { clubId, owner } = await activeClub();
     const me = (await api("/me", { token: owner.token })).body.user;
     const commands = Array.from({ length: 30 }, () => guest(clubId));
-    const results = await applyCommands(env.DB, me, commands, new Date(), { queryBudget: 200 });
+    const results = await applyCommands(env.DB, me, commands, new Date(), { queryBudget: 260 });
     expect(results.every((r) => r.status === "applied")).toBe(true);
   });
 

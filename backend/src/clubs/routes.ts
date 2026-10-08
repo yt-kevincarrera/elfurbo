@@ -7,7 +7,9 @@ import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, type Invi
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
+import { rostersOpen, type TournamentStatus } from "../rules/tournament";
 import { prestigeOf } from "../stats/job";
+import { hostTournamentRoutes } from "../tournaments/routes";
 import { joinRoutes } from "./join";
 import type { AppEnv } from "../types";
 import { assertWritable, DEFAULT_SETTINGS, findMember, requireMembership } from "./model";
@@ -71,17 +73,34 @@ clubRoutes.post("/:clubId/invites", async (c) => {
     role = "player";
     maxUses = 1;
   }
-  if (!canInviteAs(member.role, role)) throw errors.forbidden();
+  if (body.teamId) {
+    // Una invitación de equipo no sirve para reclamar un perfil sin cuenta (eso es solo del staff).
+    if (body.targetMemberId) throw errors.invalidInput({ teamId: ["Una invitación de equipo no reclama perfiles"] });
+    // Invitación de equipo (torneos): la crean los organizadores o el capitán mientras no empiece.
+    const team = await db
+      .prepare(
+        `SELECT tm.captain_member_id, tm.status, t.status AS tournament_status FROM teams tm
+           JOIN tournaments t ON t.club_id = tm.club_id WHERE tm.id = ? AND tm.club_id = ?`,
+      )
+      .bind(body.teamId, club.id)
+      .first<{ captain_member_id: string | null; status: string; tournament_status: TournamentStatus }>();
+    if (!team || team.status === "withdrawn") throw errors.invalidInput({ teamId: ["Ese equipo no existe o se retiró"] });
+    const captain = team.captain_member_id === member.id && rostersOpen(team.tournament_status);
+    if (!isAdmin(member.role) && !captain) throw errors.forbidden();
+    role = "player";
+  } else if (!canInviteAs(member.role, role)) {
+    throw errors.forbidden();
+  }
 
   const code = randomCode();
   const expiresAt = new Date(now.getTime() + body.expiresInDays * DAY_MS).toISOString();
   await db.batch([
     db
       .prepare(
-        `INSERT INTO invites (code, club_id, role, target_member_id, max_uses, expires_at, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO invites (code, club_id, role, target_member_id, team_id, max_uses, expires_at, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(code, club.id, role, body.targetMemberId ?? null, maxUses, expiresAt, userId, now.toISOString()),
+      .bind(code, club.id, role, body.targetMemberId ?? null, body.teamId ?? null, maxUses, expiresAt, userId, now.toISOString()),
     auditStatement(
       db,
       { clubId: club.id, actorUserId: userId, action: "invite.create", entity: "invite", entityKey: code, summary: { role, maxUses } },
@@ -89,7 +108,17 @@ clubRoutes.post("/:clubId/invites", async (c) => {
     ),
   ]);
   return c.json(
-    { invite: { code: formatCode(code), role, maxUses, uses: 0, expiresAt, targetMemberId: body.targetMemberId ?? null } },
+    {
+      invite: {
+        code: formatCode(code),
+        role,
+        maxUses,
+        uses: 0,
+        expiresAt,
+        targetMemberId: body.targetMemberId ?? null,
+        teamId: body.teamId ?? null,
+      },
+    },
     201,
   );
 });
@@ -100,12 +129,20 @@ clubRoutes.get("/:clubId/invites", async (c) => {
   if (!canManageInvites(member.role)) throw errors.forbidden();
   const { results } = await db
     .prepare(
-      `SELECT code, role, target_member_id, max_uses, uses, expires_at FROM invites
+      `SELECT code, role, target_member_id, team_id, max_uses, uses, expires_at FROM invites
         WHERE club_id = ? AND revoked_at IS NULL AND expires_at > ? AND uses < max_uses
         ORDER BY created_at DESC`,
     )
     .bind(club.id, new Date().toISOString())
-    .all<{ code: string; role: string; target_member_id: string | null; max_uses: number; uses: number; expires_at: string }>();
+    .all<{
+      code: string;
+      role: string;
+      target_member_id: string | null;
+      team_id: string | null;
+      max_uses: number;
+      uses: number;
+      expires_at: string;
+    }>();
   // Solo las que uno mismo podría crear: un admin no ve (ni reparte) las de admin del dueño.
   const visible = results.filter((r) => canInviteAs(member.role, r.role as InvitableRole));
   return c.json({
@@ -116,6 +153,7 @@ clubRoutes.get("/:clubId/invites", async (c) => {
       uses: r.uses,
       expiresAt: r.expires_at,
       targetMemberId: r.target_member_id,
+      teamId: r.team_id,
     })),
   });
 });
@@ -219,3 +257,4 @@ clubRoutes.get("/:clubId/prestige", async (c) => {
 });
 
 clubRoutes.route("/", joinRoutes);
+clubRoutes.route("/", hostTournamentRoutes);

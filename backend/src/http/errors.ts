@@ -67,6 +67,13 @@ export const errors = {
       "wrong_kind",
       tournament ? "Eso no se hace en un torneo" : "Eso solo se hace en un torneo",
     ),
+  tournamentClosed: () => new ApiError(409, "tournament_closed", "El torneo ya terminó: no acepta cambios"),
+  registrationClosed: () => new ApiError(409, "registration_closed", "La inscripción está cerrada"),
+  tournamentFull: () => new ApiError(409, "tournament_full", "El torneo ya tiene todos los equipos que admite"),
+  teamFull: () => new ApiError(409, "team_full", "La plantilla ya está llena"),
+  alreadyInTeam: () => new ApiError(409, "already_in_team", "Ese jugador ya está en un equipo de este torneo"),
+  tooManyTournaments: () =>
+    new ApiError(409, "too_many_tournaments", "Este servidor ya tiene 3 torneos sin terminar"),
   clubDelisted: () =>
     new ApiError(
       409,

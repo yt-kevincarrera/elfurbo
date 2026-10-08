@@ -5,7 +5,7 @@ import { assertWritable, requireMembership, type ClubRecord, type MemberRecord }
 import { ApiError, errors } from "../http/errors";
 import { changeStatement } from "./changes";
 import { effectiveClientAt } from "./command";
-import { HANDLERS } from "./handlers";
+import { commandFits, HANDLERS } from "./handlers";
 
 export const commandSchema = z.object({
   id: z.uuid(),
@@ -32,9 +32,9 @@ export type CommandResult =
  * 1000 por invocación (la 1001 falla); se deja margen para la sesión y imprevistos.
  */
 export const QUERY_BUDGET = 900;
-/** Lo que puede costar un comando como mucho: membresía (2, si no está en caché), lecturas del handler (≤4, unir jornadas), batch y una relectura si choca (2). */
+/** Lo que puede costar un comando como mucho: membresía (2, si no está en caché), lecturas del handler (≤6, plantillas de torneo), batch y una relectura si choca (2). */
 const MEMBERSHIP_QUERIES = 2;
-const MAX_HANDLER_READS = 4;
+const MAX_HANDLER_READS = 6;
 const MAX_WRITE_QUERIES = 2;
 /**
  * Tiempo que dedica una petición a aplicar comandos antes de aplazar el resto. Con la conexión de
@@ -120,6 +120,7 @@ async function applyOne(
   try {
     const { club, member } = await membership(db, cmd.clubId, user.id, memberships);
     assertWritable(club);
+    if (!commandFits(cmd.type, club.kind)) throw errors.wrongKind(club.kind === "tournament");
     parsed = handler.schema.safeParse(cmd.payload);
     if (!parsed.success) throw errors.invalidInput(z.flattenError(parsed.error).fieldErrors);
     ctx = { db, now, clientAt: effectiveClientAt(new Date(cmd.clientAt), now), user, club, member };

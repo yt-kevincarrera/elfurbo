@@ -201,4 +201,16 @@ class DirectoryApi {
       _api.post('/clubs/$clubId/join-requests/$requestId/reject', {
         'note': note,
       });
+
+  /// Inscribir un equipo en un torneo público (se entra y se queda de capitán).
+  Future<void> registerTeam(
+    String tournamentId, {
+    required String name,
+    required String shortName,
+    int color = 0,
+  }) => _api.post('/tournaments/$tournamentId/teams', {
+    'name': name.trim(),
+    'shortName': shortName.trim().toUpperCase(),
+    'color': color,
+  });
 }

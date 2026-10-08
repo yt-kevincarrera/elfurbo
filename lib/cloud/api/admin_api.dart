@@ -12,7 +12,11 @@ class Invite {
     required this.uses,
     required this.expiresAt,
     this.targetMemberId,
+    this.teamId,
   });
+
+  /// Invitación de equipo (torneos): al aceptarla se entra en ese equipo.
+  final String? teamId;
 
   /// "ABCD-EFGH".
   final String code;
@@ -31,6 +35,7 @@ class Invite {
     uses: (j['uses'] as num).toInt(),
     expiresAt: DateTime.parse(j['expiresAt'] as String).toLocal(),
     targetMemberId: j['targetMemberId'] as String?,
+    teamId: j['teamId'] as String?,
   );
 }
 
@@ -176,14 +181,33 @@ class ClubAdminApi {
     int maxUses = 1,
     int expiresInDays = 7,
     String? targetMemberId,
+    String? teamId,
   }) async {
     final j = await _api.post('/clubs/$clubId/invites', {
       'role': role,
       'maxUses': maxUses,
       'expiresInDays': expiresInDays,
       'targetMemberId': ?targetMemberId,
+      'teamId': ?teamId,
     });
     return Invite.fromJson(j!['invite'] as Map<String, dynamic>);
+  }
+
+  /// Organizar un torneo desde este servidor (owner o admin). Devuelve su id.
+  Future<String> createTournament(
+    String hostClubId, {
+    required String name,
+    String description = '',
+    required String format,
+    String visibility = 'private',
+  }) async {
+    final j = await _api.post('/clubs/$hostClubId/tournaments', {
+      'name': name.trim(),
+      'description': description.trim(),
+      'format': format,
+      'visibility': visibility,
+    });
+    return (j!['club'] as Map)['id'] as String;
   }
 
   Future<void> revokeInvite(String clubId, String code) =>

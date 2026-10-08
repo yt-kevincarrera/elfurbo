@@ -7,6 +7,8 @@ export type InviteRecord = {
   clubId: string;
   role: InvitableRole;
   targetMemberId: string | null;
+  /** Invitación de equipo (torneos). */
+  teamId: string | null;
   maxUses: number;
   uses: number;
   expiresAt: string;
@@ -19,6 +21,7 @@ type InviteRow = {
   club_id: string;
   role: InvitableRole;
   target_member_id: string | null;
+  team_id: string | null;
   max_uses: number;
   uses: number;
   expires_at: string;
@@ -32,7 +35,7 @@ type InviteRow = {
 export async function findInvite(db: D1Database, rawCode: string) {
   const row = await db
     .prepare(
-      `SELECT i.code, i.club_id, i.role, i.target_member_id, i.max_uses, i.uses, i.expires_at, i.revoked_at,
+      `SELECT i.code, i.club_id, i.role, i.target_member_id, i.team_id, i.max_uses, i.uses, i.expires_at, i.revoked_at,
               c.name AS club_name, c.description AS club_description, c.status AS club_status
          FROM invites i JOIN clubs c ON c.id = i.club_id
         WHERE i.code = ?`,
@@ -45,6 +48,7 @@ export async function findInvite(db: D1Database, rawCode: string) {
     clubId: row.club_id,
     role: row.role,
     targetMemberId: row.target_member_id,
+    teamId: row.team_id,
     maxUses: row.max_uses,
     uses: row.uses,
     expiresAt: row.expires_at,

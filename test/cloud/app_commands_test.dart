@@ -101,6 +101,29 @@ void main() {
     'no compartir estadísticas': (r) => r.updateSettings(shareStats: false),
     'irme del servidor': (r) => r.leave(),
     'jugador sin cuenta': (r) => r.createGuest(' Yoandry '),
+    'reglas del torneo': (r) =>
+        r.updateTournament(rules: {'pointsWin': 2, 'legs': 2}, maxPlayers: 12),
+    'fechas del torneo': (r) => r.updateTournament(
+      registrationClosesAt: DateTime.utc(2026, 10, 31, 23, 59),
+      startsOn: DateTime(2026, 11, 7),
+    ),
+    'sin cierre de inscripción': (r) =>
+        r.updateTournament(clearRegistrationClose: true),
+    'abrir inscripción': (r) => r.updateTournament(status: 'registration'),
+    'formato copa': (r) => r.updateTournament(format: 'cup'),
+    'inscribir equipo': (r) =>
+        r.createTeam(name: ' Los Tigres ', shortName: 'tig', color: 3),
+    'equipo con capitán': (r) =>
+        r.createTeam(name: 'Leones', shortName: 'LEO', captainMemberId: 'p1'),
+    'editar equipo': (r) => r.updateTeam('t1', name: 'Tigres FC', color: 2),
+    'nuevo capitán': (r) => r.updateTeam('t1', captainMemberId: 'p2'),
+    'aprobar equipo': (r) => r.setTeamStatus('t1', 'approved'),
+    'añadir jugador': (r) => r.addTeamPlayer('t1', 'p2'),
+    'añadir jugador con dorsal': (r) => r.addTeamPlayer('t1', 'p3', shirt: 10),
+    'sacar jugador': (r) => r.removeTeamPlayer('t1', 'p2'),
+    'salirme del equipo': (r) => r.leaveTeam('t1'),
+    'poner dorsal': (r) => r.setShirt('t1', 'p2', 7),
+    'quitar dorsal': (r) => r.setShirt('t1', 'p2', null),
   };
 
   test('cada caso del fixture tiene su llamada en la app', () {

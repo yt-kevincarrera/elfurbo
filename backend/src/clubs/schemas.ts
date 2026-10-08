@@ -12,4 +12,6 @@ export const createInviteSchema = z.object({
   expiresInDays: z.number().int().min(1).max(30).default(7),
   /** Para que un jugador sin cuenta reclame su perfil. Fuerza `role = player` y `maxUses = 1`. */
   targetMemberId: z.string().min(1).max(64).optional(),
+  /** Invitación de equipo (torneos): al aceptarla se entra en ese equipo. */
+  teamId: z.string().min(1).max(64).optional(),
 });

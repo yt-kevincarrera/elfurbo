@@ -3,7 +3,7 @@ import type { PublicUser } from "../auth/users";
 import type { SyncEntity } from "./changes";
 import { PURGED_THROUGH_KEY } from "../cron";
 import { kvGet } from "../kv";
-import { ENTITY_NAMES, readRows } from "./entities";
+import { ENTITY_NAMES, entitiesFor, readRows } from "./entities";
 
 export const pullSchema = z.object({
   cursors: z
@@ -31,21 +31,25 @@ type ClubPull = {
 export async function pull(db: D1Database, user: PublicUser, cursors: Record<string, number>) {
   const { results } = await db
     .prepare(
-      `SELECT m.club_id FROM members m JOIN clubs c ON c.id = m.club_id
+      `SELECT m.club_id, c.kind FROM members m JOIN clubs c ON c.id = m.club_id
         WHERE m.user_id = ? AND m.status = 'active' AND c.status IN ('active', 'suspended')`,
     )
     .bind(user.id)
-    .all<{ club_id: string }>();
+    .all<{ club_id: string; kind: string }>();
   const allowed = new Set(results.map((r) => r.club_id));
+  const kinds = new Map(results.map((r) => [r.club_id, r.kind]));
 
   if (user.isSuperadmin) {
     const asked = Object.keys(cursors).filter((id) => !allowed.has(id));
     if (asked.length) {
       const { results: existing } = await db
-        .prepare(`SELECT id FROM clubs WHERE id IN (${asked.map(() => "?").join(", ")})`)
+        .prepare(`SELECT id, kind FROM clubs WHERE id IN (${asked.map(() => "?").join(", ")})`)
         .bind(...asked)
-        .all<{ id: string }>();
-      for (const r of existing) allowed.add(r.id);
+        .all<{ id: string; kind: string }>();
+      for (const r of existing) {
+        allowed.add(r.id);
+        kinds.set(r.id, r.kind);
+      }
     }
   }
 
@@ -60,7 +64,7 @@ export async function pull(db: D1Database, user: PublicUser, cursors: Record<str
     // Cursor 0, uno de antes de la purga, o uno por delante del servidor (la base se restauró con
     // Time Travel): foto completa.
     const full = cursor === 0 || cursor < purged || cursor > top;
-    clubs[clubId] = full ? await snapshot(db, clubId, top) : await incremental(db, clubId, cursor, top);
+    clubs[clubId] = full ? await snapshot(db, clubId, kinds.get(clubId)!, top) : await incremental(db, clubId, cursor, top);
   }
   // Una purga que terminó mientras tanto pudo borrar cambios que un incremental ya no vio: esos,
   // otra vez como foto completa.
@@ -69,7 +73,7 @@ export async function pull(db: D1Database, user: PublicUser, cursors: Record<str
     for (const clubId of allowed) {
       const cursor = cursors[clubId] ?? 0;
       if (!clubs[clubId]!.snapshot && cursor < purgedNow) {
-        clubs[clubId] = await snapshot(db, clubId, Math.max(top, purgedNow));
+        clubs[clubId] = await snapshot(db, clubId, kinds.get(clubId)!, Math.max(top, purgedNow));
       }
     }
   }
@@ -87,10 +91,10 @@ async function lastChangeId(db: D1Database) {
   return row!.id;
 }
 
-async function snapshot(db: D1Database, clubId: string, top: number): Promise<ClubPull> {
+async function snapshot(db: D1Database, clubId: string, kind: string, top: number): Promise<ClubPull> {
   // El cursor se toma antes de leer: si algo cambia mientras tanto, llegará otra vez (es inocuo).
   const upserts: ClubPull["upserts"] = {};
-  for (const entity of ENTITY_NAMES) upserts[entity] = await readRows(db, clubId, entity, null);
+  for (const entity of entitiesFor(kind)) upserts[entity] = await readRows(db, clubId, entity, null);
   return { cursor: top, hasMore: false, snapshot: true, upserts, deletes: {} };
 }
 

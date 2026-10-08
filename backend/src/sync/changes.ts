@@ -1,5 +1,20 @@
 /** Entidades que viajan en el pull. */
-export type SyncEntity = "club" | "member" | "season" | "matchday" | "attendance" | "report" | "confirmation" | "vote";
+export type SyncEntity =
+  | "club"
+  | "member"
+  | "season"
+  | "matchday"
+  | "attendance"
+  | "report"
+  | "confirmation"
+  | "vote"
+  | "tournament"
+  | "team"
+  | "teamPlayer"
+  | "fixture"
+  | "fixtureEvent"
+  | "fixtureLineup"
+  | "award";
 
 export type Touch = { entity: SyncEntity; key: string; op: "upsert" | "delete" };
 
