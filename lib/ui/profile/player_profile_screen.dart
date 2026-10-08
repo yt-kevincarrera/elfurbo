@@ -21,6 +21,7 @@ import '../widgets/common.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/update_dialog.dart';
 import 'global_stats.dart';
+import 'player_card.dart';
 
 class PlayerProfileScreen extends ConsumerWidget {
   const PlayerProfileScreen({
@@ -59,6 +60,11 @@ class PlayerProfileScreen extends ConsumerWidget {
         // El nombre ya va grande en la cabecera.
         title: Text(isMe ? 'Mi perfil' : 'Perfil'),
         actions: [
+          IconButton(
+            tooltip: 'Carta para compartir',
+            onPressed: () => showPlayerCard(context, uid),
+            icon: const Icon(Icons.style_outlined),
+          ),
           const SeasonSelector(),
           if (isMe)
             _ProfileMenu(onSignOut: () => confirmAndLogout(context, ref)),
@@ -193,6 +199,30 @@ class PlayerProfileScreen extends ConsumerWidget {
               ],
             ),
           ),
+          // Las temporadas cerradas en las que jugó: su resumen para compartir.
+          for (final season in [
+            ...?ref.watch(seasonsProvider).value,
+          ].where((x) => x.isClosed).take(3))
+            if (_playedIn(ref, season.id))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.auto_awesome),
+                    title: Text(
+                      isMe ? 'Tu ${season.name}' : 'Su ${season.name}',
+                    ),
+                    subtitle: const Text('El resumen de la temporada'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            SeasonReviewScreen(season: season, uid: uid),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           // Lo de todos sus servidores (necesita señal); los sin cuenta no tienen.
           if (user?.userId case final userId?)
             GlobalStatsSection(userId: userId, isMe: isMe),
@@ -214,6 +244,16 @@ class PlayerProfileScreen extends ConsumerWidget {
           _History(uid: uid, stats: stats),
         ],
       ),
+    );
+  }
+
+  bool _playedIn(WidgetRef ref, String seasonId) {
+    final matches = {
+      for (final m in ref.watch(matchesProvider).value ?? const [])
+        if (m.seasonId == seasonId) m.id,
+    };
+    return (ref.watch(attendanceProvider).value ?? const []).any(
+      (a) => a.uid == uid && a.isPresent && matches.contains(a.matchId),
     );
   }
 

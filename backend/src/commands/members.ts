@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { canActForOthers, canBan, canSetRole, isAdmin } from "../authz";
+import { canActForOthers, canBan, canSetRole, isAdmin, isStaff, type Role } from "../authz";
 import { findMember, type MemberRecord } from "../clubs/model";
 import { errors } from "../http/errors";
 import { upsert } from "../sync/changes";
@@ -13,6 +13,15 @@ async function target(ctx: CommandContext, id: string): Promise<MemberRecord> {
   const m = await findMember(ctx.db, ctx.club.id, id);
   if (!m) throw errors.notFound();
   return m;
+}
+
+/**
+ * Quien deja de ser staff se lleva en su teléfono el secreto del código de asistencia: se borra y
+ * el próximo que lo pida recibe uno nuevo (spec 2.0 §8.1).
+ */
+function revokeCheckin(ctx: CommandContext, from: Role, to: Role | null) {
+  if (!isStaff(from) || (to !== null && isStaff(to))) return [];
+  return [ctx.db.prepare("UPDATE clubs SET checkin_secret = NULL WHERE id = ?").bind(ctx.club.id)];
 }
 
 function setStatement(ctx: CommandContext, id: string, sets: string, values: unknown[]) {
@@ -74,7 +83,7 @@ export const setRole = command(
     const t = await target(ctx, p.memberId);
     if (t.status !== "active" || !canSetRole(ctx.member.role, t.role, p.role)) throw errors.forbidden();
     return {
-      statements: [setStatement(ctx, t.id, "role = ?", [p.role])],
+      statements: [setStatement(ctx, t.id, "role = ?", [p.role]), ...revokeCheckin(ctx, t.role, p.role)],
       touched: [upsert("member", t.id)],
       audit: [{ action: "member.setRole", entity: "member", entityKey: t.id, summary: { from: t.role, to: p.role } }],
     };
@@ -85,7 +94,7 @@ export const ban = command(z.object({ memberId }), async (ctx, p) => {
   const t = await target(ctx, p.memberId);
   if (t.id === ctx.member.id || t.status === "banned" || !canBan(ctx.member.role, t.role)) throw errors.forbidden();
   return {
-    statements: [setStatement(ctx, t.id, "status = 'banned'", []), ...releaseFromTeams(ctx, t.id)],
+    statements: [setStatement(ctx, t.id, "status = 'banned'", []), ...releaseFromTeams(ctx, t.id), ...revokeCheckin(ctx, t.role, null)],
     touched: [upsert("member", t.id)],
     audit: [{ action: "member.ban", entity: "member", entityKey: t.id }],
   };
@@ -142,7 +151,11 @@ export const leave = command(z.object({}).strict(), async (ctx) => {
     if (captain) throw errors.invalidState("Eres capitán: nombra a otro antes de irte del torneo");
   }
   return {
-    statements: [setStatement(ctx, ctx.member.id, "status = 'left'", []), ...releaseFromTeams(ctx, ctx.member.id)],
+    statements: [
+      setStatement(ctx, ctx.member.id, "status = 'left'", []),
+      ...releaseFromTeams(ctx, ctx.member.id),
+      ...revokeCheckin(ctx, ctx.member.role, null),
+    ],
     touched: [upsert("member", ctx.member.id)],
   };
 });

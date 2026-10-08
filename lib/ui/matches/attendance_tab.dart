@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_messenger.dart';
 import '../../data/providers.dart';
+import '../../domain/waitlist.dart';
 import '../../models/app_user.dart';
 import '../../models/attendance.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
 import '../widgets/player_avatar.dart';
+import 'checkin.dart';
 
 /// Asistencia de una jornada.
 ///
@@ -44,10 +46,23 @@ class _IntentionView extends ConsumerWidget {
 
     List<AppUser> withStatus(AttendanceStatus? s) =>
         users.where((u) => attendance[u.uid]?.status == s).toList();
+    final byId = {for (final u in users) u.uid: u};
+    final cap = match.maxPlayers;
+    // Solo los miembros activos ocupan sitio: el que se fue no cuenta.
+    final list = waitlist(
+      attendance.values.where((a) => byId.containsKey(a.uid)),
+      cap,
+    );
+    List<AppUser> inOrder(List<String> ids) => [
+      for (final id in ids)
+        if (byId[id] != null) byId[id]!,
+    ];
+    final myTurn = list.waiting.indexOf(myUid);
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
+        CheckinCard(match: match),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -63,6 +78,15 @@ class _IntentionView extends ConsumerWidget {
                   'Con esto el grupo sabe si llegan a completar equipos. Cuando termine la jornada confirmas si jugaste.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                if (cap > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    myTurn >= 0
+                        ? 'Estás en espera (#${myTurn + 1}). Si alguien se baja, entras tú.'
+                        : 'Hay cupo para $cap. Los que digan "Voy" después quedan en espera.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -104,10 +128,18 @@ class _IntentionView extends ConsumerWidget {
           ),
         ),
         _Group(
-          title: 'Van',
-          users: withStatus(AttendanceStatus.yes),
+          title: cap > 0 ? 'Van · ${list.inside.length} de $cap' : 'Van',
+          users: inOrder(list.inside),
           icon: Icons.check_circle,
           color: Colors.green,
+          showCount: cap == 0,
+        ),
+        _Group(
+          title: 'En espera',
+          users: inOrder(list.waiting),
+          icon: Icons.hourglass_top,
+          color: Colors.orange,
+          subtitleOf: (u) => '#${list.waiting.indexOf(u.uid) + 1}',
         ),
         _Group(
           title: 'Quizás',
@@ -166,6 +198,7 @@ class _PresenceView extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
+        CheckinCard(match: match),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -231,6 +264,9 @@ class _PresenceView extends ConsumerWidget {
           users: present.toList(),
           icon: Icons.check_circle,
           color: Colors.green,
+          subtitleOf: (u) => attendance[u.uid]?.checkedIn == true
+              ? '✓ Lo comprobó con el código'
+              : null,
           onLongPress: isStaff && !closed
               ? (u) => _adminSetPresence(context, ref, u)
               : null,
@@ -424,14 +460,16 @@ class _Group extends StatelessWidget {
     required this.color,
     this.subtitleOf,
     this.onLongPress,
+    this.showCount = true,
   });
 
   final String title;
   final List<AppUser> users;
   final IconData icon;
   final Color color;
-  final String Function(AppUser)? subtitleOf;
+  final String? Function(AppUser)? subtitleOf;
   final void Function(AppUser)? onLongPress;
+  final bool showCount;
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +477,7 @@ class _Group extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle('$title (${users.length})'),
+        SectionTitle(showCount ? '$title (${users.length})' : title),
         for (final (i, u) in users.indexed)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1.5),
@@ -459,9 +497,9 @@ class _Group extends StatelessWidget {
                           u.name,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        if (subtitleOf != null)
+                        if (subtitleOf?.call(u) case final sub?)
                           Text(
-                            subtitleOf!(u),
+                            sub,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: Theme.of(

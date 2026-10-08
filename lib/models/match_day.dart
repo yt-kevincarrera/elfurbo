@@ -23,6 +23,7 @@ class MatchDay {
     this.notes,
     this.teamA = const [],
     this.teamB = const [],
+    this.maxPlayers = 0,
   });
 
   /// Las jornadas duran lo que quieran: sin duración, se reportan goles desde
@@ -42,6 +43,9 @@ class MatchDay {
   final String? notes;
   final List<String> teamA;
   final List<String> teamB;
+
+  /// Cupo (0 = sin límite): los de más quedan en lista de espera.
+  final int maxPlayers;
 
   DateTime get end => date.add(Duration(minutes: durationMinutes));
 
@@ -91,6 +95,7 @@ class MatchDay {
       notes: d['notes'] as String?,
       teamA: List<String>.from((teams['a'] as List?) ?? const []),
       teamB: List<String>.from((teams['b'] as List?) ?? const []),
+      maxPlayers: (d['maxPlayers'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -343,6 +343,48 @@ void main() {
     },
   );
 
+  test('cupo: en espera, y "¡Entraste!" al liberarse un sitio', () {
+    String at(int minute) =>
+        DateTime.utc(2026, 1, 1, 0, minute).toIso8601String();
+    final d = ClubData(clubId: 'c1')
+      ..table('club')['c1'] = {
+        'id': 'c1',
+        'name': 'Pachanga',
+        'status': 'active',
+        'settings': {},
+      }
+      ..table('matchday')['m1'] = {
+        'id': 'm1',
+        'startsAt': now.add(const Duration(days: 2)).toIso8601String(),
+        'status': 'scheduled',
+        'maxPlayers': 1,
+      }
+      ..table('member')['otro'] = {'id': 'otro', 'status': 'active'}
+      ..table('member')[me] = {'id': me, 'status': 'active'}
+      ..table('attendance')['m1:otro'] = {
+        'id': 'm1:otro',
+        'matchdayId': 'm1',
+        'memberId': 'otro',
+        'intent': 'yes',
+        'intentAt': at(1),
+      }
+      ..table('attendance')['m1:$me'] = {
+        'id': 'm1:$me',
+        'matchdayId': 'm1',
+        'memberId': me,
+        'intent': 'yes',
+        'intentAt': at(2),
+      };
+    expect(waitingIn(d, myMemberId: me, now: now), {'m1': true});
+    // El otro se baja: subo yo, y solo avisa si de verdad estaba esperando.
+    d.table('attendance')['m1:otro']!['intent'] = 'no';
+    final waiting = waitingIn(d, myMemberId: me, now: now);
+    expect(waiting, {'m1': false});
+    final alerts = spotAlerts(d, waiting: waiting, wasWaiting: {'wait:c1:m1'});
+    expect(alerts.single.title, '¡Entraste! Se liberó un cupo');
+    expect(spotAlerts(d, waiting: waiting, wasWaiting: {}), isEmpty);
+  });
+
   test('ser dueño por una transferencia no es "aprobaron tu servidor"', () {
     final me = {
       'clubs': [

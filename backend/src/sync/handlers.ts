@@ -7,7 +7,7 @@ import {
   setSeasonClosed,
   updateSeason,
 } from "../commands/seasons";
-import { rollCall, setIntent, setPlayed } from "../commands/attendance";
+import { checkIn, rollCall, setIntent, setPlayed } from "../commands/attendance";
 import {
   createMatchday,
   deleteMatchday,
@@ -74,6 +74,7 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "attendance.setIntent": setIntent,
   "attendance.setPlayed": setPlayed,
   "attendance.rollCall": rollCall,
+  "attendance.checkIn": checkIn,
   "report.upsert": upsertReport,
   "report.delete": deleteReport,
   "report.loadFor": loadReportFor,

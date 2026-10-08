@@ -266,6 +266,15 @@ class LocalStore {
   Future<void> writeAlertLedger(Map<String, Object?> ledger) =>
       _write('alerts.json', ledger);
 
+  /// Los secretos del código de asistencia, por servidor (solo el staff).
+  Future<Map<String, dynamic>> readCheckinSecrets() async {
+    final j = await _read('checkin.json');
+    return j is Map<String, dynamic> ? j : {};
+  }
+
+  Future<void> writeCheckinSecrets(Map<String, dynamic> secrets) =>
+      _write('checkin.json', secrets);
+
   /// Borra todo lo de esta cuenta en el teléfono (al cerrar sesión).
   /// Primero se aparta (rename, atómico): el sync de segundo plano, si estaba
   /// escribiendo, ya no encuentra la carpeta y no la vuelve a crear.

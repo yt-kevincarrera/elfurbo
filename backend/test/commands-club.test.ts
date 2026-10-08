@@ -21,6 +21,7 @@ describe("club.updateSettings", () => {
       timezone: "America/Havana",
       joinPolicy: "request",
       shareStats: true,
+      maxPlayers: 0,
     });
     const next = (await pullAll(owner.token, { [clubId]: cursor })).clubs[clubId]!;
     expect(next.upserts.club).toMatchObject([{ settings: { reportValidation: "trust", closeAfterHours: 48 } }]);

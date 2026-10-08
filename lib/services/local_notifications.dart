@@ -224,6 +224,7 @@ class LocalNotifications {
             AlertKind.joinRejected ||
             AlertKind.fixtureToScore ||
             AlertKind.fixtureResult => NotificationKind.club,
+            AlertKind.spotFreed => NotificationKind.matchDay,
           },
           matchId: a.matchdayId,
           clubId:

@@ -155,6 +155,8 @@ export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
 
   const all = playedMatchdays(rows, settings, null, now);
   const accounts = new Map(member.filter((m) => m.userId).map((m) => [String(m.id), String(m.userId)]));
+  // Quien comprobó con el código que estaba (spec 2.0 §8.1).
+  const checkins = new Set(rows.attendance.filter((a) => a.checkedInAt).map((a) => `${String(a.matchdayId)}:${String(a.memberId)}`));
   const recentUsers = [...recentPlayers(all, now)].map((p) => accounts.get(p)).filter((u): u is string => !!u);
   const signals: Signals = clubSignals({
     matchdays: all,
@@ -163,6 +165,7 @@ export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
     confirmationsNeeded: settings.confirmationsNeeded,
     accounts,
     elsewhere: await activeElsewhere(db, clubId, [...new Set(recentUsers)]),
+    checkins,
   });
   const tier: Tier = tierFor(signals, club.official);
   const points = score(signals);
@@ -184,8 +187,13 @@ export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
   const kept = new Set<string>();
   for (const s of season) {
     const periodId = String(s.id);
-    const stats = statsOf(all.filter((md) => seasonOf.get(md.id) === periodId));
+    const inPeriod = all.filter((md) => seasonOf.get(md.id) === periodId);
+    const stats = statsOf(inPeriod);
     const flags = flagged(stats);
+    const checked = new Map<string, number>();
+    for (const md of inPeriod) {
+      for (const p of md.players) if (checkins.has(`${md.id}:${p}`)) checked.set(p, (checked.get(p) ?? 0) + 1);
+    }
     for (const [memberId, m] of stats) {
       if (m.played === 0 && m.reports === 0) continue;
       kept.add(`${periodId}:${memberId}`);
@@ -193,15 +201,17 @@ export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
         db
           .prepare(
             `INSERT INTO member_stats (club_id, period_id, member_id, played, goals, assists, mvps, hat_tricks, best_streak,
-                                       best_day_goals, reports, rejected, flag, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       best_day_goals, reports, rejected, checkins, flag, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (club_id, period_id, member_id) DO UPDATE SET
                played = excluded.played, goals = excluded.goals, assists = excluded.assists, mvps = excluded.mvps,
                hat_tricks = excluded.hat_tricks, best_streak = excluded.best_streak, best_day_goals = excluded.best_day_goals,
-               reports = excluded.reports, rejected = excluded.rejected, flag = excluded.flag, updated_at = excluded.updated_at
-             WHERE (played, goals, assists, mvps, hat_tricks, best_streak, best_day_goals, reports, rejected, flag)
+               reports = excluded.reports, rejected = excluded.rejected, checkins = excluded.checkins, flag = excluded.flag,
+               updated_at = excluded.updated_at
+             WHERE (played, goals, assists, mvps, hat_tricks, best_streak, best_day_goals, reports, rejected, checkins, flag)
                 IS NOT (excluded.played, excluded.goals, excluded.assists, excluded.mvps, excluded.hat_tricks,
-                        excluded.best_streak, excluded.best_day_goals, excluded.reports, excluded.rejected, excluded.flag)`,
+                        excluded.best_streak, excluded.best_day_goals, excluded.reports, excluded.rejected, excluded.checkins,
+                        excluded.flag)`,
           )
           .bind(
             clubId,
@@ -216,6 +226,7 @@ export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
             m.bestDayGoals,
             m.reports,
             m.rejected,
+            checked.get(memberId) ?? 0,
             flags.has(memberId) ? 1 : 0,
             at,
           ),

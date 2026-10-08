@@ -3,7 +3,7 @@ import { auditStatement } from "../audit";
 import { requireAuth } from "../auth/middleware";
 import { randomCode } from "../auth/crypto";
 import { issueRecoveryCode } from "../auth/recovery";
-import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, type InvitableRole } from "../authz";
+import { canInviteAs, canIssueRecoveryCode, canManageInvites, isAdmin, isStaff, type InvitableRole } from "../authz";
 import { errors } from "../http/errors";
 import { readJson } from "../http/validate";
 import { findInvite, formatCode } from "../invites/model";
@@ -254,6 +254,23 @@ clubRoutes.get("/:clubId/audit", async (c) => {
 clubRoutes.get("/:clubId/prestige", async (c) => {
   const { club } = await requireMembership(c.env.DB, c.req.param("clubId"), c.var.auth.user.id);
   return c.json(await prestigeOf(c.env.DB, club));
+});
+
+/**
+ * El secreto del código de asistencia (spec 2.0 §8.1), solo para el staff de un grupo. La primera vez
+ * se crea; el teléfono lo guarda y saca el código sin conexión.
+ */
+clubRoutes.get("/:clubId/checkin-secret", async (c) => {
+  const db = c.env.DB;
+  const { club, member } = await requireMembership(db, c.req.param("clubId"), c.var.auth.user.id);
+  if (club.kind !== "group" || !isStaff(member.role)) throw errors.forbidden();
+  const fresh = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  // Si dos lo piden a la vez, gana el primero y los dos reciben el mismo.
+  const row = await db
+    .prepare("UPDATE clubs SET checkin_secret = COALESCE(checkin_secret, ?) WHERE id = ? RETURNING checkin_secret")
+    .bind(fresh, club.id)
+    .first<{ checkin_secret: string }>();
+  return c.json({ secret: row!.checkin_secret, windowSeconds: 300 });
 });
 
 clubRoutes.route("/", joinRoutes);

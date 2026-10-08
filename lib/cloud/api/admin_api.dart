@@ -222,6 +222,10 @@ class ClubAdminApi {
   Future<Prestige> prestige(String clubId) async =>
       Prestige.fromJson((await _api.get('/clubs/$clubId/prestige'))!);
 
+  /// El secreto del código de asistencia (staff). La primera vez se crea.
+  Future<String> checkinSecret(String clubId) async =>
+      (await _api.get('/clubs/$clubId/checkin-secret'))!['secret'] as String;
+
   Future<AuditPage> audit(String clubId, {int? before}) async {
     final j = await _api.get(
       '/clubs/$clubId/audit${before == null ? '' : '?before=$before'}',

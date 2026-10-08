@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { canActForOthers } from "../authz";
 import { errors } from "../http/errors";
+import { consumeAttempt } from "../auth/rate-limit";
+import { checkinValid } from "../rules/checkin";
 import { acceptsIntent } from "../rules/matchday";
 import { upsert } from "../sync/changes";
 import { command, type CommandContext } from "../sync/command";
@@ -30,8 +32,13 @@ export const setIntent = command(
       statements: [
         ctx.db
           .prepare(
-            `INSERT INTO attendance (id, club_id, matchday_id, member_id, intent, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET intent = excluded.intent, updated_at = excluded.updated_at`,
+            // `intent_at` es el turno en la lista de espera: se toma al decir "Voy" y se pierde al bajarse.
+            `INSERT INTO attendance (id, club_id, matchday_id, member_id, intent, intent_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, CASE WHEN ?5 = 'yes' THEN ?6 END, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+               intent = excluded.intent,
+               intent_at = CASE WHEN excluded.intent IS NOT 'yes' THEN NULL WHEN attendance.intent = 'yes' THEN attendance.intent_at ELSE excluded.intent_at END,
+               updated_at = excluded.updated_at`,
           )
           .bind(id, ctx.club.id, md.id, ctx.member.id, p.intent, ctx.now.toISOString()),
       ],
@@ -39,6 +46,45 @@ export const setIntent = command(
     };
   },
 );
+
+const CHECKIN_SPAN_MS = 3 * 60 * 60 * 1000;
+/** Sin señal se manda después, pero no días después: así no se usa un código de otro día. */
+const CHECKIN_LATE_MS = 24 * 60 * 60 * 1000;
+/** Cada intento cuenta: 10 por hora y jugador, para que el código no se adivine a fuerza de probar. */
+const CHECKIN_ATTEMPTS = { max: 10, windowMinutes: 60 };
+
+/**
+ * "Estoy aquí" con el código que enseña el staff (spec 2.0 §8.1): marca que jugó y que lo comprobó.
+ * El código se juzga con la hora del teléfono (se pudo escribir sin señal), y solo cerca de la jornada.
+ */
+export const checkIn = command(z.object({ matchdayId, code: z.string().regex(/^\d{6}$/) }), async (ctx, p) => {
+  const md = await findMatchday(ctx, p.matchdayId);
+  assertOpen(ctx, md);
+  const start = new Date(md.startsAt).getTime();
+  const end = start + md.durationMinutes * 60_000;
+  const at = ctx.clientAt.getTime();
+  if (at < start - CHECKIN_SPAN_MS || at > end + CHECKIN_SPAN_MS || ctx.now.getTime() - at > CHECKIN_LATE_MS) {
+    throw errors.checkinClosed();
+  }
+  // Fuera del batch del comando: el intento se cuenta aunque el código no valga.
+  await consumeAttempt(ctx.db, { key: `checkin:${ctx.member.id}`, ...CHECKIN_ATTEMPTS }, ctx.now);
+  const row = await ctx.db.prepare("SELECT checkin_secret FROM clubs WHERE id = ?").bind(ctx.club.id).first<{ checkin_secret: string | null }>();
+  if (!row?.checkin_secret || !(await checkinValid(row.checkin_secret, ctx.clientAt, p.code))) throw errors.checkinCode();
+  const id = key(md.id, ctx.member.id);
+  const now = ctx.now.toISOString();
+  return {
+    statements: [
+      ctx.db
+        .prepare(
+          `INSERT INTO attendance (id, club_id, matchday_id, member_id, played, played_set_by, checked_in_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, 1, ?4, ?5, ?5)
+           ON CONFLICT(id) DO UPDATE SET played = 1, played_set_by = ?4, checked_in_at = COALESCE(attendance.checked_in_at, ?5), updated_at = ?5`,
+        )
+        .bind(id, ctx.club.id, md.id, ctx.member.id, now),
+    ],
+    touched: [upsert("attendance", id)],
+  };
+});
 
 /** "Jugué" / "No fui". Solo cuando la jornada ya terminó. */
 export const setPlayed = command(z.object({ matchdayId, played: z.boolean() }), async (ctx, p) => {

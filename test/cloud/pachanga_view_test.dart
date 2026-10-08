@@ -104,6 +104,42 @@ ProviderContainer _container(
 
 void main() {
   test(
+    'cupo y "Estoy aquí" sin señal: el turno se guarda y el código marca que jugó',
+    () async {
+      final at = DateTime.now().add(const Duration(days: 3));
+      var d = await _as(
+        'k',
+        _server(settings: {'maxPlayers': 1}),
+        (r) => r.createMatches(dates: [at]),
+      );
+      final id =
+          d.all('matchday').firstWhere((m) => m['id'] != 'm1')['id'] as String;
+      d = await _as('p1', d, (r) => r.setIntent(id, AttendanceStatus.yes));
+      d = await _as('p2', d, (r) => r.setIntent(id, AttendanceStatus.yes));
+      final c = _container(d, me: 'p2');
+      expect(c.read(matchByIdProvider(id))!.maxPlayers, 1);
+      final mine = c.read(attendanceForMatchProvider(id));
+      expect(mine['p1']!.intentAt, isNotNull);
+      // Decir "Voy" otra vez no le quita el turno; bajarse sí.
+      final first = mine['p1']!.intentAt;
+      d = await _as('p1', d, (r) => r.setIntent(id, AttendanceStatus.yes));
+      expect(
+        _container(d).read(attendanceForMatchProvider(id))['p1']!.intentAt,
+        first,
+      );
+      d = await _as('p1', d, (r) => r.setIntent(id, AttendanceStatus.maybe));
+      expect(
+        _container(d).read(attendanceForMatchProvider(id))['p1']!.intentAt,
+        isNull,
+      );
+      d = await _as('p2', d, (r) => r.checkIn('m1', '123456'));
+      final a = _container(d).read(attendanceForMatchProvider('m1'))['p2']!;
+      expect(a.played, isTrue);
+      expect(a.checkedIn, isTrue);
+    },
+  );
+
+  test(
     'sin señal: un jugador crea la jornada y dice que va; se ve al instante',
     () async {
       final at = DateTime.now().add(const Duration(days: 3));

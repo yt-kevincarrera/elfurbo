@@ -70,7 +70,7 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
     table: "matchdays",
     clubColumn: "club_id",
     keyColumn: "id",
-    columns: "id, season_id, starts_at, duration_minutes, place, notes, status, teams, created_by",
+    columns: "id, season_id, starts_at, duration_minutes, place, notes, status, teams, created_by, max_players",
     toJson: (r) => ({
       id: r.id,
       seasonId: r.season_id,
@@ -81,13 +81,14 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
       status: r.status,
       teams: r.teams === null ? null : JSON.parse(String(r.teams)),
       createdBy: r.created_by,
+      maxPlayers: r.max_players,
     }),
   },
   attendance: {
     table: "attendance",
     clubColumn: "club_id",
     keyColumn: "id",
-    columns: "id, matchday_id, member_id, intent, played, played_set_by",
+    columns: "id, matchday_id, member_id, intent, played, played_set_by, checked_in_at, intent_at",
     toJson: (r) => ({
       id: r.id,
       matchdayId: r.matchday_id,
@@ -95,6 +96,8 @@ export const ENTITIES: Record<SyncEntity, EntityDef> = {
       intent: r.intent,
       played: r.played === null ? null : r.played === 1,
       playedSetBy: r.played_set_by,
+      checkedInAt: r.checked_in_at,
+      intentAt: r.intent_at,
     }),
   },
   report: {

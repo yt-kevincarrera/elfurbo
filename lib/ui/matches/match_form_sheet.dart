@@ -28,11 +28,54 @@ class _MatchForm extends ConsumerStatefulWidget {
   ConsumerState<_MatchForm> createState() => _MatchFormState();
 }
 
+/// Cupo de jugadores: sin límite (0) o de 2 a 60. Los de más quedan en
+/// lista de espera.
+class CapStepper extends StatelessWidget {
+  const CapStepper({super.key, required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.groups_outlined),
+      title: const Text('Cupo'),
+      subtitle: Text(
+        value == 0
+            ? 'Sin límite'
+            : '$value jugadores; los demás, en lista de espera',
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Menos',
+            onPressed: value == 0
+                ? null
+                : () => onChanged(value <= 2 ? 0 : value - 1),
+            icon: const Icon(Icons.remove),
+          ),
+          IconButton(
+            tooltip: 'Más',
+            onPressed: value >= 60
+                ? null
+                : () => onChanged(value == 0 ? 10 : value + 1),
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MatchFormState extends ConsumerState<_MatchForm> {
   late DateTime _date;
   String? _seasonId;
   bool _repeat = false;
   int _weeks = 4;
+  late int _cap;
   late final TextEditingController _place;
   late final TextEditingController _notes;
 
@@ -44,6 +87,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
     final e = widget.existing;
     _date = e?.date ?? _nextSunday();
     _seasonId = e?.seasonId;
+    _cap = e?.maxPlayers ?? ref.read(clubSettingsProvider).maxPlayers;
     _place = TextEditingController(text: e?.place ?? '');
     _notes = TextEditingController(text: e?.notes ?? '');
   }
@@ -134,7 +178,8 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
       final notes = _notes.text.trim() == (existing.notes ?? '')
           ? null
           : _notes.text;
-      if ([date, season, place, notes].every((v) => v == null)) {
+      final cap = _cap == existing.maxPlayers ? null : _cap;
+      if ([date, season, place, notes, cap].every((v) => v == null)) {
         Navigator.of(context).pop(); // Nada que cambiar.
         return;
       }
@@ -145,6 +190,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
           seasonId: season,
           place: place,
           notes: notes,
+          maxPlayers: cap,
         ),
         success: 'Jornada actualizada',
       );
@@ -156,6 +202,7 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
           seasonId: seasonId,
           place: _place.text,
           notes: _notes.text,
+          maxPlayers: _cap,
         ),
         success: dates.length == 1
             ? 'Listo, jornada creada'
@@ -259,6 +306,8 @@ class _MatchFormState extends ConsumerState<_MatchForm> {
               textCapitalization: TextCapitalization.sentences,
               maxLines: 2,
             ),
+            const SizedBox(height: 8),
+            CapStepper(value: _cap, onChanged: (v) => setState(() => _cap = v)),
             if (_isNew) ...[
               const SizedBox(height: 8),
               SwitchListTile(
