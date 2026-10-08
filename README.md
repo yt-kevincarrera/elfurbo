@@ -13,21 +13,26 @@ internet** y se sincroniza solo cuando vuelve la señal, también con la app cer
 
 | | |
 | --- | --- |
-| **Servidores** | Cada grupo es un servidor. Cualquiera lo solicita y el superadmin lo aprueba. Se entra por invitación (enlace o código), con roles: dueño, admin, anotador y jugador. Hay jugadores sin cuenta que después reclaman su perfil. |
+| **Servidores** | Cada grupo es un servidor. Cualquiera lo solicita y el superadmin lo aprueba. Se entra por invitación (enlace o código), con roles: dueño, admin, anotador y jugador. Hay jugadores sin cuenta que después reclaman su perfil. Se cambia de uno a otro desde la barra, con la agenda de todos. |
+| **Directorio** | Los servidores públicos salen en un directorio por provincia, con su página web (`/s/:id`). Se pide entrar (lo acepta un admin) o se entra al momento. Los privados solo por invitación. |
+| **Prestigio** | Cada servidor tiene un nivel (oficial, verificado, establecido, casual o nuevo) que sale de cómo valida sus reportes, cuánto juega y quién juega. El perfil global de un jugador enseña sus números en cada servidor con ese nivel, y el Índice Furbo pesa más lo de los servidores de prestigio. |
+| **Torneos** | Liga, copa o grupos + eliminatoria. Inscripción de equipos con capitán y plantilla, calendario, resultados con goles, tarjetas y MVP, tabla con desempates, bracket, premios al terminar y una vitrina en el perfil. Página web pública (`/t/:id`). |
 | **Jornadas** | Fecha, hora, cancha y temporada, sin duración fija. Se editan, cancelan, cierran, reabren o borran. Se cierran solas pasado el plazo del servidor (72 h por defecto). |
-| **Asistencia** | Antes, *Voy / Quizás / No voy*. Después, *Jugué*. |
+| **Asistencia** | Antes, *Voy / Quizás / No voy*, con cupo y lista de espera si el servidor lo pone. En el terreno, *Estoy aquí* con el código que enseña el staff (cambia cada 5 minutos, funciona sin señal). Después, *Jugué*. |
 | **Reportes** | Cada uno carga sus goles y asistencias. Cuentan con las confirmaciones de los que jugaron (2 por defecto), en modo confianza al momento, o con el staff. |
-| **MVP, tabla y perfil** | Votación del mejor; ranking por temporada o histórico; perfil con evolución, logros y rachas. |
+| **MVP, tabla y perfil** | Votación del mejor; ranking por temporada o histórico, y récords del servidor; perfil con evolución, logros y rachas, la carta para compartir y el resumen de cada temporada cerrada. |
 | **Equipos parejos** | Propone dos equipos balanceados con los que van. |
-| **Avisos** | Jornada nueva, reportes por confirmar, reporte rechazado y servidor aprobado. Los calcula el teléfono cuando sincroniza, sin push. Recordatorios de "¡Hoy se juega!" y "¿Cuántos metiste hoy?". |
+| **Avisos** | Jornada nueva, reportes por confirmar, reporte rechazado, servidor aprobado, solicitudes para entrar, "¡Entraste!" cuando se libera un cupo, y en los torneos el partido que te toca anotar y el resultado de tu equipo. Los calcula el teléfono cuando sincroniza, sin push. Recordatorios de "¡Hoy se juega!" y "¿Cuántos metiste hoy?". |
 | **Actualizaciones** | La app baja las versiones nuevas desde nuestro servidor, que las lee de GitHub. Si la descarga se corta, sigue donde se quedó. |
 
 ## Stack
 
 - **App:** Flutter (Android), Riverpod, WorkManager para el sync en segundo plano y avisos locales.
   Las reglas y estadísticas son Dart puro, en `lib/domain/` y `lib/cloud/rules/`, con tests.
-- **Backend** (`backend/`): Cloudflare Workers + D1 + Hono, en el plan gratuito. Diseño completo:
-  `docs/superpowers/specs/2026-10-01-servidores-backend-propio-design.md`.
+- **Backend** (`backend/`): Cloudflare Workers + D1 + Hono, en el plan gratuito. Un cron cada
+  10 minutos recalcula las estadísticas y el nivel de cada servidor. Diseño:
+  `docs/superpowers/specs/2026-10-01-servidores-backend-propio-design.md` (la base) y
+  `docs/superpowers/specs/2026-10-07-v2-comunidad-prestigio-torneos-design.md` (la 2.0).
 - **Sync:** cola de comandos en el teléfono (un archivo por cambio), `POST /sync/push` y
   `POST /sync/pull` incremental. La vista es el último estado del servidor con lo pendiente
   encima. Los contratos compartidos están en `shared-fixtures/`, probados desde Dart y TypeScript.
@@ -97,7 +102,7 @@ clave cuya huella está en `tool/release-cert.sha256`.
 ### Publicar una versión
 
 ```bash
-tool/release.sh 1.0.0 --notes "Qué cambió"
+tool/release.sh 2.0.0 --notes "Qué cambió"
 ```
 
 El script:
