@@ -142,7 +142,18 @@ class NoClubsScreen extends ConsumerWidget {
                         ? 'Esperando a que un admin conteste'
                         : 'No te aceptaron${(r.note ?? '').isEmpty ? '' : ': ${r.note}'}',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: r.status == 'pending'
+                      ? TextButton(
+                          onPressed: () => fireAndForget(
+                            ref
+                                .read(directoryApiProvider)
+                                .cancelJoin(r.clubId)
+                                .then((_) => ref.read(cloudProvider).loadMe()),
+                            success: 'Listo, retiraste la solicitud',
+                          ),
+                          child: const Text('Retirar'),
+                        )
+                      : null,
                   onTap: () => DirectoryClubScreen.open(context, r.clubId),
                 ),
             ],

@@ -61,6 +61,12 @@ export const errors = {
     new ApiError(409, "owner_cannot_leave", "Eres el dueño: transfiere el servidor antes de salir"),
   appOutdated: () =>
     new ApiError(426, "app_outdated", "Actualiza la app para seguir sincronizando"),
+  wrongKind: (tournament: boolean) =>
+    new ApiError(
+      409,
+      "wrong_kind",
+      tournament ? "Eso no se hace en un torneo" : "Eso solo se hace en un torneo",
+    ),
   clubDelisted: () =>
     new ApiError(
       409,

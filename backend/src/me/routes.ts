@@ -40,7 +40,9 @@ meRoutes.get("/", async (c) => {
     .prepare(
       `SELECT j.id, j.club_id, c.name, j.status, j.note, j.created_at, j.decided_at
          FROM join_requests j JOIN clubs c ON c.id = j.club_id
-        WHERE j.user_id = ? AND (j.status = 'pending' OR (j.status = 'rejected' AND j.decided_at > ?))
+        WHERE j.user_id = ?
+          AND ((j.status = 'pending' AND c.visibility = 'public' AND c.status = 'active' AND c.delisted = 0)
+               OR (j.status = 'rejected' AND j.decided_at > ?))
         ORDER BY j.created_at DESC`,
     )
     .bind(userId, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
@@ -52,7 +54,7 @@ meRoutes.get("/", async (c) => {
          FROM join_requests j JOIN clubs c ON c.id = j.club_id JOIN users u ON u.id = j.user_id
          JOIN members m ON m.club_id = j.club_id AND m.user_id = ?1
         WHERE j.status = 'pending' AND m.status = 'active' AND m.role IN ('owner', 'admin') AND c.status = 'active'
-        ORDER BY j.created_at LIMIT 50`,
+        ORDER BY j.created_at DESC LIMIT 50`,
     )
     .bind(userId)
     .all<{ id: string; club_id: string; name: string; display_name: string }>();

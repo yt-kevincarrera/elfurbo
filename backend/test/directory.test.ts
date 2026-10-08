@@ -199,3 +199,67 @@ describe("página pública /s/:id", () => {
     expect(a.html).toBe(b.html);
   });
 });
+
+describe("pedir entrar: lo que no se traba", () => {
+  it("aceptar una solicitud que el que pidió ya retiró no mete a nadie", async () => {
+    const pub = await publicClub();
+    const kevin = await register("kevin");
+    const req = (await post(`/clubs/${pub.clubId}/join`, kevin.token)).body.request.id;
+    await api(`/clubs/${pub.clubId}/join`, { method: "DELETE", token: kevin.token });
+    expect((await post(`/clubs/${pub.clubId}/join-requests/${req}/accept`, pub.owner.token)).status).toBe(404);
+    expect((await api("/me", { token: kevin.token })).body.clubs).toEqual([]);
+  });
+
+  it("las de un servidor que se hizo privado no cuentan para el máximo ni salen en /me", async () => {
+    const kevin = await register("kevin");
+    const clubs = [];
+    for (let i = 0; i < 5; i++) {
+      const pub = await publicClub(`dueno${i}`, `Club ${i}`);
+      await post(`/clubs/${pub.clubId}/join`, kevin.token);
+      clubs.push(pub);
+    }
+    await apply(clubs[0]!.owner.token, cmd(clubs[0]!.clubId, "club.setVisibility", { visibility: "private" }));
+    expect((await api("/me", { token: kevin.token })).body.joinRequests).toHaveLength(4);
+    const sixth = await publicClub("dueno6", "Club 6");
+    expect((await post(`/clubs/${sixth.clubId}/join`, kevin.token)).status).toBe(201);
+  });
+
+  it("entrar por otro lado (abierto o invitación) deja la solicitud contestada", async () => {
+    const pub = await publicClub();
+    const kevin = await register("kevin");
+    await post(`/clubs/${pub.clubId}/join`, kevin.token);
+    await apply(pub.owner.token, cmd(pub.clubId, "club.setVisibility", { visibility: "public", joinPolicy: "open" }));
+    expect((await post(`/clubs/${pub.clubId}/join`, kevin.token)).body.status).toBe("member");
+    expect((await api("/me", { token: kevin.token })).body.joinRequests).toEqual([]);
+    expect((await api(`/clubs/${pub.clubId}/join-requests`, { token: pub.owner.token })).body.requests).toEqual([]);
+
+    const other = await publicClub("dueno.b", "Otro");
+    const yoan = await register("yoan");
+    await post(`/clubs/${other.clubId}/join`, yoan.token);
+    const invite = await post(`/clubs/${other.clubId}/invites`, other.owner.token, {});
+    expect((await post(`/invites/${invite.body.invite.code}/accept`, yoan.token)).status).toBe(201);
+    expect((await api("/me", { token: yoan.token })).body.joinRequests).toEqual([]);
+  });
+
+  it("el resumen para el admin no cuenta lo que el perfil global esconde", async () => {
+    const pub = await publicClub();
+    const secret = await activeClub("dueno.s", "Secreto");
+    await apply(secret.owner.token, cmd(secret.clubId, "club.updateSettings", { shareStats: false }));
+    const kevin = await register("kevin");
+    const member = crypto.randomUUID();
+    const at = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO members (id, club_id, user_id, role, display_name, created_at, updated_at) VALUES (?, ?, ?, 'player', 'Kevin', ?, ?)",
+    )
+      .bind(member, secret.clubId, kevin.user.id, at, at)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO member_stats (club_id, period_id, member_id, played, goals, updated_at) VALUES (?, 's', ?, 9, 30, ?)",
+    )
+      .bind(secret.clubId, member, at)
+      .run();
+    await post(`/clubs/${pub.clubId}/join`, kevin.token);
+    const list = await api(`/clubs/${pub.clubId}/join-requests`, { token: pub.owner.token });
+    expect(list.body.requests[0]).toMatchObject({ played: 0, goals: 0 });
+  });
+});
