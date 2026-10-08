@@ -37,25 +37,35 @@ inviteRoutes.post("/:code/accept", requireAuth, async (c) => {
 
   const existing = await findMemberByUser(db, invite.clubId, user.id);
   if (existing?.status === "banned") throw errors.bannedFromClub();
+  // Ya está en el torneo y lo invitan a un equipo: solo entra en el equipo.
+  const inTournament = existing?.status === "active" && invite.teamId !== null;
   // Reclamar un perfil exige no tener ya otro en el servidor (aunque se haya ido).
-  if (existing?.status === "active" || (existing && invite.targetMemberId)) throw errors.alreadyMember();
+  if (!inTournament && (existing?.status === "active" || (existing && invite.targetMemberId))) {
+    throw errors.alreadyMember();
+  }
 
   if (invite.teamId) await assertTeamRoom(db, invite.teamId, invite.clubId, existing?.id ?? null);
   await claimUse(db, invite, now);
   let member: { id: string; role: string; displayName: string };
-  try {
-    member = await joinClub(db, invite, user, existing?.id ?? null, now);
-  } catch (e) {
-    // El alta y su auditoría van en un solo batch: si falló, no entró nadie y el uso no cuenta.
-    await db.prepare("UPDATE invites SET uses = uses - 1 WHERE code = ?").bind(invite.code).run();
-    throw e;
+  if (inTournament) {
+    member = { id: existing!.id, role: existing!.role, displayName: existing!.displayName };
+  } else {
+    try {
+      member = await joinClub(db, invite, user, existing?.id ?? null, now);
+    } catch (e) {
+      // El alta y su auditoría van en un solo batch: si falló, no entró nadie y el uso no cuenta.
+      await db.prepare("UPDATE invites SET uses = uses - 1 WHERE code = ?").bind(invite.code).run();
+      throw e;
+    }
   }
   // Si había pedido entrar, esa solicitud queda contestada. Y la de equipo, al equipo.
-  await db.batch([
+  const [, team] = await db.batch<{ id: string }>([
     closePendingStatement(db, invite.clubId, user.id, now),
     ...(invite.teamId ? joinTeamStatements(db, invite.teamId, invite.clubId, member.id, now) : []),
   ]);
-  return c.json({ club: { id: invite.clubId, name: invite.club.name }, member }, 201);
+  // La plantilla se llenó justo antes: está en el torneo, pero sin equipo (la app lo dice).
+  const joinedTeam = invite.teamId && team?.results.length ? invite.teamId : null;
+  return c.json({ club: { id: invite.clubId, name: invite.club.name }, member, team: joinedTeam ? { id: joinedTeam } : null }, 201);
 });
 
 /** Gasta un uso de forma atómica: dos personas no pueden llevarse el último a la vez. */
@@ -199,7 +209,8 @@ function joinTeamStatements(db: D1Database, teamId: string, clubId: string, memb
           WHERE (SELECT COUNT(*) FROM team_players WHERE team_id = ? AND status = 'active')
                 < (SELECT max_players FROM tournaments WHERE club_id = ?)
             AND NOT EXISTS (SELECT 1 FROM team_players WHERE club_id = ? AND member_id = ? AND status = 'active')
-         ON CONFLICT (id) DO UPDATE SET status = 'active', updated_at = excluded.updated_at`,
+         ON CONFLICT (id) DO UPDATE SET status = 'active', updated_at = excluded.updated_at
+         RETURNING id`,
       )
       .bind(id, clubId, teamId, memberId, now.toISOString(), teamId, clubId, clubId, memberId),
     changeStatement(db, clubId, upsert("teamPlayer", id), now),

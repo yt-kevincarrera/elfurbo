@@ -32,9 +32,9 @@ export type CommandResult =
  * 1000 por invocación (la 1001 falla); se deja margen para la sesión y imprevistos.
  */
 export const QUERY_BUDGET = 900;
-/** Lo que puede costar un comando como mucho: membresía (2, si no está en caché), lecturas del handler (≤4, unir jornadas), batch y una relectura si choca (2). */
+/** Lo que puede costar un comando como mucho: membresía (2, si no está en caché), lecturas del handler (≤6, plantillas de torneo), batch y una relectura si choca (2). */
 const MEMBERSHIP_QUERIES = 2;
-const MAX_HANDLER_READS = 4;
+const MAX_HANDLER_READS = 6;
 const MAX_WRITE_QUERIES = 2;
 /**
  * Tiempo que dedica una petición a aplicar comandos antes de aplazar el resto. Con la conexión de

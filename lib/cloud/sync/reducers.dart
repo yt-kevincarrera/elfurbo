@@ -45,10 +45,14 @@ void applyCommand(ClubData d, Command c, {required String? myMemberId}) {
       member(p['memberId'])?['role'] = p['role'];
     case 'member.ban':
       member(p['memberId'])?['status'] = 'banned';
+      _releaseFromTeams(d, '${p['memberId']}');
     case 'member.unban':
       member(p['memberId'])?['status'] = 'left';
     case 'member.leave':
-      if (myMemberId != null) member(myMemberId)?['status'] = 'left';
+      if (myMemberId != null) {
+        member(myMemberId)?['status'] = 'left';
+        _releaseFromTeams(d, myMemberId);
+      }
     case 'club.updateSettings':
       final club = d.club;
       if (club == null) return;
@@ -350,5 +354,16 @@ void _applyPachanga(ClubData d, Command c, String? me) {
 void _deactivateSeasons(ClubData d) {
   for (final s in d.all('season')) {
     s['isActive'] = false;
+  }
+}
+
+/// En un torneo, quien se va o es expulsado deja su equipo (y la capitanía),
+/// como en el servidor.
+void _releaseFromTeams(ClubData d, String memberId) {
+  for (final tp in d.all('teamPlayer')) {
+    if (tp['memberId'] == memberId) tp['status'] = 'removed';
+  }
+  for (final t in d.all('team')) {
+    if (t['captainMemberId'] == memberId) t['captainMemberId'] = null;
   }
 }

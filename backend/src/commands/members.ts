@@ -85,11 +85,40 @@ export const ban = command(z.object({ memberId }), async (ctx, p) => {
   const t = await target(ctx, p.memberId);
   if (t.id === ctx.member.id || t.status === "banned" || !canBan(ctx.member.role, t.role)) throw errors.forbidden();
   return {
-    statements: [setStatement(ctx, t.id, "status = 'banned'", [])],
+    statements: [setStatement(ctx, t.id, "status = 'banned'", []), ...releaseFromTeams(ctx, t.id)],
     touched: [upsert("member", t.id)],
     audit: [{ action: "member.ban", entity: "member", entityKey: t.id }],
   };
 });
+
+/**
+ * En un torneo, quien se va o es expulsado deja libre su sitio en el equipo; y si era capitán, el
+ * equipo se queda sin capitán hasta que el organizador nombre otro.
+ */
+function releaseFromTeams(ctx: CommandContext, memberId: string) {
+  if (ctx.club.kind !== "tournament") return [];
+  const at = ctx.now.toISOString();
+  return [
+    ctx.db
+      .prepare(
+        `INSERT INTO changes (club_id, entity, entity_key, op, at)
+         SELECT club_id, 'teamPlayer', id, 'upsert', ? FROM team_players WHERE club_id = ? AND member_id = ? AND status = 'active'`,
+      )
+      .bind(at, ctx.club.id, memberId),
+    ctx.db
+      .prepare("UPDATE team_players SET status = 'removed', updated_at = ? WHERE club_id = ? AND member_id = ? AND status = 'active'")
+      .bind(at, ctx.club.id, memberId),
+    ctx.db
+      .prepare(
+        `INSERT INTO changes (club_id, entity, entity_key, op, at)
+         SELECT club_id, 'team', id, 'upsert', ? FROM teams WHERE club_id = ? AND captain_member_id = ?`,
+      )
+      .bind(at, ctx.club.id, memberId),
+    ctx.db
+      .prepare("UPDATE teams SET captain_member_id = NULL, updated_at = ? WHERE club_id = ? AND captain_member_id = ?")
+      .bind(at, ctx.club.id, memberId),
+  ];
+}
 
 /** Quitar la expulsión no lo mete de vuelta: queda como "se fue" y vuelve con una invitación. */
 export const unban = command(z.object({ memberId }), async (ctx, p) => {
@@ -105,8 +134,15 @@ export const unban = command(z.object({ memberId }), async (ctx, p) => {
 /** Salir del servidor. Su perfil y sus estadísticas se quedan; puede volver con una invitación. */
 export const leave = command(z.object({}).strict(), async (ctx) => {
   if (ctx.member.role === "owner") throw errors.ownerCannotLeave();
+  if (ctx.club.kind === "tournament") {
+    const captain = await ctx.db
+      .prepare("SELECT 1 FROM teams WHERE club_id = ? AND captain_member_id = ? AND status <> 'withdrawn'")
+      .bind(ctx.club.id, ctx.member.id)
+      .first();
+    if (captain) throw errors.invalidState("Eres capitán: nombra a otro antes de irte del torneo");
+  }
   return {
-    statements: [setStatement(ctx, ctx.member.id, "status = 'left'", [])],
+    statements: [setStatement(ctx, ctx.member.id, "status = 'left'", []), ...releaseFromTeams(ctx, ctx.member.id)],
     touched: [upsert("member", ctx.member.id)],
   };
 });

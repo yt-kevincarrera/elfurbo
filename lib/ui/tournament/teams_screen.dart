@@ -622,19 +622,25 @@ class _AddPlayerSheet extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.person_add_alt),
-            title: const Text('Jugador sin cuenta'),
-            subtitle: const Text('Después puede reclamar su perfil'),
-            onTap: () async {
-              final name = await askGuestName(context);
-              if (name == null) return;
-              final id = await repo.createGuest(name);
-              await repo.addTeamPlayer(team.id, id);
-              if (context.mounted) Navigator.pop(context);
-              showMessage('Listo, $name en la plantilla');
-            },
-          ),
+          // Crear jugadores sin cuenta es del staff.
+          if (ref.watch(isStaffProvider))
+            ListTile(
+              leading: const Icon(Icons.person_add_alt),
+              title: const Text('Jugador sin cuenta'),
+              subtitle: const Text('Después puede reclamar su perfil'),
+              onTap: () async {
+                final name = await askGuestName(context);
+                if (name == null) return;
+                try {
+                  final id = await repo.createGuest(name);
+                  await repo.addTeamPlayer(team.id, id);
+                  showMessage('Listo, $name en la plantilla');
+                } catch (e) {
+                  showError(e);
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
+            ),
           if (free.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
