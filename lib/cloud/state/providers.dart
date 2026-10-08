@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/admin_api.dart';
+import '../api/directory_api.dart';
 import '../api/players_api.dart';
 import '../auth/session.dart';
 import '../sync/club_data.dart';
@@ -112,3 +113,20 @@ final globalProfileProvider = FutureProvider.autoDispose
       ref.keepAlive();
       return profile;
     });
+
+/// El directorio de servidores públicos y pedir entrar (necesitan señal).
+final directoryApiProvider = Provider<DirectoryApi>(
+  (ref) => DirectoryApi(ref.watch(cloudProvider).api),
+);
+
+/// El detalle de un servidor público; se pide de nuevo al invalidarlo.
+final directoryDetailProvider = FutureProvider.autoDispose
+    .family<DirectoryDetail, String>(
+      (ref, clubId) => ref.watch(directoryApiProvider).detail(clubId),
+    );
+
+/// Las solicitudes para entrar en un servidor (owner y admin).
+final joinRequestsProvider = FutureProvider.autoDispose
+    .family<List<JoinRequest>, String>(
+      (ref, clubId) => ref.watch(directoryApiProvider).joinRequests(clubId),
+    );

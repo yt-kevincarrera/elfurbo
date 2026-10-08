@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_messenger.dart';
 import '../../core/deep_links.dart';
 import '../../core/theme.dart';
+import '../../ui/directory/directory_screen.dart';
 import '../../ui/widgets/chalk.dart';
 import '../../services/sync_worker.dart';
 import '../state/providers.dart';
@@ -68,13 +69,16 @@ class _CloudGateState extends ConsumerState<CloudGate>
     });
     SyncWorker.markVisible(true);
     DeepLinks.pendingInvite.addListener(_onInvite);
+    DeepLinks.pendingClub.addListener(_onClub);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onClub());
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
 
   @override
   void dispose() {
     DeepLinks.pendingInvite.removeListener(_onInvite);
+    DeepLinks.pendingClub.removeListener(_onClub);
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
@@ -125,6 +129,18 @@ class _CloudGateState extends ConsumerState<CloudGate>
     }
   }
 
+  /// Llegó un enlace a un servidor público: con sesión, su ficha del
+  /// directorio; sin sesión, espera a que entre.
+  void _onClub() {
+    final id = DeepLinks.pendingClub.value;
+    final context = rootNavigatorKey.currentContext;
+    if (id == null || context == null || !mounted) return;
+    if (ref.read(cloudProvider).session == null) return;
+    DeepLinks.pendingClub.value = null;
+    rootNavigatorKey.currentState!.popUntil((r) => r.isFirst);
+    DirectoryClubScreen.open(context, id);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Al cerrarse la sesión (salir, borrar la cuenta o un 401) se vuelve a la raíz:
@@ -136,6 +152,7 @@ class _CloudGateState extends ConsumerState<CloudGate>
       // Entró con un enlace de invitación pendiente: ahora sí.
       if (prev?.value == null && next.value != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
+        WidgetsBinding.instance.addPostFrameCallback((_) => _onClub());
       }
     });
     final session = ref.watch(sessionProvider);

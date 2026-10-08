@@ -78,12 +78,60 @@ class ClubRequest {
   );
 }
 
+/// Una solicitud mía para entrar en un servidor público (pendiente o
+/// rechazada hace poco).
+class MyJoinRequest {
+  const MyJoinRequest({
+    required this.id,
+    required this.clubId,
+    required this.clubName,
+    required this.status,
+    this.note,
+  });
+
+  final String id;
+  final String clubId;
+  final String clubName;
+
+  /// `pending` o `rejected`.
+  final String status;
+  final String? note;
+
+  factory MyJoinRequest.fromJson(Map<String, dynamic> j) => MyJoinRequest(
+    id: j['id'] as String,
+    clubId: j['clubId'] as String,
+    clubName: j['clubName'] as String,
+    status: j['status'] as String,
+    note: j['note'] as String?,
+  );
+}
+
+Map<String, int> _countByClub(List? rows) {
+  final out = <String, int>{};
+  for (final r in rows ?? const []) {
+    final club = '${(r as Map)['clubId']}';
+    out[club] = (out[club] ?? 0) + 1;
+  }
+  return out;
+}
+
 class Me {
-  const Me({required this.user, required this.clubs, required this.requests});
+  const Me({
+    required this.user,
+    required this.clubs,
+    required this.requests,
+    this.joinRequests = const [],
+    this.pendingJoins = const {},
+  });
 
   final CloudUser user;
   final List<MyClub> clubs;
   final List<ClubRequest> requests;
+  final List<MyJoinRequest> joinRequests;
+
+  /// Solicitudes que esperan respuesta en los servidores donde soy owner o
+  /// admin, por servidor.
+  final Map<String, int> pendingJoins;
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
     user: CloudUser.fromJson(j['user'] as Map<String, dynamic>),
@@ -95,6 +143,11 @@ class Me {
       for (final r in ((j['clubRequests'] as List?) ?? const []))
         ClubRequest.fromJson(r as Map<String, dynamic>),
     ],
+    joinRequests: [
+      for (final r in ((j['joinRequests'] as List?) ?? const []))
+        MyJoinRequest.fromJson(r as Map<String, dynamic>),
+    ],
+    pendingJoins: _countByClub(j['pendingJoinRequests'] as List?),
   );
 }
 

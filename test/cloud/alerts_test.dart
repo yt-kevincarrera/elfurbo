@@ -230,6 +230,62 @@ void main() {
     expect(alerts.last.body, 'Ya existe');
   });
 
+  test(
+    'cuenta: entré en un servidor que pedí, otro no me aceptó y quieren entrar en el mío',
+    () {
+      final alerts = accountAlerts(
+        {
+          'clubs': [
+            {
+              'id': 'c2',
+              'name': 'Los Pinos',
+              'status': 'active',
+              'role': 'player',
+            },
+            {'id': 'c5', 'name': 'Mío', 'status': 'active', 'role': 'owner'},
+          ],
+          'joinRequests': [
+            {
+              'id': 'j1',
+              'clubId': 'c9',
+              'clubName': 'El Pre',
+              'status': 'rejected',
+              'note': 'Estamos llenos',
+            },
+          ],
+          'pendingJoinRequests': [
+            {
+              'id': 'j2',
+              'clubId': 'c5',
+              'clubName': 'Mío',
+              'displayName': 'Yoan',
+            },
+            {
+              'id': 'j3',
+              'clubId': 'c5',
+              'clubName': 'Mío',
+              'displayName': 'Pepe',
+            },
+          ],
+        },
+        wasPending: {'join:c2'},
+      );
+      expect(
+        [for (final a in alerts) a.kind],
+        [
+          AlertKind.joinAccepted,
+          AlertKind.joinRejected,
+          AlertKind.joinRequest,
+          AlertKind.joinRequest,
+        ],
+      );
+      expect(alerts.first.title, '¡Entraste en Los Pinos!');
+      expect(alerts[1].body, 'Estamos llenos');
+      final summary = grouped(alerts).last;
+      expect(summary.title, '2 personas quieren entrar en Mío');
+    },
+  );
+
   test('ser dueño por una transferencia no es "aprobaron tu servidor"', () {
     final me = {
       'clubs': [

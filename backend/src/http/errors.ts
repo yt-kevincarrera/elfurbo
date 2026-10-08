@@ -36,6 +36,8 @@ export const errors = {
     new ApiError(409, "too_many_clubs", "Ya tienes 3 servidores activos o pendientes de aprobación"),
   alreadyMember: () => new ApiError(409, "already_member", "Ya tienes un perfil en este servidor"),
   bannedFromClub: () => new ApiError(403, "banned_from_club", "No puedes volver a entrar en este servidor"),
+  tooManyJoinRequests: () =>
+    new ApiError(409, "too_many_join_requests", "Ya tienes 5 solicitudes esperando respuesta. Espera a que te contesten"),
   inviteInvalid: () =>
     new ApiError(404, "invite_invalid", "La invitación no existe, caducó o ya se usó"),
   recoveryNeedsSuperadmin: () =>
