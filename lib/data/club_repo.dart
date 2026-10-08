@@ -478,4 +478,11 @@ class ClubRepo {
         },
     ],
   });
+
+  /// Terminar el torneo con sus premios (`{kind, teamId?, memberId?, value?}`).
+  Future<void> finishTournament(List<Map<String, Object?>> awards) =>
+      _run('tournament.finish', {'awards': awards});
+
+  /// Reabrir un torneo terminado (se quitan los premios).
+  Future<void> reopenTournament() => _run('tournament.reopen', {});
 }

@@ -167,6 +167,23 @@ void _applyTournament(ClubData d, Command c, String? me) {
           ...(p['rules'] as Map),
         };
       }
+    case 'tournament.finish':
+      d.one('tournament', d.clubId)?['status'] = 'finished';
+      d.table('award').clear();
+      for (final raw in (p['awards'] as List? ?? const [])) {
+        final a = raw as Map;
+        final id = '${d.clubId}:${a['kind']}';
+        d.table('award')[id] = {
+          'id': id,
+          'kind': a['kind'],
+          'teamId': a['teamId'],
+          'memberId': a['memberId'],
+          'value': a['value'],
+        };
+      }
+    case 'tournament.reopen':
+      d.one('tournament', d.clubId)?['status'] = 'in_progress';
+      d.table('award').clear();
     case 'team.create':
       final captain = organizer ? p['captainMemberId'] : me;
       d.table('team')['${p['id']}'] = {

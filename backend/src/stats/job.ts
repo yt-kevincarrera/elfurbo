@@ -10,6 +10,7 @@ import { findClub, type ClubRecord } from "../clubs/model";
 import { clubSignals, prestigeReport, recentPlayers, score, tierFor, type Signals, type Tier } from "../rules/prestige";
 import { playedMatchdays, statsOf, type MemberStats, type PlayedMatchday, type StatsRows } from "../rules/stats";
 import { readRows } from "../sync/entities";
+import { recomputeTournament } from "./tournament-job";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** D1 admite como mucho 100 parámetros por sentencia. */
@@ -37,7 +38,7 @@ export async function staleClubs(db: D1Database, now: Date) {
       `SELECT c.id, cm.computed_through, cm.computed_at, sa.at AS attempted_at,
               (SELECT MAX(ch.id) FROM changes ch WHERE ch.club_id = c.id) AS last_change
          FROM clubs c LEFT JOIN club_metrics cm ON cm.club_id = c.id LEFT JOIN stats_attempts sa ON sa.club_id = c.id
-        WHERE c.status IN ('active', 'suspended') AND c.kind = 'group'`,
+        WHERE c.status IN ('active', 'suspended')`,
     )
     .all<Candidate>();
   const dayAgo = new Date(now.getTime() - DAY_MS).toISOString();
@@ -142,6 +143,7 @@ export function flagged(stats: Map<string, MemberStats>) {
 export async function recomputeClub(db: D1Database, clubId: string, now: Date) {
   const club = await findClub(db, clubId);
   if (!club || (club.status !== "active" && club.status !== "suspended")) return;
+  if (club.kind === "tournament") return recomputeTournament(db, club, now);
   const at = now.toISOString();
   // El cursor se toma antes de leer: lo que llegue mientras tanto se recalcula en la próxima pasada.
   const last = await db
@@ -289,5 +291,9 @@ export async function prestigeOf(db: D1Database, club: ClubRecord) {
     .bind(club.id)
     .first<{ tier: Tier; score: number; signals: string; computed_at: string }>();
   if (!row) return { tier: club.official ? "official" : "new", score: 0, parts: [], newReason: null, computedAt: null };
+  // Un torneo no tiene puntuación por partes: su nivel sale de sus equipos y de su anfitrión.
+  if (club.kind === "tournament") {
+    return { tier: club.official ? "official" : row.tier, score: 0, parts: [], newReason: null, computedAt: row.computed_at };
+  }
   return { ...prestigeReport(JSON.parse(row.signals) as Signals, club.official), computedAt: row.computed_at };
 }
