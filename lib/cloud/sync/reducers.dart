@@ -282,6 +282,35 @@ void _applyPachanga(ClubData d, Command c, String? me) {
       ..['playedSetBy'] = me;
   }
 
+  /// Presencia. "No fue" además lo saca de la jornada, como en el servidor:
+  /// su reporte (salvo rechazado) con sus confirmaciones, las que dio y los
+  /// votos que dio o recibió.
+  void setPresence(Object? member, Object? played) {
+    if (played == false) {
+      final m = '$member';
+      final report = d.one('report', key(m));
+      final keepReport = report?['decision'] == 'rejected';
+      d
+          .table('confirmation')
+          .removeWhere(
+            (_, r) =>
+                r['matchdayId'] == mdId &&
+                (r['confirmerId'] == m || (r['memberId'] == m && !keepReport)),
+          );
+      d
+          .table('vote')
+          .removeWhere(
+            (_, r) =>
+                r['matchdayId'] == mdId &&
+                (r['voterId'] == m || r['votedFor'] == m),
+          );
+      if (report != null && !keepReport) d.table('report').remove(key(m));
+    }
+    attendance(member)
+      ..['played'] = played
+      ..['playedSetBy'] = me;
+  }
+
   switch (c.type) {
     case 'matchday.create':
       final active = d.all('season').where((s) => s['isActive'] == true);
@@ -342,16 +371,10 @@ void _applyPachanga(ClubData d, Command c, String? me) {
         a['checkedInAt'] ??= c.clientAt.toUtc().toIso8601String();
       }
     case 'attendance.setPlayed':
-      if (me != null) {
-        attendance(me)
-          ..['played'] = p['played']
-          ..['playedSetBy'] = me;
-      }
+      if (me != null) setPresence(me, p['played']);
     case 'attendance.rollCall':
       for (final e in (p['entries'] as List? ?? const [])) {
-        attendance((e as Map)['memberId'])
-          ..['played'] = e['played']
-          ..['playedSetBy'] = me;
+        setPresence((e as Map)['memberId'], e['played']);
       }
     case 'report.upsert':
       if (me != null) writeReport(me);
