@@ -390,6 +390,15 @@ String syncLabel(SyncStatus s) {
   };
 }
 
+/// [syncLabel] y, si falló, el porqué (sin señal: la causa técnica).
+String syncDetail(SyncStatus s) {
+  final failed = s.state == SyncState.offline || s.state == SyncState.error;
+  final why = s.message;
+  return failed && why != null && why.isNotEmpty
+      ? '${syncLabel(s)}\nDetalle: $why'
+      : syncLabel(s);
+}
+
 class SyncIndicator extends ConsumerWidget {
   const SyncIndicator({super.key});
 
@@ -414,7 +423,7 @@ class SyncIndicator extends ConsumerWidget {
       onPressed: () {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(syncLabel(s))));
+        ).showSnackBar(SnackBar(content: Text(syncDetail(s))));
         ref.read(cloudProvider).sync();
       },
     );

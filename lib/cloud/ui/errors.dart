@@ -3,7 +3,8 @@ import '../api/api_client.dart';
 /// Texto para mostrar de cualquier error de la API o de la red.
 String describeError(Object e) {
   if (e is OfflineException) {
-    return 'Sin conexión. Prueba otra vez cuando tengas datos o wifi.';
+    return 'Sin conexión. Prueba otra vez cuando tengas datos o wifi.\n'
+        'Detalle: ${e.detail}';
   }
   if (e is ApiException) {
     final fields = e.fieldErrors.values.expand((m) => m).toList();

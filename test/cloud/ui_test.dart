@@ -8,6 +8,7 @@ import 'package:elfurbo/cloud/state/providers.dart';
 import 'package:elfurbo/cloud/sync/command.dart';
 import 'package:elfurbo/cloud/sync/sync_engine.dart';
 import 'package:elfurbo/cloud/ui/cloud_app.dart';
+import 'package:elfurbo/cloud/ui/errors.dart';
 import 'package:elfurbo/cloud/ui/home_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -193,5 +194,18 @@ void main() {
       syncLabel(SyncStatus(state: SyncState.offline, lastSync: at)),
       'Sin conexión · último sync 14:32',
     );
+  });
+
+  test('sin señal, el aviso dice la causa técnica', () {
+    final e = OfflineException(
+      const SocketException('Connection reset by peer'),
+    );
+    expect(e.detail, 'SocketException: Connection reset by peer');
+    expect(describeError(e), endsWith('Detalle: ${e.detail}'));
+    expect(
+      syncDetail(SyncStatus(state: SyncState.offline, message: e.detail)),
+      'Sin conexión\nDetalle: SocketException: Connection reset by peer',
+    );
+    expect(syncDetail(const SyncStatus(state: SyncState.idle)), 'Todo al día');
   });
 }

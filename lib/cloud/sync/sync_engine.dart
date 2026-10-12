@@ -128,8 +128,8 @@ class SyncEngine {
       await _push();
       await _pull();
       await _emit(SyncState.idle, lastSync: _clock());
-    } on OfflineException {
-      await _emit(SyncState.offline);
+    } on OfflineException catch (e) {
+      await _emit(SyncState.offline, message: e.detail);
     } on ApiException catch (e) {
       await _emit(switch (e.status) {
         401 => SyncState.unauthorized,
