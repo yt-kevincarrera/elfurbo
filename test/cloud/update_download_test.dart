@@ -95,6 +95,22 @@ void main() {
     expect(progress.last, 1);
   });
 
+  test(
+    'mientras baja hay marca de "descargando"; al acabar se quita',
+    () async {
+      late UpdateService s;
+      bool? during;
+      s = service((_) async {
+        during = await s.downloadInProgress();
+        return ok(_bytes);
+      });
+      expect(await s.downloadInProgress(), isFalse);
+      await s.download(_asset());
+      expect(during, isTrue);
+      expect(await s.downloadInProgress(), isFalse);
+    },
+  );
+
   test('una descarga cortada sigue donde se quedó (Range)', () async {
     await part().writeAsBytes(_bytes.sublist(0, 40));
     final file = await service(

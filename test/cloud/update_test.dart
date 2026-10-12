@@ -4,6 +4,7 @@ import 'package:elfurbo/data/providers.dart';
 import 'package:elfurbo/data/update_controller.dart';
 import 'package:elfurbo/domain/app_update.dart';
 import 'package:elfurbo/services/update_service.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,7 @@ class _FakeService extends UpdateService {
   AppRelease? remote;
   File? cached;
   Object? downloadError;
+  void Function()? onDownload;
   final installed = <String>[];
 
   @override
@@ -45,6 +47,7 @@ class _FakeService extends UpdateService {
     ReleaseAsset asset, {
     void Function(double progress)? onProgress,
   }) async {
+    onDownload?.call();
     if (downloadError != null) throw downloadError!;
     for (final p in [0.25, 0.5, 1.0]) {
       onProgress?.call(p);
@@ -65,6 +68,8 @@ class _Alerts extends UpdateAlerts {
   Future<void> ready(AppRelease r) async => log.add('lista ${r.version}');
   @override
   Future<void> cancel() async => log.add('cancelar');
+  @override
+  Future<void> keepAwake() async => log.add('despierta');
 }
 
 void main() {
@@ -122,6 +127,33 @@ void main() {
     expect(state().pending, isTrue, reason: 'el punto sigue');
     service.downloadError = null;
     await ctl().download();
+    expect(state().phase, UpdatePhase.ready);
+  });
+
+  test('cortada en segundo plano: sin error, y al volver sigue sola', () async {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    addTearDown(
+      () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+    );
+    service.remote = _release;
+    await ctl().check(force: true);
+    // Android congela la app a media descarga: falla al despertar.
+    service.downloadError = const SocketException('congelada');
+    service.onDownload = () => ctl().appPaused();
+    await ctl().download();
+    expect(alerts.log, contains('despierta'));
+    expect(
+      state().phase,
+      UpdatePhase.downloading,
+      reason: 'sin aviso de error',
+    );
+    expect(state().error, isNull);
+
+    service.downloadError = null;
+    service.onDownload = null;
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await ctl().appResumed();
     expect(state().phase, UpdatePhase.ready);
   });
 

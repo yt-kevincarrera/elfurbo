@@ -37,6 +37,21 @@ class UpdateWorker {
     }
   }
 
+  static const keepAwakeName = 'app.elfurbo.updateKeepAwake';
+  static const keepAwakeTask = 'updateKeepAwake';
+
+  /// Mientras la app baja la actualización: Android congela una app en
+  /// segundo plano (pantalla apagada o al salir) a los pocos segundos, salvo
+  /// que esté corriendo un trabajo de WorkManager. Este solo espera a que
+  /// termine la descarga (ver [UpdateService.downloadInProgress]).
+  static Future<void> keepAwakeWhileDownloading() =>
+      Workmanager().registerOneOffTask(
+        keepAwakeName,
+        keepAwakeTask,
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+        constraints: SyncWorker.anyNetwork,
+      );
+
   /// Encarga bajar la versión nueva cuando haya wifi (una sola vez).
   static Future<void> scheduleDownload() => Workmanager().registerOneOffTask(
     downloadName,
@@ -63,7 +78,9 @@ void backgroundDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
       if (SyncWorker.handles(task)) return await runBackgroundSync();
-      if (task == UpdateWorker.downloadTask) {
+      if (task == UpdateWorker.keepAwakeTask) {
+        await _keepAwake();
+      } else if (task == UpdateWorker.downloadTask) {
         await _downloadUpdate();
       } else {
         await _checkUpdate();
@@ -86,6 +103,24 @@ Future<void> _checkUpdate() async {
     await LocalNotifications.showUpdateAvailable(release);
   }
   await UpdateWorker.scheduleDownload();
+}
+
+/// Espera (como mucho 9 minutos, por debajo del límite de 10 de WorkManager) a
+/// que acabe la descarga que hace la app. No descarga nada: solo existe para
+/// que Android no congele la app mientras tanto.
+Future<void> _keepAwake() async {
+  final service = UpdateService();
+  try {
+    final until = DateTime.now().add(const Duration(minutes: 9));
+    // La app escribe la marca justo al empezar: se le da un momento.
+    await Future<void>.delayed(const Duration(seconds: 3));
+    while (DateTime.now().isBefore(until) &&
+        await service.downloadInProgress()) {
+      await Future<void>.delayed(const Duration(seconds: 5));
+    }
+  } finally {
+    service.dispose();
+  }
 }
 
 Future<void> _downloadUpdate() async {

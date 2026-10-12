@@ -192,10 +192,48 @@ class UpdateService {
       onProgress?.call(1);
       return cached;
     }
+    // Mientras dure, una marca que se renueva: el worker que mantiene viva la
+    // app en segundo plano espera a que desaparezca (ver [downloadInProgress]).
+    final marker = File('${(await _updatesDir()).path}/$_markerName');
+    await marker.writeAsString('');
+    var touched = DateTime.now();
+    try {
+      return await _download(
+        asset,
+        onProgress: (p) {
+          final now = DateTime.now();
+          if (now.difference(touched) > const Duration(seconds: 10)) {
+            touched = now;
+            marker.setLastModifiedSync(now);
+          }
+          onProgress?.call(p);
+        },
+      );
+    } finally {
+      if (await marker.exists()) await marker.delete();
+    }
+  }
+
+  static const _markerName = '.descargando';
+
+  /// Hay una descarga en marcha (su marca se renovó hace poco). Una app que
+  /// murió a media descarga deja la marca vieja: no cuenta.
+  Future<bool> downloadInProgress() async {
+    final marker = File('${(await _dir()).path}/$_markerName');
+    if (!await marker.exists()) return false;
+    final age = DateTime.now().difference(await marker.lastModified());
+    return age < const Duration(minutes: 5);
+  }
+
+  Future<File> _download(
+    ReleaseAsset asset, {
+    required void Function(double progress) onProgress,
+  }) async {
     final dir = await _updatesDir();
     final part = File('${dir.path}/${asset.fileName}.part');
     for (final old in dir.listSync().whereType<File>()) {
-      if (old.uri.pathSegments.last != '${asset.fileName}.part') {
+      final name = old.uri.pathSegments.last;
+      if (name != '${asset.fileName}.part' && name != _markerName) {
         await old.delete();
       }
     }
@@ -247,7 +285,7 @@ class UpdateService {
         )) {
           sink.add(chunk);
           received += chunk.length;
-          onProgress?.call(total > 0 ? received / total : -1);
+          onProgress(total > 0 ? received / total : -1);
         }
       } finally {
         await sink.close();

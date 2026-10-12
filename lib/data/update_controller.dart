@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/app_update.dart';
 import '../services/local_notifications.dart';
 import '../services/update_service.dart';
+import '../services/update_worker.dart';
 import 'providers.dart';
 
 /// En qué va la actualización de la app.
@@ -61,6 +62,9 @@ class UpdateAlerts {
       LocalNotifications.showUpdateProgress(r, p);
   Future<void> ready(AppRelease r) => LocalNotifications.showUpdateReady(r);
   Future<void> cancel() => LocalNotifications.cancelUpdate();
+
+  /// Que Android no congele la app mientras baja (ver [UpdateWorker]).
+  Future<void> keepAwake() => UpdateWorker.keepAwakeWhileDownloading();
 }
 
 final updateAlertsProvider = Provider<UpdateAlerts>(
@@ -75,6 +79,27 @@ class UpdateController extends Notifier<UpdateState> {
   UpdateState build() => const UpdateState();
 
   UpdateService get _service => ref.read(updateServiceProvider);
+
+  /// La app pasó a segundo plano con la descarga en marcha.
+  bool _paused = false;
+
+  /// Se cortó en segundo plano: sigue en "descargando" y se retoma al volver.
+  bool _stalled = false;
+
+  /// Al salir de la app o apagar la pantalla.
+  void appPaused() {
+    if (state.phase == UpdatePhase.downloading) _paused = true;
+  }
+
+  /// Al volver: si la descarga se cortó en segundo plano (Android congeló la
+  /// app), sigue sola desde donde se quedó.
+  Future<void> appResumed() async {
+    final release = state.release;
+    if (!_stalled || release == null) return;
+    _stalled = false;
+    await _download(release, from: state.progress ?? 0);
+  }
+
   UpdateAlerts get _alerts => ref.read(updateAlertsProvider);
 
   /// Mira si hay versión nueva: primero lo último que se supo (al instante y
@@ -115,12 +140,18 @@ class UpdateController extends Notifier<UpdateState> {
   Future<void> download() async {
     final release = state.release;
     if (release == null || state.phase == UpdatePhase.downloading) return;
+    await _download(release, from: 0);
+  }
+
+  Future<void> _download(AppRelease release, {required double from}) async {
     final asset0 = state.asset;
+    _paused = false;
+    unawaited(_quietly(_alerts.keepAwake));
     state = UpdateState(
       phase: UpdatePhase.downloading,
       release: release,
       asset: asset0,
-      progress: 0,
+      progress: from,
     );
     try {
       final asset = await _service.assetForDevice(release);
@@ -157,6 +188,16 @@ class UpdateController extends Notifier<UpdateState> {
         () => UpdateService.markNotified(release.tag, kind: 'ready'),
       );
     } catch (e) {
+      // Cortada en segundo plano: sin aviso de error, sigue al volver.
+      if (_paused) {
+        _paused = false;
+        if (WidgetsBinding.instance.lifecycleState ==
+            AppLifecycleState.resumed) {
+          return _download(release, from: state.progress ?? from);
+        }
+        _stalled = true;
+        return;
+      }
       state = UpdateState(
         phase: UpdatePhase.failed,
         release: release,
