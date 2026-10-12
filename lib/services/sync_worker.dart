@@ -16,10 +16,10 @@ import 'local_notifications.dart';
 import 'update_service.dart';
 
 /// Sync con la app cerrada (Android WorkManager, spec §5):
-/// - Cada ~15 min (el mínimo de Android, cuando el sistema lo permite) con
-///   cualquier conexión: envía la cola y trae lo nuevo.
-/// - Al salir de la app con cambios por enviar, uno suelto en cuanto haya
-///   conexión, para no esperar al siguiente turno.
+/// - Cada ~15 min (el mínimo de Android, cuando el sistema lo permite): envía
+///   la cola y trae lo nuevo.
+/// - Al salir de la app con cambios por enviar, uno suelto enseguida (si no
+///   hay señal, se reintenta), para no esperar al siguiente turno.
 ///
 /// Puede coincidir con la app abierta: la cola es un archivo por cambio (ver
 /// [LocalStore]), así que lo peor es enviar un cambio dos veces, y el servidor
@@ -33,6 +33,12 @@ class SyncWorker {
   static const flushTask = 'syncNow';
 
   static bool handles(String task) => task == periodicTask || task == flushTask;
+
+  /// Sin exigir red. `NetworkType.connected` le pide a Android una red
+  /// *validada*, y Android la valida contra Google, que desde Cuba no abre:
+  /// sin VPN la tarea no arrancaba nunca. Sin señal de verdad, el sync falla
+  /// rápido y WorkManager lo reintenta más tarde.
+  static final anyNetwork = Constraints(networkType: NetworkType.notRequired);
 
   static const _visibleKey = 'alerts.visibleUntil';
 
@@ -65,8 +71,9 @@ class SyncWorker {
         periodicTask,
         frequency: const Duration(minutes: 15),
         initialDelay: const Duration(minutes: 15),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-        constraints: Constraints(networkType: NetworkType.connected),
+        // update, no keep: las ya programadas toman las restricciones nuevas.
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+        constraints: anyNetwork,
         backoffPolicy: BackoffPolicy.exponential,
         backoffPolicyDelay: const Duration(minutes: 1),
       );
@@ -82,7 +89,7 @@ class SyncWorker {
         flushName,
         flushTask,
         existingWorkPolicy: ExistingWorkPolicy.replace,
-        constraints: Constraints(networkType: NetworkType.connected),
+        constraints: anyNetwork,
         backoffPolicy: BackoffPolicy.exponential,
         backoffPolicyDelay: const Duration(seconds: 30),
       );
