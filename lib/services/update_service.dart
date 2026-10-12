@@ -20,9 +20,13 @@ import '../domain/app_update.dart';
 /// Los APK son los de `flutter build apk --split-per-abi`; se elige el de la ABI
 /// del teléfono. Lo usan la app (`UpdateController`) y el worker de segundo plano.
 class UpdateService {
-  UpdateService({http.Client? client, Future<Directory> Function()? updatesDir})
-    : _client = client ?? http.Client(),
-      _dir = updatesDir ?? _defaultUpdatesDir;
+  UpdateService({
+    http.Client? client,
+    Future<Directory> Function()? updatesDir,
+    int? chunkSize,
+  }) : _client = client ?? platformClient(),
+       _dir = updatesDir ?? _defaultUpdatesDir,
+       _chunkSize = chunkSize ?? (Platform.isAndroid ? 2 * 1024 * 1024 : null);
 
   static const latestUrl = '$apiBaseUrl/app/latest';
 
@@ -36,11 +40,14 @@ class UpdateService {
   final http.Client _client;
   final Future<Directory> Function() _dir;
 
+  /// Bytes por petición al bajar el APK (null: de una vez).
+  final int? _chunkSize;
+
   /// Última release publicada, o null si no hay ninguna. Se guarda en el
   /// teléfono para saber que hay una versión nueva aunque no haya señal, y
   /// también el build mínimo con el que se puede seguir sincronizando.
   static Future<AppRelease?> fetchLatest({http.Client? client}) async {
-    final c = client ?? http.Client();
+    final c = client ?? platformClient();
     try {
       final res = await c
           .get(
@@ -197,14 +204,25 @@ class UpdateService {
       await part.delete();
       have = 0;
     }
-    if (asset.size <= 0 || have < asset.size) {
+    // Con [_chunkSize], a trozos con `Range` (en Android el cliente lee cada
+    // respuesta entera en memoria); si no, de una vez desde donde se quedó.
+    final chunk = _chunkSize;
+    final chunked = chunk != null && asset.size > 0;
+    while (asset.size <= 0 || have < asset.size) {
       final req = http.Request('GET', Uri.parse(asset.url));
-      if (have > 0) req.headers['range'] = 'bytes=$have-';
-      final res = await _client.send(req).timeout(const Duration(seconds: 30));
+      if (chunked) {
+        final end = (have + chunk).clamp(0, asset.size) - 1;
+        req.headers['range'] = 'bytes=$have-$end';
+      } else if (have > 0) {
+        req.headers['range'] = 'bytes=$have-';
+      }
+      final res = await _client
+          .send(req)
+          .timeout(Duration(seconds: chunked ? 120 : 30));
       // Un 206 tiene que seguir justo donde se quedó el `.part`.
       final resumed =
           res.statusCode == 206 &&
-          have > 0 &&
+          (have > 0 || chunked) &&
           (res.headers['content-range'] ?? '').startsWith('bytes $have-');
       final apk = (res.headers['content-type'] ?? '').contains('android');
       if ((res.statusCode != 200 && !resumed) || !apk) {
@@ -234,6 +252,8 @@ class UpdateService {
       } finally {
         await sink.close();
       }
+      if (!chunked || received <= have) break; // un trozo vacío no avanza
+      have = received;
     }
     final got = await part.length();
     if (asset.size > 0 && got != asset.size) {

@@ -1,0 +1,23 @@
+name: furbo_http3
+description: "Cliente HTTP de El Furbo en Android con Cronet (la pila de red de Chrome): HTTP/3 y ECH."
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.5
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: app.elfurbo.furbo_http3
+        pluginClass: FurboHttp3Plugin
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
