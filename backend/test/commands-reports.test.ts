@@ -103,6 +103,57 @@ describe("reportes", () => {
     expect(await count("report_confirmations")).toBe(0);
   });
 
+  it("'no fue' lo saca de la jornada: se van su reporte, sus confirmaciones y sus votos", async () => {
+    const { clubId, owner } = await activeClub();
+    const { scorer, raul, pepe, guest } = await squad(clubId);
+    const id = await matchday(owner.token, clubId);
+    await played(clubId, id, raul.token, pepe.token);
+    await apply(scorer.token, cmd(clubId, "report.loadFor", { matchdayId: id, memberId: guest, goals: 2, assists: 0 }));
+    await apply(raul.token, cmd(clubId, "report.upsert", { matchdayId: id, goals: 1, assists: 0 }));
+    await apply(pepe.token, cmd(clubId, "report.upsert", { matchdayId: id, goals: 1, assists: 1 }));
+    await apply(raul.token, cmd(clubId, "report.confirm", { matchdayId: id, memberId: pepe.memberId }));
+    await apply(pepe.token, cmd(clubId, "report.confirm", { matchdayId: id, memberId: raul.memberId }));
+    await apply(raul.token, cmd(clubId, "vote.cast", { matchdayId: id, votedFor: guest }));
+    await apply(pepe.token, cmd(clubId, "vote.cast", { matchdayId: id, votedFor: raul.memberId }));
+
+    // El staff saca al que añadió por error; Raúl dice que no fue.
+    await apply(scorer.token, cmd(clubId, "attendance.rollCall", { matchdayId: id, entries: [{ memberId: guest, played: false }] }));
+    await apply(raul.token, cmd(clubId, "attendance.setPlayed", { matchdayId: id, played: false }));
+
+    expect(await row("reports", `${id}:${guest}`)).toBeNull();
+    expect(await row("reports", `${id}:${raul.memberId}`)).toBeNull();
+    expect(await row("reports", `${id}:${pepe.memberId}`)).not.toBeNull();
+    expect(await count("report_confirmations")).toBe(0);
+    expect(await count("mvp_votes")).toBe(0);
+    expect(await row("attendance", `${id}:${guest}`)).toMatchObject({ played: 0 });
+    // Los demás teléfonos se enteran de lo que se borró.
+    expect(await count("changes", "op = 'delete' AND entity = 'report'")).toBe(2);
+    expect(await count("changes", "op = 'delete' AND entity = 'confirmation'")).toBe(2);
+    expect(await count("changes", "op = 'delete' AND entity = 'vote'")).toBe(2);
+  });
+
+  it("'no fue' no borra un reporte rechazado: el rechazo es definitivo", async () => {
+    const { clubId, owner } = await activeClub();
+    const { raul, admin } = await squad(clubId);
+    const id = await matchday(owner.token, clubId);
+    await apply(raul.token, cmd(clubId, "report.upsert", { matchdayId: id, goals: 9, assists: 0 }));
+    await apply(admin.token, cmd(clubId, "report.decide", { matchdayId: id, memberId: raul.memberId, decision: "rejected" }));
+    await apply(raul.token, cmd(clubId, "attendance.setPlayed", { matchdayId: id, played: false }));
+    expect(await row("reports", `${id}:${raul.memberId}`)).toMatchObject({ decision: "rejected" });
+  });
+
+  it("'no fue' de un reporte corregido por el admin: solo owner o admin", async () => {
+    const { clubId, owner } = await activeClub();
+    const { raul, scorer, admin } = await squad(clubId);
+    const id = await matchday(owner.token, clubId);
+    await apply(raul.token, cmd(clubId, "report.upsert", { matchdayId: id, goals: 5, assists: 0 }));
+    await apply(admin.token, cmd(clubId, "report.correct", { matchdayId: id, memberId: raul.memberId, goals: 2, assists: 0 }));
+    const out = { matchdayId: id, entries: [{ memberId: raul.memberId, played: false }] };
+    expect(await rejection(scorer.token, cmd(clubId, "attendance.rollCall", out))).toBe("forbidden");
+    await apply(admin.token, cmd(clubId, "attendance.rollCall", out));
+    expect(await row("reports", `${id}:${raul.memberId}`)).toBeNull();
+  });
+
   it("reportar hecho a tiempo sin señal (a las 70 h) y subido a las 80 h: se acepta", async () => {
     const { clubId, owner } = await activeClub();
     const { raul } = await squad(clubId);

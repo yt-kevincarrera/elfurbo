@@ -258,6 +258,58 @@ void main() {
     },
   );
 
+  test(
+    '"no fue" saca de la jornada al que se añadió por error (con sus goles y votos)',
+    () async {
+      var d = await _as('s1', _server(), (r) async {
+        await r.rollCall('m1', {'p1': true});
+        await r.loadReportFor(
+          matchId: 'm1',
+          memberId: 'g1',
+          goals: 2,
+          assists: 0,
+        );
+      });
+      d = await _as('p1', d, (r) async {
+        await r.submitReport(matchId: 'm1', goals: 1, assists: 0);
+        await r.castVote('m1', 'g1');
+      });
+      d = await _as('p2', d, (r) async {
+        await r.setPlayed('m1', true);
+        await r.confirmReport('m1', 'p1');
+      });
+      expect(_container(d).read(statsProvider).statsOf('g1').matchesPlayed, 1);
+
+      d = await _as('s1', d, (r) => r.rollCall('m1', {'g1': false}));
+      d = await _as('p2', d, (r) => r.setPlayed('m1', false));
+      final c = _container(d);
+      expect(c.read(presentUidsProvider('m1')), {'p1'});
+      expect(c.read(statsProvider).statsOf('g1').matchesPlayed, 0);
+      expect(c.read(statsProvider).statsOf('g1').goals, 0);
+      expect(c.read(reportsForMatchProvider('m1')).map((r) => r.uid), ['p1']);
+      expect(d.all('confirmation'), isEmpty, reason: 'la que dio p2');
+      expect(d.all('vote'), isEmpty, reason: 'el que recibió g1');
+    },
+  );
+
+  test('"no fue" no borra un reporte rechazado', () async {
+    var d = await _as(
+      'p1',
+      _server(),
+      (r) => r.submitReport(matchId: 'm1', goals: 9, assists: 0),
+    );
+    d = await _as(
+      'k',
+      d,
+      (r) => r.decideReport('m1', 'p1', ReportStatus.rejected),
+    );
+    d = await _as('p1', d, (r) => r.setPlayed('m1', false));
+    expect(
+      _container(d).read(reportsForMatchProvider('m1')).single.isRejected,
+      isTrue,
+    );
+  });
+
   test('pasar lista, votar y quitar el voto', () async {
     var d = await _as(
       's1',

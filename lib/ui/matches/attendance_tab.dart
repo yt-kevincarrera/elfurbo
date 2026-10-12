@@ -208,7 +208,7 @@ class _PresenceView extends ConsumerWidget {
                 Text('¿Jugaste esta jornada?', style: text.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Solo lo que confirmes aquí cuenta como jornada jugada. Poner tus goles también te marca presente.',
+                  'Solo lo que confirmes aquí cuenta como jornada jugada. Poner tus goles también te marca presente, y "No fui" te los quita.',
                   style: text.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -294,7 +294,7 @@ class _PresenceView extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: Text(
-              'Mantén presionado un jugador para marcarlo presente o ausente.',
+              'Mantén presionado un jugador para marcarlo presente o ausente. "No fue" le quita los goles y los votos de la jornada.',
               style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
@@ -360,8 +360,15 @@ class _PresenceView extends ConsumerWidget {
       builder: (ctx) => _PassListSheet(users: users, initial: initial),
     );
     if (result == null) return;
+    // Solo lo que cambia: "no fue" quita goles y votos, así que no se le
+    // vuelve a poner al que ya estaba ausente ni se toca al que no cambió.
+    final changed = {
+      for (final e in result.entries)
+        if (e.value != attendance[e.key]?.played) e.key: e.value,
+    };
+    if (changed.isEmpty) return;
     fireAndForget(
-      ref.read(repoProvider).rollCall(match.id, result),
+      ref.read(repoProvider).rollCall(match.id, changed),
       success:
           'Lista guardada: ${result.values.where((v) => v).length} presentes',
     );

@@ -300,6 +300,12 @@ class _ReportTile extends ConsumerWidget {
       if (isAdmin && report.adminStatus != ReportStatus.rejected)
         _ReportAction.reject,
       if (isAdmin && report.adminStatus != null) _ReportAction.clear,
+      // Como al cambiar los números: lo que corrigió el admin solo lo deshace él.
+      if (canLoadFor &&
+          !report.isRejected &&
+          (isAdmin || !report.correctedByAdmin) &&
+          (user?.isActive ?? false))
+        _ReportAction.notPlayed,
     ];
 
     void openForm({required bool correction}) {
@@ -370,6 +376,8 @@ class _ReportTile extends ConsumerWidget {
                           fireAndForget(
                             repo.decideReport(report.matchId, report.uid, null),
                           );
+                        case _ReportAction.notPlayed:
+                          _removeFromMatchday(context, ref);
                       }
                     },
                     itemBuilder: (_) => [
@@ -449,6 +457,35 @@ class _ReportTile extends ConsumerWidget {
       ),
     );
   }
+
+  /// El staff saca de la jornada al que puso por error: "no fue" se lleva sus
+  /// goles, confirmaciones y votos (también en el servidor).
+  Future<void> _removeFromMatchday(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('¿$name no jugó?'),
+        content: const Text(
+          'Lo sacas de la jornada: se le quitan los goles, las asistencias y los votos de MVP, y no le cuenta como jugada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('No jugó'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    fireAndForget(
+      ref.read(repoProvider).rollCall(report.matchId, {report.uid: false}),
+      success: '$name fuera de la jornada',
+    );
+  }
 }
 
 enum _ReportAction {
@@ -456,7 +493,8 @@ enum _ReportAction {
   correct('Corregir', Icons.edit_note),
   confirm('Confirmar', Icons.verified_outlined),
   reject('Rechazar', Icons.block),
-  clear('Quitar decisión', Icons.undo);
+  clear('Quitar decisión', Icons.undo),
+  notPlayed('No jugó', Icons.person_remove_outlined);
 
   const _ReportAction(this.label, this.icon);
   final String label;

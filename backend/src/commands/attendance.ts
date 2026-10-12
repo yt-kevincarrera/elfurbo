@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { canActForOthers } from "../authz";
+import { canActForOthers, canDecideReports } from "../authz";
 import { errors } from "../http/errors";
 import { consumeAttempt } from "../auth/rate-limit";
 import { checkinValid } from "../rules/checkin";
 import { acceptsIntent } from "../rules/matchday";
-import { upsert } from "../sync/changes";
+import { upsert, type SyncEntity } from "../sync/changes";
 import { command, type CommandContext } from "../sync/command";
-import { assertActiveMembers, assertOpen, assertPlayed, findMatchday, key, matchdayId, memberId } from "./pachanga";
+import { assertActiveMembers, assertOpen, assertPlayed, childChanges, findMatchday, key, matchdayId, memberId } from "./pachanga";
 
 /** Escribe `played` de un miembro conservando su intención. */
 export function playedStatement(ctx: CommandContext, matchday: string, member: string, played: boolean) {
@@ -17,6 +17,40 @@ export function playedStatement(ctx: CommandContext, matchday: string, member: s
        ON CONFLICT(id) DO UPDATE SET played = excluded.played, played_set_by = excluded.played_set_by, updated_at = excluded.updated_at`,
     )
     .bind(key(matchday, member), ctx.club.id, matchday, member, played ? 1 : 0, ctx.member.id, ctx.now.toISOString());
+}
+
+/** Borra filas hijas de una jornada avisando a los teléfonos (`changes`). */
+function dropRows(ctx: CommandContext, table: string, entity: SyncEntity, where: string, ...binds: unknown[]) {
+  return [
+    childChanges(ctx, table, entity, "delete", where, ...binds),
+    ctx.db.prepare(`DELETE FROM ${table} WHERE ${where}`).bind(...binds),
+  ];
+}
+
+/**
+ * Escribe la presencia. "No fue" además lo saca de la jornada: se va lo que pedía haber jugado (su
+ * reporte con sus confirmaciones, las confirmaciones que dio y los votos de MVP que dio o recibió).
+ * Si no, el que se añadió por error seguía contando la jornada por su reporte confirmado. Un reporte
+ * rechazado se queda: no cuenta y el rechazo es definitivo.
+ */
+function presenceStatements(ctx: CommandContext, matchday: string, member: string, played: boolean) {
+  if (played) return [playedStatement(ctx, matchday, member, true)];
+  const report = key(matchday, member);
+  return [
+    ...dropRows(
+      ctx,
+      "report_confirmations",
+      "confirmation",
+      "matchday_id = ? AND (confirmer_id = ? OR (member_id = ? AND NOT EXISTS (SELECT 1 FROM reports WHERE id = ? AND decision = 'rejected')))",
+      matchday,
+      member,
+      member,
+      report,
+    ),
+    ...dropRows(ctx, "mvp_votes", "vote", "matchday_id = ? AND (voter_id = ? OR voted_for = ?)", matchday, member, member),
+    ...dropRows(ctx, "reports", "report", "id = ? AND decision IS NOT 'rejected'", report),
+    playedStatement(ctx, matchday, member, false),
+  ];
 }
 
 /** Voy / Quizás / No voy (o null para quitarla). Solo antes de que termine la jornada. */
@@ -92,7 +126,7 @@ export const setPlayed = command(z.object({ matchdayId, played: z.boolean() }), 
   assertOpen(ctx, md);
   assertPlayed(ctx, md);
   return {
-    statements: [playedStatement(ctx, md.id, ctx.member.id, p.played)],
+    statements: presenceStatements(ctx, md.id, ctx.member.id, p.played),
     touched: [upsert("attendance", key(md.id, ctx.member.id))],
   };
 });
@@ -113,8 +147,17 @@ export const rollCall = command(
     assertOpen(ctx, md);
     assertPlayed(ctx, md);
     await assertActiveMembers(ctx, p.entries.map((e) => e.memberId), "entries");
+    // "No fue" borra su reporte: lo que corrigió el admin solo lo deshace owner o admin (como en loadReportFor).
+    const absent = p.entries.filter((e) => !e.played).map((e) => key(md.id, e.memberId));
+    if (absent.length > 0 && !canDecideReports(ctx.member.role)) {
+      const corrected = await ctx.db
+        .prepare(`SELECT 1 FROM reports WHERE corrected_by IS NOT NULL AND id IN (${absent.map(() => "?").join(", ")}) LIMIT 1`)
+        .bind(...absent)
+        .first();
+      if (corrected) throw errors.forbidden();
+    }
     return {
-      statements: p.entries.map((e) => playedStatement(ctx, md.id, e.memberId, e.played)),
+      statements: p.entries.flatMap((e) => presenceStatements(ctx, md.id, e.memberId, e.played)),
       touched: p.entries.map((e) => upsert("attendance", key(md.id, e.memberId))),
     };
   },
