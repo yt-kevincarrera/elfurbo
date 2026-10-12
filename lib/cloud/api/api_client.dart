@@ -43,6 +43,14 @@ class OfflineException implements Exception {
 
   final Object cause;
 
+  /// La causa en una línea corta (p. ej. "HandshakeException: …"): se enseña
+  /// junto a "Sin conexión" para saber si falta señal o si algo corta la
+  /// conexión por el camino.
+  String get detail {
+    final text = '$cause'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.length > 160 ? '${text.substring(0, 160)}…' : text;
+  }
+
   @override
   String toString() => 'OfflineException($cause)';
 }
