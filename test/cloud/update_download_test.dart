@@ -73,6 +73,28 @@ void main() {
     },
   );
 
+  test('a trozos: cada petición pide su rango y se pegan en orden', () async {
+    final progress = <double>[];
+    final file = await UpdateService(
+      client: MockClient.streaming((req, _) async {
+        final range = req.headers['range']!;
+        ranges.add(range);
+        final m = RegExp(r'bytes=(\d+)-(\d+)').firstMatch(range)!;
+        final from = int.parse(m[1]!), to = int.parse(m[2]!);
+        return ok(
+          _bytes.sublist(from, to + 1),
+          status: 206,
+          range: 'bytes $from-$to/100',
+        );
+      }),
+      updatesDir: () async => dir,
+      chunkSize: 40,
+    ).download(_asset(), onProgress: progress.add);
+    expect(ranges, ['bytes=0-39', 'bytes=40-79', 'bytes=80-99']);
+    expect(await file.readAsBytes(), _bytes);
+    expect(progress.last, 1);
+  });
+
   test('una descarga cortada sigue donde se quedó (Range)', () async {
     await part().writeAsBytes(_bytes.sublist(0, 40));
     final file = await service(

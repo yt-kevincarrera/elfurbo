@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:furbo_http3/furbo_http3.dart';
 import 'package:http/http.dart' as http;
 
 /// URL del backend propio (Cloudflare Workers). Por defecto, producción; para
@@ -11,6 +12,13 @@ const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
   defaultValue: 'https://furbo-api.furbo-probe.workers.dev',
 );
+
+/// Cliente HTTP para hablar con el servidor. En Android, Cronet (la pila de red
+/// de Chrome) con HTTP/3 y nombre cifrado: desde Cuba, ETECSA corta las
+/// conexiones TCP a `*.workers.dev` y así no las ve.
+http.Client platformClient() => Platform.isAndroid
+    ? Http3Client(quicHosts: [Uri.parse(apiBaseUrl).host])
+    : http.Client();
 
 /// Error que devuelve la API: `code` estable para la app y `message` en
 /// español para mostrar tal cual.
@@ -62,7 +70,7 @@ class ApiClient {
     this.baseUrl = apiBaseUrl,
     this.timeout = const Duration(seconds: 45),
     this.build,
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? platformClient();
 
   final http.Client _client;
   final String baseUrl;
