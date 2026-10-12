@@ -198,7 +198,18 @@ class ClubBar extends ConsumerWidget {
                     tooltip: 'Sincronizar',
                     onPressed: syncing
                         ? null
-                        : () => ref.read(cloudProvider).sync(),
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await ref.read(cloudProvider).sync();
+                            // Si falló, el porqué (sin señal: la causa técnica).
+                            final s = ref.read(cloudProvider).engine?.last;
+                            if (s == null || syncDetail(s) == syncLabel(s)) {
+                              return;
+                            }
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(syncDetail(s))),
+                            );
+                          },
                     icon: Icon(
                       sync?.state == SyncState.offline
                           ? Icons.cloud_off_outlined
