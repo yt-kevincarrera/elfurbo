@@ -75,7 +75,7 @@ describe("GET /app/latest", () => {
     expect(calls[0]!.headers.get("user-agent")).toBeTruthy();
   });
 
-  it("no hace falta sesión y GitHub se consulta una vez por hora", async () => {
+  it("no hace falta sesión y GitHub se consulta como mucho cada 5 minutos", async () => {
     await api("/app/latest");
     await api("/app/latest");
     expect(calls).toHaveLength(1);

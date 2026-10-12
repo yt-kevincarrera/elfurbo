@@ -19,7 +19,8 @@ export type Release = {
 };
 
 const CACHE_KEY = "github.latestRelease";
-const CACHE_MS = 60 * 60 * 1000;
+/** Corto: tras publicar, "Buscar actualización" la ve enseguida (12 consultas a GitHub por hora como mucho). */
+const CACHE_MS = 5 * 60 * 1000;
 
 export const apkName = (abi: Abi) => `app-${abi}-release.apk`;
 
@@ -55,7 +56,7 @@ export function parseRelease(json: Record<string, unknown>): Release {
 export class UpstreamError extends Error {}
 
 /**
- * La última release publicada (null si no hay ninguna). Se guarda una hora en D1; si GitHub falla
+ * La última release publicada (null si no hay ninguna). Se guarda 5 minutos en D1; si GitHub falla
  * (caído, o el límite de 60 peticiones por hora de la IP de Cloudflare), se sirve la última que se vio.
  */
 export async function latestRelease(db: D1Database, token?: string, now = Date.now()): Promise<Release | null> {
