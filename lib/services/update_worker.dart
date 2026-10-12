@@ -6,7 +6,8 @@ import 'sync_worker.dart';
 import 'update_service.dart';
 
 /// Actualizaciones con la app cerrada (Android WorkManager):
-/// - Cada 12 h, con cualquier conexión, mira si hay versión nueva.
+/// - Cada 12 h mira si hay versión nueva (sin exigir red: ver
+///   [SyncWorker.anyNetwork]).
 ///   Si la hay, avisa y encarga la descarga.
 /// - La descarga espera a una red sin medidor (wifi): bajar 20 MB solo, con
 ///   datos móviles, saldría caro. Al terminar avisa "lista para instalar" y
@@ -25,8 +26,9 @@ class UpdateWorker {
         taskName,
         frequency: UpdateService.checkInterval,
         initialDelay: const Duration(hours: 1),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-        constraints: Constraints(networkType: NetworkType.connected),
+        // update, no keep: las ya programadas toman las restricciones nuevas.
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+        constraints: SyncWorker.anyNetwork,
         backoffPolicy: BackoffPolicy.exponential,
         backoffPolicyDelay: const Duration(minutes: 30),
       );
