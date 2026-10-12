@@ -315,21 +315,9 @@ final matchClosedProvider = Provider.family<bool, String>((ref, matchId) {
   );
 });
 
-/// true si la votación del MVP ya terminó (ver `MatchDay.votingOver`): si
-/// nadie votó, ahí un admin elige el MVP a dedo.
-final votingOverProvider = Provider.family<bool, String>((ref, matchId) {
-  final match = ref.watch(matchByIdProvider(matchId));
-  if (match == null) return false;
-  final season = ref.watch(seasonByIdProvider(match.seasonId));
-  return match.votingOver(
-    DateTime.now(),
-    seasonClosed: season?.isClosed ?? false,
-    closeAfterHours: ref.watch(clubSettingsProvider).closeAfterHours,
-  );
-});
-
-/// Puedo elegir el MVP a dedo: soy owner o admin, la jornada se jugó, la
-/// votación terminó sin votos y la temporada sigue abierta (como `vote.pick`).
+/// Puedo elegir el MVP a dedo: soy owner o admin, la jornada se jugó, está
+/// cerrada (a mano o por plazo), nadie votó y la temporada sigue abierta
+/// (como `vote.pick`).
 final canPickMvpProvider = Provider.family<bool, String>((ref, matchId) {
   final match = ref.watch(matchByIdProvider(matchId));
   if (match == null || !ref.watch(isAdminProvider)) return false;
@@ -338,8 +326,25 @@ final canPickMvpProvider = Provider.family<bool, String>((ref, matchId) {
     return false;
   }
   return match.isPlayed(DateTime.now()) &&
-      ref.watch(votingOverProvider(matchId)) &&
+      ref.watch(matchClosedProvider(matchId)) &&
       ref.watch(votesForMatchProvider(matchId)).isEmpty;
+});
+
+/// A quién se puede elegir MVP a dedo: los que jugaron, los que tienen
+/// reporte en la jornada y siempre yo. Solo miembros activos (el servidor no
+/// acepta otros), por nombre.
+final mvpPickCandidatesProvider = Provider.family<List<AppUser>, String>((
+  ref,
+  matchId,
+) {
+  final users = ref.watch(usersByIdProvider);
+  final ids = {
+    ...ref.watch(presentUidsProvider(matchId)),
+    for (final r in ref.watch(reportsForMatchProvider(matchId))) r.uid,
+    ref.watch(myUidProvider),
+  };
+  return ids.map((id) => users[id]).nonNulls.where((u) => u.isActive).toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 });
 
 final matchByIdProvider = Provider.family<MatchDay?, String>((ref, id) {

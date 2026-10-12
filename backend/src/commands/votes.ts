@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canPickMvp } from "../authz";
 import { errors } from "../http/errors";
-import { votingOver } from "../rules/matchday";
+import { isClosed } from "../rules/matchday";
 import { remove, upsert } from "../sync/changes";
 import { command } from "../sync/command";
-import { assertOpen, assertPlayed, findMatchday, key, matchdayId, memberId } from "./pachanga";
+import { assertActiveMembers, assertOpen, assertPlayed, findMatchday, key, matchdayId, memberId } from "./pachanga";
 
 /** Mi voto de MVP. Votan los que jugaron, por otro que jugó (con o sin cuenta). Cambiarlo reemplaza. */
 export const castVote = command(z.object({ matchdayId, votedFor: memberId }), async (ctx, p) => {
@@ -43,41 +43,21 @@ export const clearVote = command(z.object({ matchdayId }), async (ctx, p) => {
 });
 
 /**
- * MVP a dedo: si la votación terminó sin votos, un admin elige el MVP entre los que jugaron (él
- * también). `null` lo quita. La hora es la del servidor: el plazo natural tiene que haber pasado.
+ * MVP a dedo: si la jornada está cerrada (a mano o por plazo) y nadie votó, un admin elige el MVP
+ * entre los miembros activos (él también). `null` lo quita. Los votos ganan siempre.
  */
 export const pickMvp = command(z.object({ matchdayId, memberId: memberId.nullable() }), async (ctx, p) => {
   if (!canPickMvp(ctx.member.role)) throw errors.forbidden();
   const md = await findMatchday(ctx, p.matchdayId);
   if (md.seasonClosed) throw errors.seasonClosed();
   assertPlayed(ctx, md);
-  if (!votingOver(md, ctx.now, ctx.club.settings.closeAfterHours)) {
-    throw errors.invalidState("La votación todavía está abierta. Si cierra sin votos, ahí eliges tú el MVP");
-  }
-  // Cerrada a mano: solo vale si la cerraron después del plazo. Si no, nadie pudo votar.
-  if (md.status === "closed") {
-    const closedAt = await ctx.db
-      .prepare(
-        `SELECT at FROM audit_log
-          WHERE club_id = ? AND entity_key = ? AND action = 'matchday.setStatus' AND json_extract(summary, '$.to') = 'closed'
-          ORDER BY id DESC LIMIT 1`,
-      )
-      .bind(ctx.club.id, md.id)
-      .first<{ at: string }>();
-    const deadline = Date.parse(md.startsAt) + ctx.club.settings.closeAfterHours * 3600_000;
-    if (!closedAt || Date.parse(closedAt.at) < deadline) {
-      throw errors.invalidState("La cerraron a mano antes de que acabara la votación. Reábrela para que voten; si cierra sin votos, ahí eliges tú");
-    }
+  // Con la hora del servidor: una reabierta sigue abierta.
+  if (!isClosed(md, ctx.now, ctx.club.settings.closeAfterHours)) {
+    throw errors.invalidState("La votación todavía está abierta. Cuando cierre sin votos, ahí eliges tú el MVP");
   }
   const votes = await ctx.db.prepare("SELECT COUNT(*) AS n FROM mvp_votes WHERE matchday_id = ?").bind(md.id).first<{ n: number }>();
   if (votes!.n > 0) throw errors.invalidState("Ya hay votos: el MVP lo decide la votación");
-  if (p.memberId !== null) {
-    const present = await ctx.db
-      .prepare("SELECT 1 FROM attendance WHERE matchday_id = ? AND member_id = ? AND played = 1")
-      .bind(md.id, p.memberId)
-      .first();
-    if (!present) throw errors.notPresent();
-  }
+  if (p.memberId !== null) await assertActiveMembers(ctx, [p.memberId], "memberId");
   return {
     statements: [
       ctx.db
