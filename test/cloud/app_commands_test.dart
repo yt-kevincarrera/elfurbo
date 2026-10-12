@@ -85,6 +85,8 @@ void main() {
         r.correctReport('m1', 'p2', goals: 1, assists: 2),
     'votar MVP': (r) => r.castVote('m1', 'g1'),
     'quitar voto': (r) => r.clearVote('m1'),
+    'elegir MVP a dedo': (r) => r.pickMvp('m1', 'p1'),
+    'quitar MVP a dedo': (r) => r.pickMvp('m1', null),
     'cambiar apodo': (r) => r.updateNickname('p1', ' El Mago '),
     'quitar apodo': (r) => r.updateNickname('p1', ''),
     'hacer anotador': (r) => r.setRole('p1', UserRole.scorer),

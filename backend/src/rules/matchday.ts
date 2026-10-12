@@ -40,6 +40,14 @@ export function isClosed(md: MatchdayTimes, at: Date, closeAfterHours: number) {
   return at.getTime() >= Date.parse(md.startsAt) + closeAfterHours * HOUR_MS;
 }
 
+/**
+ * La votación del MVP terminó: está cerrada y además pasó el plazo natural (`closeAfterHours` desde
+ * el inicio). Cerrarla a mano antes de tiempo no basta: así nadie la cierra para elegirse MVP.
+ */
+export function votingOver(md: MatchdayTimes, at: Date, closeAfterHours: number) {
+  return isClosed(md, at, closeAfterHours) && at.getTime() >= Date.parse(md.startsAt) + closeAfterHours * HOUR_MS;
+}
+
 /** Fecha local (AAAA-MM-DD) de un instante en una zona horaria: para detectar jornadas del mismo día. */
 export function localDay(at: string, timezone: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(

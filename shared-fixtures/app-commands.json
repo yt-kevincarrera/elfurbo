@@ -29,6 +29,8 @@
     { "name": "corregir reporte", "type": "report.correct", "payload": { "matchdayId": "m1", "memberId": "p2", "goals": 1, "assists": 2 } },
     { "name": "votar MVP", "type": "vote.cast", "payload": { "matchdayId": "m1", "votedFor": "g1" } },
     { "name": "quitar voto", "type": "vote.clear", "payload": { "matchdayId": "m1" } },
+    { "name": "elegir MVP a dedo", "type": "vote.pick", "payload": { "matchdayId": "m1", "memberId": "p1" } },
+    { "name": "quitar MVP a dedo", "type": "vote.pick", "payload": { "matchdayId": "m1", "memberId": null } },
     { "name": "cambiar apodo", "type": "member.update", "payload": { "memberId": "p1", "nickname": "El Mago" } },
     { "name": "quitar apodo", "type": "member.update", "payload": { "memberId": "p1", "nickname": null } },
     { "name": "hacer anotador", "type": "member.setRole", "payload": { "memberId": "p1", "role": "scorer" } },

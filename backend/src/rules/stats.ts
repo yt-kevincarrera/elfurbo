@@ -83,10 +83,11 @@ export function countReports(rows: Pick<StatsRows, "report" | "confirmation" | "
 
 /**
  * MVP de una jornada: el más votado; si hay empate, más goles confirmados del día y luego más
- * asistencias; si sigue igual, todos los empatados (ordenados).
+ * asistencias; si sigue igual, todos los empatados (ordenados). Sin votos, el que eligió un admin a
+ * dedo (`pick`), si lo hay: los votos ganan siempre.
  */
-export function mvpWinners(votes: Row[], confirmed: Map<string, CountedReport>) {
-  if (votes.length === 0) return [];
+export function mvpWinners(votes: Row[], confirmed: Map<string, CountedReport>, pick: string | null = null) {
+  if (votes.length === 0) return pick === null ? [] : [pick];
   const counts = new Map<string, number>();
   for (const v of votes) counts.set(str(v.votedFor), (counts.get(str(v.votedFor)) ?? 0) + 1);
   const max = Math.max(...counts.values());
@@ -107,7 +108,7 @@ export type PlayedMatchday = { id: string; startsAt: string; players: Set<string
 
 /**
  * Las jornadas ya jugadas del período (`seasonId` null = todas), en orden, con quién jugó (presencia
- * real o reporte que cuenta), sus reportes y su MVP.
+ * real o reporte que cuenta), sus reportes y su MVP (votado o, sin votos, elegido a dedo).
  */
 export function playedMatchdays(rows: StatsRows, settings: StatsSettings, seasonId: string | null, now: Date) {
   const matchdays = rows.matchday
@@ -139,9 +140,10 @@ export function playedMatchdays(rows: StatsRows, settings: StatsSettings, season
     if (!ids.has(str(v.matchdayId))) continue;
     votes.set(str(v.matchdayId), [...(votes.get(str(v.matchdayId)) ?? []), v]);
   }
-  for (const md of byMatchday.values()) {
+  for (const m of matchdays) {
+    const md = byMatchday.get(str(m.id))!;
     const confirmed = new Map(md.reports.filter((r) => r.counts).map((r) => [r.memberId, r]));
-    md.mvps = mvpWinners(votes.get(md.id) ?? [], confirmed);
+    md.mvps = mvpWinners(votes.get(md.id) ?? [], confirmed, m.mvpPick ? str(m.mvpPick) : null);
   }
   return matchdays.map((m) => byMatchday.get(str(m.id))!);
 }

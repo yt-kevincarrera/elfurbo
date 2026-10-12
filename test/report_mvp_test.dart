@@ -68,6 +68,15 @@ void main() {
       );
       expect(w, ['a']);
     });
+
+    test('sin votos: el MVP a dedo, si lo hay', () {
+      expect(StatsEngine.mvpWinners(const []), isEmpty);
+      expect(StatsEngine.mvpWinners(const [], pick: 'a'), ['a']);
+    });
+
+    test('con votos, la elección a dedo se ignora', () {
+      expect(StatsEngine.mvpWinners([vote('x', 'b')], pick: 'a'), ['b']);
+    });
   });
 
   group('MatchReport', () {

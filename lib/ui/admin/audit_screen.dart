@@ -188,6 +188,11 @@ String describeAudit(AuditEntry e, Map<String, AppUser> users) {
       'reopened' => 'reabrió una jornada',
       _ => 'reactivó una jornada',
     },
+    'matchday.mvpPick' => switch (s['memberId']) {
+      null => 'quitó el MVP que había elegido en una jornada',
+      _ when s['self'] == true => 'se eligió MVP de una jornada (nadie votó)',
+      final id => 'eligió MVP de una jornada a ${member('$id')} (nadie votó)',
+    },
     'matchday.delete' => 'borró una jornada',
     'matchday.merge' => 'unió dos jornadas repetidas',
     'season.delete' => 'borró una temporada',

@@ -8,6 +8,8 @@ import 'package:elfurbo/data/providers.dart';
 import 'package:elfurbo/models/attendance.dart';
 import 'package:elfurbo/models/match_day.dart';
 import 'package:elfurbo/models/match_report.dart';
+import 'package:elfurbo/ui/matches/mvp_tab.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -272,6 +274,31 @@ void main() {
     expect(_container(d).read(votesForMatchProvider('m1')), isEmpty);
   });
 
+  test(
+    'MVP a dedo: se ve al momento, cuenta en las tablas y null lo quita',
+    () async {
+      final server = _server();
+      // Pasado el plazo de 72 h: la votación terminó sin votos.
+      server.one('matchday', 'm1')!['startsAt'] = DateTime.now()
+          .subtract(const Duration(hours: 80))
+          .toUtc()
+          .toIso8601String();
+      var d = await _as('s1', server, (r) => r.rollCall('m1', {'k': true}));
+      expect(_container(d).read(votingOverProvider('m1')), isTrue);
+      expect(_container(_server()).read(votingOverProvider('m1')), isFalse);
+      d = await _as('k', d, (r) => r.pickMvp('m1', 'k'));
+      var c = _container(d, me: 'k', role: 'owner');
+      final m = c.read(matchByIdProvider('m1'))!;
+      expect((m.mvpPick, m.mvpPickBy), ('k', 'k'));
+      expect(c.read(allTimeStatsProvider).statsOf('k').mvps, 1);
+      d = await _as('k', d, (r) => r.pickMvp('m1', null));
+      c = _container(d, me: 'k', role: 'owner');
+      expect(c.read(matchByIdProvider('m1'))!.mvpPick, isNull);
+      expect(c.read(matchByIdProvider('m1'))!.mvpPickBy, isNull);
+      expect(c.read(allTimeStatsProvider).statsOf('k').mvps, 0);
+    },
+  );
+
   test('borrar una jornada se lleva todo lo que cuelga de ella', () async {
     var d = await _as('p1', _server(), (r) async {
       await r.submitReport(matchId: 'm1', goals: 1, assists: 1);
@@ -354,4 +381,133 @@ void main() {
       expect(reports['p1']!.isPending, isTrue);
     },
   );
+
+  group('pestaña MVP', () {
+    /// Lo que la pestaña manda a la cola.
+    final sent = <Map<String, Object?>>[];
+
+    Future<void> pump(
+      WidgetTester tester,
+      ClubData d, {
+      required String me,
+      required String role,
+    }) async {
+      sent.clear();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentClubProvider.overrideWithValue(
+              MyClub(
+                id: 'c1',
+                name: 'Unción y Fuego',
+                status: 'active',
+                memberId: me,
+                role: role,
+              ),
+            ),
+            clubDataProvider.overrideWithValue(AsyncData(d)),
+            repoProvider.overrideWithValue(
+              ClubRepo(
+                (_, type, payload) async =>
+                    sent.add({'type': type, 'payload': payload}),
+                'c1',
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: MvpTab(match: MatchDay.fromCloud(d.one('matchday', 'm1')!)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    /// Jugada hace 80 h (votación terminada) por el dueño, p1 y el sin cuenta.
+    Future<ClubData> ended() async {
+      final server = _server();
+      server.one('matchday', 'm1')!['startsAt'] = DateTime.now()
+          .subtract(const Duration(hours: 80))
+          .toUtc()
+          .toIso8601String();
+      return _as(
+        's1',
+        server,
+        (r) => r.rollCall('m1', {'k': true, 'p1': true, 'g1': true}),
+      );
+    }
+
+    testWidgets('sin votos y terminada: el admin elige, también a sí mismo', (
+      tester,
+    ) async {
+      await pump(tester, await ended(), me: 'k', role: 'owner');
+      expect(find.text('Nadie votó'), findsOneWidget);
+      expect(
+        find.text('Como nadie votó, el MVP lo eliges tú.'),
+        findsOneWidget,
+      );
+      expect(find.text('Tu voto'), findsNothing);
+      await tester.tap(find.text('k'));
+      await tester.pump();
+      expect(sent, [
+        {
+          'type': 'vote.pick',
+          'payload': {'matchdayId': 'm1', 'memberId': 'k'},
+        },
+      ]);
+    });
+
+    testWidgets(
+      'con el MVP elegido, todos ven quién lo eligió; el admin puede quitarlo',
+      (tester) async {
+        final d = await _as('k', await ended(), (r) => r.pickMvp('m1', 'k'));
+        await pump(tester, d, me: 'p1', role: 'player');
+        expect(
+          find.text('Nadie votó: k se eligió a sí mismo.'),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+        expect(
+          find.text('Como nadie votó, el MVP lo eliges tú.'),
+          findsNothing,
+        );
+
+        await pump(tester, d, me: 'k', role: 'owner');
+        expect(find.text('Cambiar el MVP'), findsOneWidget);
+        await tester.tap(find.text('Quitar'));
+        await tester.pump();
+        expect(sent, [
+          {
+            'type': 'vote.pick',
+            'payload': {'matchdayId': 'm1', 'memberId': null},
+          },
+        ]);
+
+        final other = await _as(
+          'k',
+          await ended(),
+          (r) => r.pickMvp('m1', 'p1'),
+        );
+        await pump(tester, other, me: 'g1', role: 'player');
+        expect(find.text('Nadie votó: lo eligió k.'), findsOneWidget);
+      },
+    );
+
+    testWidgets('con la votación abierta, solo un aviso para el admin', (
+      tester,
+    ) async {
+      final d = await _as(
+        's1',
+        _server(),
+        (r) => r.rollCall('m1', {'k': true}),
+      );
+      const hint = 'Si cierra sin votos, el MVP lo eliges tú.';
+      await pump(tester, d, me: 'k', role: 'owner');
+      expect(find.text(hint), findsOneWidget);
+      expect(find.text('Nadie votó'), findsNothing);
+      await pump(tester, d, me: 'p1', role: 'player');
+      expect(find.text(hint), findsNothing);
+    });
+  });
 }

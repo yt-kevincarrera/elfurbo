@@ -25,7 +25,7 @@ import {
   unconfirmReport,
   upsertReport,
 } from "../commands/reports";
-import { castVote, clearVote } from "../commands/votes";
+import { castVote, clearVote, pickMvp } from "../commands/votes";
 import {
   addPlayer,
   createTeam,
@@ -84,6 +84,7 @@ export const HANDLERS: Record<string, CommandHandler | undefined> = {
   "report.correct": correctReport,
   "vote.cast": castVote,
   "vote.clear": clearVote,
+  "vote.pick": pickMvp,
   "tournament.update": updateTournament,
   "tournament.finish": finishTournament,
   "tournament.reopen": reopenTournament,

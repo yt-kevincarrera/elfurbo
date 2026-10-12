@@ -247,6 +247,10 @@ class ClubRepo {
   Future<void> clearVote(String matchId) =>
       _run('vote.clear', {'matchdayId': matchId});
 
+  /// MVP a dedo (owner o admin) cuando la votación cerró sin votos. `null` lo quita.
+  Future<void> pickMvp(String matchId, String? memberId) =>
+      _run('vote.pick', {'matchdayId': matchId, 'memberId': memberId});
+
   // -------------------------------------------------------------- miembros
 
   Future<void> updateNickname(String memberId, String nickname) => _run(

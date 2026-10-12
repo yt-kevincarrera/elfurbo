@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../shared-fixtures/matchday-rules.json";
-import { acceptsIntent, isClosed, isPlayed, localDay, type MatchdayTimes } from "../src/rules/matchday";
+import { acceptsIntent, isClosed, isPlayed, localDay, votingOver, type MatchdayTimes } from "../src/rules/matchday";
 
 type Case = {
   name: string;
-  fn: "isPlayed" | "acceptsIntent" | "isClosed" | "localDay";
+  fn: "isPlayed" | "acceptsIntent" | "isClosed" | "votingOver" | "localDay";
   at: string;
   expected: boolean | string;
   matchday?: Partial<MatchdayTimes>;
@@ -20,6 +20,7 @@ describe("shared-fixtures/matchday-rules.json (los mismos casos que ejecuta la a
       isPlayed: () => isPlayed(md, at),
       acceptsIntent: () => acceptsIntent(md, at),
       isClosed: () => isClosed(md, at, c.closeAfterHours!),
+      votingOver: () => votingOver(md, at, c.closeAfterHours!),
       localDay: () => localDay(c.at, c.timezone!),
     }[c.fn]();
     expect(result).toBe(c.expected);
