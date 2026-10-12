@@ -33,16 +33,24 @@ class MvpTab extends ConsumerWidget {
     final iPlayed = ref.watch(iAmPresentProvider(match.id));
     final present = ref.watch(presentUidsProvider(match.id));
     final isAdmin = ref.watch(isAdminProvider);
-    final over = ref.watch(votingOverProvider(match.id));
     final canPick = ref.watch(canPickMvpProvider(match.id));
     final myVote = votes.where((v) => v.voterUid == myUid).firstOrNull;
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final note = text.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
 
-    final players = present.map((uid) => users[uid]).nonNulls.toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    final candidates = players.where((u) => u.uid != myUid).toList();
+    final candidates =
+        present
+            .where((uid) => uid != myUid)
+            .map((uid) => users[uid])
+            .nonNulls
+            .toList()
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
+    final pickable = canPick
+        ? ref.watch(mvpPickCandidatesProvider(match.id))
+        : const <AppUser>[];
 
     final counts = <String, int>{};
     for (final v in votes) {
@@ -112,28 +120,18 @@ class MvpTab extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text('Como nadie votó, el MVP lo eliges tú.', style: note),
           ),
-          if (players.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Nadie marcó que jugó en esta jornada.',
-                style: text.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else
-            _PlayerList(
-              players: players,
-              selected: picked,
-              enabled: true,
-              onPick: (u) => fireAndForget(
-                ref.read(repoProvider).pickMvp(match.id, u.uid),
-                success: u.uid == myUid
-                    ? 'Listo, eres el MVP'
-                    : 'Listo, ${u.name} es el MVP',
-              ),
+          // Los que jugaron o pusieron goles, y siempre yo.
+          _PlayerList(
+            players: pickable,
+            selected: picked,
+            enabled: true,
+            onPick: (u) => fireAndForget(
+              ref.read(repoProvider).pickMvp(match.id, u.uid),
+              success: u.uid == myUid
+                  ? 'Listo, eres el MVP'
+                  : 'Listo, ${u.name} es el MVP',
             ),
+          ),
           if (picked != null)
             Align(
               alignment: Alignment.centerLeft,
@@ -194,7 +192,7 @@ class MvpTab extends ConsumerWidget {
               ),
           ],
           // Al admin se le avisa de que, si nadie vota, le toca elegir.
-          if (isAdmin && votes.isEmpty && !over && !closed)
+          if (isAdmin && votes.isEmpty && !closed)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Text(

@@ -65,24 +65,6 @@ void main() {
     expect(_m(start, status: MatchStatus.cancelled).isClosed(start), isTrue);
   });
 
-  test(
-    'la votación del MVP termina al pasar el plazo, no al cerrarla a mano',
-    () {
-      final m = _m(start);
-      expect(m.votingOver(start.add(const Duration(hours: 71))), isFalse);
-      expect(m.votingOver(start.add(const Duration(hours: 72))), isTrue);
-      final closed = _m(start, status: MatchStatus.closed);
-      expect(closed.votingOver(start.add(const Duration(hours: 3))), isFalse);
-      expect(closed.votingOver(start.add(const Duration(hours: 72))), isTrue);
-      final reopened = _m(start, status: MatchStatus.reopened);
-      expect(reopened.votingOver(start.add(const Duration(days: 30))), isFalse);
-      expect(
-        m.votingOver(start.add(const Duration(hours: 48)), closeAfterHours: 48),
-        isTrue,
-      );
-    },
-  );
-
   test('fromCloud lee el MVP elegido a dedo', () {
     final m = MatchDay.fromCloud({
       'id': 'm',

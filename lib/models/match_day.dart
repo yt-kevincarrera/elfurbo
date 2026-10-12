@@ -84,21 +84,6 @@ class MatchDay {
     return !now.isBefore(date.add(Duration(hours: closeAfterHours)));
   }
 
-  /// La votación del MVP terminó: cerrada y pasado el plazo natural. Cerrarla
-  /// a mano antes no cuenta. Igual que `votingOver` de
-  /// `cloud/rules/matchday_rules.dart`.
-  bool votingOver(
-    DateTime now, {
-    bool seasonClosed = false,
-    int closeAfterHours = defaultCloseAfterHours,
-  }) =>
-      isClosed(
-        now,
-        seasonClosed: seasonClosed,
-        closeAfterHours: closeAfterHours,
-      ) &&
-      !now.isBefore(date.add(Duration(hours: closeAfterHours)));
-
   /// Una fila `matchday` de la vista local.
   factory MatchDay.fromCloud(Map<String, dynamic> d) {
     final teams = (d['teams'] as Map?) ?? const {};

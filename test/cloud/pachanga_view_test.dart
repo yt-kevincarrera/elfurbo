@@ -278,14 +278,17 @@ void main() {
     'MVP a dedo: se ve al momento, cuenta en las tablas y null lo quita',
     () async {
       final server = _server();
-      // Pasado el plazo de 72 h: la votación terminó sin votos.
+      // Pasado el plazo de 72 h: cerrada y sin votos.
       server.one('matchday', 'm1')!['startsAt'] = DateTime.now()
           .subtract(const Duration(hours: 80))
           .toUtc()
           .toIso8601String();
       var d = await _as('s1', server, (r) => r.rollCall('m1', {'k': true}));
-      expect(_container(d).read(votingOverProvider('m1')), isTrue);
-      expect(_container(_server()).read(votingOverProvider('m1')), isFalse);
+      bool canPick(ClubData d, {String me = 'k', String role = 'owner'}) =>
+          _container(d, me: me, role: role).read(canPickMvpProvider('m1'));
+      expect(canPick(d), isTrue);
+      expect(canPick(d, me: 'p1', role: 'player'), isFalse);
+      expect(canPick(_server()), isFalse);
       d = await _as('k', d, (r) => r.pickMvp('m1', 'k'));
       var c = _container(d, me: 'k', role: 'owner');
       final m = c.read(matchByIdProvider('m1'))!;
@@ -424,7 +427,7 @@ void main() {
       await tester.pump();
     }
 
-    /// Jugada hace 80 h (votación terminada) por el dueño, p1 y el sin cuenta.
+    /// Jugada hace 80 h (cerrada por plazo) por el dueño, p1 y el sin cuenta.
     Future<ClubData> ended() async {
       final server = _server();
       server.one('matchday', 'm1')!['startsAt'] = DateTime.now()
@@ -438,7 +441,7 @@ void main() {
       );
     }
 
-    testWidgets('sin votos y terminada: el admin elige, también a sí mismo', (
+    testWidgets('sin votos y cerrada: el admin elige, también a sí mismo', (
       tester,
     ) async {
       await pump(tester, await ended(), me: 'k', role: 'owner');
@@ -491,6 +494,39 @@ void main() {
         );
         await pump(tester, other, me: 'g1', role: 'player');
         expect(find.text('Nadie votó: lo eligió k.'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'cerrada a mano recién jugada: el admin elige aunque no marcara que jugó',
+      (tester) async {
+        var d = await _as(
+          's1',
+          _server(),
+          (r) => r.rollCall('m1', {'p1': true, 'p2': false}),
+        );
+        d = await _as(
+          'k',
+          d,
+          (r) => r.setMatchStatus('m1', MatchStatus.closed),
+        );
+        final c = _container(d, me: 'k', role: 'owner');
+        expect(c.read(canPickMvpProvider('m1')), isTrue);
+        expect(c.read(mvpPickCandidatesProvider('m1')).map((u) => u.uid), [
+          'k',
+          'p1',
+        ]);
+        await pump(tester, d, me: 'k', role: 'owner');
+        expect(find.text('Nadie votó'), findsOneWidget);
+        expect(find.text('p2'), findsNothing);
+        await tester.tap(find.text('k'));
+        await tester.pump();
+        expect(sent, [
+          {
+            'type': 'vote.pick',
+            'payload': {'matchdayId': 'm1', 'memberId': 'k'},
+          },
+        ]);
       },
     );
 

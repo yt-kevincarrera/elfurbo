@@ -28,7 +28,6 @@ void main() {
           'isPlayed' => isPlayed(md, at),
           'acceptsIntent' => acceptsIntent(md, at),
           'isClosed' => isClosed(md, at, c['closeAfterHours'] as int),
-          'votingOver' => votingOver(md, at, c['closeAfterHours'] as int),
           'localDay' => localDay(at, c['timezone'] as String),
           _ => throw StateError('fn desconocida: ${c['fn']}'),
         };

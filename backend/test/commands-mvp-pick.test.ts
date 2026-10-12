@@ -6,7 +6,7 @@ import { hoursAgo, matchday, played, row, squad } from "./pachanga-helpers";
 import { memberStats } from "./stats-helpers";
 import { apply, cmd, pullAll, push, rejection } from "./sync-helpers";
 
-/** Lleva la jornada al pasado: empezó hace `h` horas (por defecto, pasado el plazo de 72 h). */
+/** Lleva la jornada al pasado: empezó hace `h` horas (por defecto, pasado el plazo de 72 h: cerrada). */
 async function startedAgo(id: string, h = 80) {
   await env.DB.prepare("UPDATE matchdays SET starts_at = ? WHERE id = ?").bind(hoursAgo(h), id).run();
 }
@@ -30,19 +30,23 @@ describe("MVP a dedo (vote.pick)", () => {
     expect(await rejection(raul.token, pick(clubId, id, raul.memberId))).toBe("forbidden");
   });
 
-  it("con la votación abierta no se puede, ni cerrándola a mano antes del plazo, ni reabierta", async () => {
+  it("con la votación abierta no se puede (tampoco reabierta pasado el plazo)", async () => {
     const { clubId, owner, ownerId, id } = await setup();
-    expect(await rejection(owner.token, pick(clubId, id, ownerId))).toBe("invalid_state");
-    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
-    expect(await rejection(owner.token, pick(clubId, id, ownerId))).toBe("invalid_state");
+    const [result] = await push(owner.token, pick(clubId, id, ownerId));
+    expect(result).toMatchObject({
+      status: "rejected",
+      code: "invalid_state",
+      message: "La votación todavía está abierta. Cuando cierre sin votos, ahí eliges tú el MVP",
+    });
     await startedAgo(id);
     await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "reopened" }));
     expect(await rejection(owner.token, pick(clubId, id, ownerId))).toBe("invalid_state");
   });
 
-  it("pasado el plazo y sin votos: el admin elige (también a sí mismo), queda auditado y null lo quita", async () => {
+  it("cerrada a mano en cualquier momento y sin votos: el admin elige (también a sí mismo), queda auditado y null lo quita", async () => {
     const { clubId, owner, ownerId, id, raul } = await setup();
-    await startedAgo(id);
+    // Recién jugada, lejos del plazo de 72 h.
+    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
     await apply(owner.token, pick(clubId, id, ownerId));
     expect(await row("matchdays", id)).toMatchObject({ mvp_pick: ownerId, mvp_pick_by: ownerId });
     await apply(owner.token, pick(clubId, id, raul.memberId));
@@ -60,41 +64,28 @@ describe("MVP a dedo (vote.pick)", () => {
     ]);
   });
 
-  it("un admin (no dueño) también puede, y puede elegirse a sí mismo si jugó", async () => {
-    const { clubId, id, admin } = await setup();
-    await played(clubId, id, admin.token);
+  it("cerrada por plazo: también vale", async () => {
+    const { clubId, owner, ownerId, id } = await setup();
     await startedAgo(id);
+    await apply(owner.token, pick(clubId, id, ownerId));
+    expect(await row("matchdays", id)).toMatchObject({ mvp_pick: ownerId });
+  });
+
+  it("vale cualquier miembro activo, aunque no marcara que jugó (el admin también)", async () => {
+    const { clubId, owner, id, admin, guest } = await setup();
+    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
     await apply(admin.token, pick(clubId, id, admin.memberId));
     expect(await row("matchdays", id)).toMatchObject({ mvp_pick: admin.memberId, mvp_pick_by: admin.memberId });
+    await apply(owner.token, pick(clubId, id, guest));
+    expect(await row("matchdays", id)).toMatchObject({ mvp_pick: guest });
   });
 
-  it("cerrada a mano antes del plazo: no vale ni cuando el plazo pasa (nadie pudo votar)", async () => {
-    const { clubId, owner, ownerId, id } = await setup();
+  it("no vale alguien que no es miembro activo", async () => {
+    const { clubId, owner, id, pepe } = await setup();
     await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
-    // Empezó hace 80 h y la cerraron a la hora de terminar: 70 h antes del plazo.
-    await startedAgo(id);
-    await env.DB.prepare("UPDATE audit_log SET at = ? WHERE entity_key = ? AND action = 'matchday.setStatus'").bind(hoursAgo(78), id).run();
-    const [result] = await push(owner.token, pick(clubId, id, ownerId));
-    expect(result).toMatchObject({ status: "rejected", code: "invalid_state", message: expect.stringContaining("La cerraron a mano") });
-  });
-
-  it("cerrada a mano después del plazo: vale", async () => {
-    const { clubId, owner, ownerId, id } = await setup();
-    await startedAgo(id);
-    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
-    await apply(owner.token, pick(clubId, id, ownerId));
-    expect(await row("matchdays", id)).toMatchObject({ mvp_pick: ownerId });
-  });
-
-  it("cerrada a mano antes, reabierta y vuelta a cerrar después del plazo: vale (cuenta el último cierre)", async () => {
-    const { clubId, owner, ownerId, id } = await setup();
-    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
-    await startedAgo(id);
-    await env.DB.prepare("UPDATE audit_log SET at = ? WHERE entity_key = ? AND action = 'matchday.setStatus'").bind(hoursAgo(78), id).run();
-    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "reopened" }));
-    await apply(owner.token, cmd(clubId, "matchday.setStatus", { matchdayId: id, status: "closed" }));
-    await apply(owner.token, pick(clubId, id, ownerId));
-    expect(await row("matchdays", id)).toMatchObject({ mvp_pick: ownerId });
+    expect(await rejection(owner.token, pick(clubId, id, "inventado"))).toBe("invalid_input");
+    await env.DB.prepare("UPDATE members SET status = 'left' WHERE id = ?").bind(pepe.memberId).run();
+    expect(await rejection(owner.token, pick(clubId, id, pepe.memberId))).toBe("invalid_input");
   });
 
   it("si ya hay votos, decide la votación", async () => {
@@ -102,13 +93,6 @@ describe("MVP a dedo (vote.pick)", () => {
     await apply(pepe.token, cmd(clubId, "vote.cast", { matchdayId: id, votedFor: raul.memberId }));
     await startedAgo(id);
     expect(await rejection(owner.token, pick(clubId, id, pepe.memberId))).toBe("invalid_state");
-  });
-
-  it("solo a alguien que jugó", async () => {
-    const { clubId, owner, id, guest, admin } = await setup();
-    await startedAgo(id);
-    expect(await rejection(owner.token, pick(clubId, id, guest))).toBe("not_present");
-    expect(await rejection(admin.token, pick(clubId, id, admin.memberId))).toBe("not_present");
   });
 
   it("temporada cerrada o jornada cancelada: no", async () => {
