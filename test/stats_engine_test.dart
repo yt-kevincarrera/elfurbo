@@ -155,6 +155,44 @@ void main() {
     expect(engine.statsOf('b').matchesPlayed, 2);
   });
 
+  test('MVP a dedo: cuenta sin votos; con votos ganan los votos', () {
+    final picked = MatchDay(
+      id: 'p1',
+      date: DateTime(2026, 9, 1),
+      seasonId: 's1',
+      status: MatchStatus.closed,
+      createdBy: 'admin',
+      mvpPick: 'admin',
+      mvpPickBy: 'admin',
+    );
+    final voted = MatchDay(
+      id: 'p2',
+      date: DateTime(2026, 9, 8),
+      seasonId: 's1',
+      status: MatchStatus.reopened,
+      createdBy: 'admin',
+      mvpPick: 'admin',
+      mvpPickBy: 'admin',
+    );
+    final engine = StatsEngine(
+      now: now,
+      matches: [picked, voted],
+      attendance: [
+        yes('p1', 'admin'),
+        yes('p1', 'g'),
+        yes('p2', 'admin'),
+        yes('p2', 'g'),
+      ],
+      reports: const [],
+      votes: const [MvpVote(matchId: 'p2', voterUid: 'admin', votedFor: 'g')],
+    );
+    expect(engine.mvpsByMatch['p1'], ['admin']);
+    expect(engine.mvpsByMatch['p2'], ['g']);
+    expect(engine.statsOf('admin').mvps, 1);
+    expect(engine.statsOf('g').mvps, 1);
+    expect(engine.summary('p1').mvps, ['admin']);
+  });
+
   test('filtro por temporada y evolución acumulada', () {
     final old = match('old', DateTime(2025, 12, 1), season: 's0');
     final engine = StatsEngine(

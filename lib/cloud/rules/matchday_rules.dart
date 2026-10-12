@@ -40,6 +40,13 @@ bool isClosed(MatchdayTimes md, DateTime at, int closeAfterHours) {
   return !at.isBefore(md.startsAt.add(Duration(hours: closeAfterHours)));
 }
 
+/// La votación del MVP terminó: está cerrada y además pasó el plazo natural
+/// (`closeAfterHours` desde el inicio). Cerrarla a mano antes de tiempo no
+/// basta: así nadie la cierra para elegirse MVP.
+bool votingOver(MatchdayTimes md, DateTime at, int closeAfterHours) =>
+    isClosed(md, at, closeAfterHours) &&
+    !at.isBefore(md.startsAt.add(Duration(hours: closeAfterHours)));
+
 /// Fecha local (AAAA-MM-DD) de un instante en una zona horaria: para detectar
 /// jornadas duplicadas (del mismo día). Requiere `tz.initializeTimeZones()`.
 String localDay(DateTime at, String timezone) {

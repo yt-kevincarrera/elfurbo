@@ -285,6 +285,20 @@ void main() {
       describeAudit(entry('member.setRole', 'm2', {'to': 'scorer'}), users),
       'hizo anotador a Raúl',
     );
+    expect(
+      describeAudit(
+        entry('matchday.mvpPick', 'md1', {'memberId': 'm2', 'self': false}),
+        users,
+      ),
+      'eligió MVP de una jornada a Raúl (nadie votó)',
+    );
+    expect(
+      describeAudit(
+        entry('matchday.mvpPick', 'md1', {'memberId': 'm1', 'self': true}),
+        users,
+      ),
+      'se eligió MVP de una jornada (nadie votó)',
+    );
     expect(describeAudit(entry('algo.nuevo', 'k'), users), 'hizo "algo.nuevo"');
   });
 }

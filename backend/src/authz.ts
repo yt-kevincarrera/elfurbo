@@ -75,5 +75,8 @@ export const canActForOthers = (actor: Role) => isStaff(actor);
 /** Confirmar, rechazar o corregir reportes. */
 export const canDecideReports = (actor: Role) => isAdmin(actor);
 
+/** Elegir el MVP a dedo cuando la votación cerró sin votos (puede elegirse a sí mismo). */
+export const canPickMvp = (actor: Role) => isAdmin(actor);
+
 /** Asistencia propia, reporte propio, confirmar otros, votar MVP. Todos los que tienen cuenta. */
 export const canActForSelf = (actor: Role) => actor !== "guest";

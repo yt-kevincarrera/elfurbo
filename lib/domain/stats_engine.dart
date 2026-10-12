@@ -133,6 +133,7 @@ class StatsEngine {
             for (final r in reportsByMatch[m.id] ?? const <MatchReport>[])
               if (r.isConfirmed) r.uid: r,
           },
+          pick: m.mvpPick,
         ),
     };
 
@@ -202,12 +203,15 @@ class StatsEngine {
 
   /// Ganador(es) de MVP de una jornada: el más votado. Si hay empate se
   /// desempata por goles confirmados del día y luego por asistencias
-  /// ([confirmedReports], por uid); si sigue igual, todos los empatados.
+  /// ([confirmedReports], por uid); si sigue igual, todos los empatados. Sin
+  /// votos, el que eligió un admin a dedo ([pick]), si lo hay: los votos
+  /// ganan siempre. Igual que `mvpWinners` de `backend/src/rules/stats.ts`.
   static List<String> mvpWinners(
     List<MvpVote> votes, {
     Map<String, MatchReport> confirmedReports = const {},
+    String? pick,
   }) {
-    if (votes.isEmpty) return const [];
+    if (votes.isEmpty) return pick == null ? const [] : [pick];
     final counts = <String, int>{};
     for (final v in votes) {
       counts[v.votedFor] = (counts[v.votedFor] ?? 0) + 1;

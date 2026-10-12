@@ -1,5 +1,5 @@
 {
-  "about": "Estadísticas de un servidor a partir de las filas del pull. Las calcula la app (lib/domain/report_rules.dart + StatsEngine, test/shared_stats_test.dart) y el backend (backend/src/rules/stats.ts, backend/test/stats-rules.test.ts). Si cambia una regla, cambia aquí y en los dos lados. Los miembros que no están en `expected` no jugaron, ni metieron goles ni salieron MVP. Un caso puede traer sus propios datos (`data`) en vez de los de arriba.",
+  "about": "Estadísticas de un servidor a partir de las filas del pull. Las calcula la app (lib/domain/report_rules.dart + StatsEngine, test/shared_stats_test.dart) y el backend (backend/src/rules/stats.ts, backend/test/stats-rules.test.ts). Si cambia una regla, cambia aquí y en los dos lados. Los miembros que no están en `expected` no jugaron, ni metieron goles ni salieron MVP. Un caso puede traer sus propios datos (`data`) en vez de los de arriba. Una jornada sin votos puede traer `mvpPick` (MVP elegido a dedo por un admin); si tiene votos, se ignora.",
   "data": {
     "member": [
       {
@@ -797,6 +797,243 @@
           "completeMatches": 0,
           "bestDayGoals": 0,
           "bestStreak": 2
+        }
+      }
+    },
+    {
+      "name": "MVP a dedo: sin votos, cuenta el que eligió el admin (aunque sea él mismo)",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": null,
+      "data": {
+        "member": [
+          {
+            "id": "p",
+            "userId": "up",
+            "role": "owner",
+            "status": "active",
+            "displayName": "P"
+          },
+          {
+            "id": "q",
+            "userId": null,
+            "role": "guest",
+            "status": "active",
+            "displayName": "Q"
+          },
+          {
+            "id": "r",
+            "userId": null,
+            "role": "guest",
+            "status": "active",
+            "displayName": "R"
+          }
+        ],
+        "season": [
+          {
+            "id": "s1",
+            "name": "2026",
+            "startDate": "2026-01-01",
+            "isActive": true,
+            "isClosed": false
+          }
+        ],
+        "matchday": [
+          {
+            "id": "A",
+            "seasonId": "s1",
+            "startsAt": "2026-09-01T14:00:00.000Z",
+            "durationMinutes": 0,
+            "status": "scheduled",
+            "mvpPick": "p",
+            "mvpPickBy": "p"
+          }
+        ],
+        "attendance": [
+          {
+            "id": "A:p",
+            "matchdayId": "A",
+            "memberId": "p",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "A:q",
+            "matchdayId": "A",
+            "memberId": "q",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "A:r",
+            "matchdayId": "A",
+            "memberId": "r",
+            "intent": null,
+            "played": true
+          }
+        ],
+        "report": [],
+        "confirmation": [],
+        "vote": []
+      },
+      "expected": {
+        "p": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "q": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "r": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        }
+      }
+    },
+    {
+      "name": "MVP a dedo: si hay votos, ganan los votos y la elección se ignora",
+      "now": "2026-10-07T12:00:00.000Z",
+      "settings": {
+        "reportValidation": "confirm",
+        "confirmationsNeeded": 2
+      },
+      "seasonId": null,
+      "data": {
+        "member": [
+          {
+            "id": "p",
+            "userId": "up",
+            "role": "owner",
+            "status": "active",
+            "displayName": "P"
+          },
+          {
+            "id": "q",
+            "userId": null,
+            "role": "guest",
+            "status": "active",
+            "displayName": "Q"
+          },
+          {
+            "id": "r",
+            "userId": null,
+            "role": "guest",
+            "status": "active",
+            "displayName": "R"
+          }
+        ],
+        "season": [
+          {
+            "id": "s1",
+            "name": "2026",
+            "startDate": "2026-01-01",
+            "isActive": true,
+            "isClosed": false
+          }
+        ],
+        "matchday": [
+          {
+            "id": "A",
+            "seasonId": "s1",
+            "startsAt": "2026-09-01T14:00:00.000Z",
+            "durationMinutes": 0,
+            "status": "reopened",
+            "mvpPick": "p",
+            "mvpPickBy": "p"
+          }
+        ],
+        "attendance": [
+          {
+            "id": "A:p",
+            "matchdayId": "A",
+            "memberId": "p",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "A:q",
+            "matchdayId": "A",
+            "memberId": "q",
+            "intent": null,
+            "played": true
+          },
+          {
+            "id": "A:r",
+            "matchdayId": "A",
+            "memberId": "r",
+            "intent": null,
+            "played": true
+          }
+        ],
+        "report": [],
+        "confirmation": [],
+        "vote": [
+          {
+            "id": "A:p",
+            "matchdayId": "A",
+            "voterId": "p",
+            "votedFor": "q"
+          }
+        ]
+      },
+      "expected": {
+        "p": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "q": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 1,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
+        },
+        "r": {
+          "played": 1,
+          "goals": 0,
+          "assists": 0,
+          "mvps": 0,
+          "hatTricks": 0,
+          "pokers": 0,
+          "completeMatches": 0,
+          "bestDayGoals": 0,
+          "bestStreak": 1
         }
       }
     }

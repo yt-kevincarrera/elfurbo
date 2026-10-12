@@ -315,6 +315,33 @@ final matchClosedProvider = Provider.family<bool, String>((ref, matchId) {
   );
 });
 
+/// true si la votación del MVP ya terminó (ver `MatchDay.votingOver`): si
+/// nadie votó, ahí un admin elige el MVP a dedo.
+final votingOverProvider = Provider.family<bool, String>((ref, matchId) {
+  final match = ref.watch(matchByIdProvider(matchId));
+  if (match == null) return false;
+  final season = ref.watch(seasonByIdProvider(match.seasonId));
+  return match.votingOver(
+    DateTime.now(),
+    seasonClosed: season?.isClosed ?? false,
+    closeAfterHours: ref.watch(clubSettingsProvider).closeAfterHours,
+  );
+});
+
+/// Puedo elegir el MVP a dedo: soy owner o admin, la jornada se jugó, la
+/// votación terminó sin votos y la temporada sigue abierta (como `vote.pick`).
+final canPickMvpProvider = Provider.family<bool, String>((ref, matchId) {
+  final match = ref.watch(matchByIdProvider(matchId));
+  if (match == null || !ref.watch(isAdminProvider)) return false;
+  if (ref.watch(clubReadOnlyProvider)) return false;
+  if (ref.watch(seasonByIdProvider(match.seasonId))?.isClosed ?? false) {
+    return false;
+  }
+  return match.isPlayed(DateTime.now()) &&
+      ref.watch(votingOverProvider(matchId)) &&
+      ref.watch(votesForMatchProvider(matchId)).isEmpty;
+});
+
 final matchByIdProvider = Provider.family<MatchDay?, String>((ref, id) {
   final matches = ref.watch(matchesProvider).value ?? const [];
   return matches.where((m) => m.id == id).firstOrNull;

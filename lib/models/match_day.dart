@@ -24,6 +24,8 @@ class MatchDay {
     this.teamA = const [],
     this.teamB = const [],
     this.maxPlayers = 0,
+    this.mvpPick,
+    this.mvpPickBy,
   });
 
   /// Las jornadas duran lo que quieran: sin duración, se reportan goles desde
@@ -46,6 +48,11 @@ class MatchDay {
 
   /// Cupo (0 = sin límite): los de más quedan en lista de espera.
   final int maxPlayers;
+
+  /// MVP elegido a dedo por un admin porque nadie votó (si hay votos, no
+  /// cuenta), y quién lo eligió.
+  final String? mvpPick;
+  final String? mvpPickBy;
 
   DateTime get end => date.add(Duration(minutes: durationMinutes));
 
@@ -77,6 +84,21 @@ class MatchDay {
     return !now.isBefore(date.add(Duration(hours: closeAfterHours)));
   }
 
+  /// La votación del MVP terminó: cerrada y pasado el plazo natural. Cerrarla
+  /// a mano antes no cuenta. Igual que `votingOver` de
+  /// `cloud/rules/matchday_rules.dart`.
+  bool votingOver(
+    DateTime now, {
+    bool seasonClosed = false,
+    int closeAfterHours = defaultCloseAfterHours,
+  }) =>
+      isClosed(
+        now,
+        seasonClosed: seasonClosed,
+        closeAfterHours: closeAfterHours,
+      ) &&
+      !now.isBefore(date.add(Duration(hours: closeAfterHours)));
+
   /// Una fila `matchday` de la vista local.
   factory MatchDay.fromCloud(Map<String, dynamic> d) {
     final teams = (d['teams'] as Map?) ?? const {};
@@ -96,6 +118,8 @@ class MatchDay {
       teamA: List<String>.from((teams['a'] as List?) ?? const []),
       teamB: List<String>.from((teams['b'] as List?) ?? const []),
       maxPlayers: (d['maxPlayers'] as num?)?.toInt() ?? 0,
+      mvpPick: d['mvpPick'] as String?,
+      mvpPickBy: d['mvpPickBy'] as String?,
     );
   }
 }

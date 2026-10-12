@@ -20,6 +20,11 @@
     { "name": "cancelada: cerrada", "fn": "isClosed", "at": "2026-10-04T15:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "cancelled" }, "expected": true },
     { "name": "reabierta: abierta aunque haya pasado el plazo", "fn": "isClosed", "at": "2026-11-30T10:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "reopened" }, "expected": false },
     { "name": "temporada cerrada: cerrada aunque esté reabierta", "fn": "isClosed", "at": "2026-10-04T15:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "reopened", "seasonClosed": true }, "expected": true },
+    { "name": "votación del MVP: sigue abierta antes del plazo", "fn": "votingOver", "at": "2026-10-07T13:59:00.000Z", "closeAfterHours": 72, "expected": false },
+    { "name": "votación del MVP: termina al cumplirse el plazo", "fn": "votingOver", "at": "2026-10-07T14:00:00.000Z", "closeAfterHours": 72, "expected": true },
+    { "name": "votación del MVP: cerrarla a mano antes del plazo no la termina", "fn": "votingOver", "at": "2026-10-04T17:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "closed" }, "expected": false },
+    { "name": "votación del MVP: cerrada a mano y pasado el plazo, terminó", "fn": "votingOver", "at": "2026-10-08T10:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "closed" }, "expected": true },
+    { "name": "votación del MVP: reabierta sigue abierta aunque pasara el plazo", "fn": "votingOver", "at": "2026-11-30T10:00:00.000Z", "closeAfterHours": 72, "matchday": { "status": "reopened" }, "expected": false },
     { "name": "día local en La Habana (de noche sigue siendo el mismo día)", "fn": "localDay", "at": "2026-10-05T03:30:00.000Z", "timezone": "America/Havana", "expected": "2026-10-04" },
     { "name": "día local en Madrid", "fn": "localDay", "at": "2026-10-04T23:30:00.000Z", "timezone": "Europe/Madrid", "expected": "2026-10-05" }
   ]

@@ -5,6 +5,7 @@ import '../../core/app_messenger.dart';
 import '../../core/theme.dart';
 import '../../data/providers.dart';
 import '../../domain/stats_engine.dart';
+import '../../models/app_user.dart';
 import '../../models/match_day.dart';
 import '../widgets/common.dart';
 import '../widgets/expressive.dart';
@@ -31,19 +32,17 @@ class MvpTab extends ConsumerWidget {
     final closed = ref.watch(matchClosedProvider(match.id));
     final iPlayed = ref.watch(iAmPresentProvider(match.id));
     final present = ref.watch(presentUidsProvider(match.id));
+    final isAdmin = ref.watch(isAdminProvider);
+    final over = ref.watch(votingOverProvider(match.id));
+    final canPick = ref.watch(canPickMvpProvider(match.id));
     final myVote = votes.where((v) => v.voterUid == myUid).firstOrNull;
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final note = text.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
 
-    final candidates =
-        present
-            .where((uid) => uid != myUid)
-            .map((uid) => users[uid])
-            .nonNulls
-            .toList()
-          ..sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-          );
+    final players = present.map((uid) => users[uid]).nonNulls.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final candidates = players.where((u) => u.uid != myUid).toList();
 
     final counts = <String, int>{};
     for (final v in votes) {
@@ -58,7 +57,10 @@ class MvpTab extends ConsumerWidget {
         for (final r in reports)
           if (r.isConfirmed) r.uid: r,
       },
+      pick: match.mvpPick,
     ).toSet();
+    // Sin votos, el MVP lo eligió un admin a dedo (los votos ganan siempre).
+    final picked = votes.isEmpty ? match.mvpPick : null;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -88,93 +90,193 @@ class MvpTab extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               '${votes.length} ${votes.length == 1 ? 'voto' : 'votos'} · si hay empate, desempata por goles y asistencias confirmados del día; si sigue igual, comparten.',
-              style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: note,
             ),
           ),
         ],
-        const SectionTitle('Tu voto'),
-        if (!iPlayed)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              'Para votar tienes que marcar "Jugué" en la pestaña Asistencia.',
-              style: text.bodyMedium?.copyWith(color: scheme.pending),
-            ),
-          )
-        else if (candidates.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              'Nadie más ha marcado que jugó.',
-              style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          )
-        else ...[
-          RadioGroup<String>(
-            groupValue: myVote?.votedFor,
-            onChanged: (uid) {
-              if (closed || uid == null) return;
-              final name = users[uid]?.name ?? 'Jugador';
-              fireAndForget(
-                ref.read(repoProvider).castVote(match.id, uid),
-                success: 'Votaste a $name',
-              );
-            },
-            child: Column(
-              children: [
-                for (final (i, u) in candidates.indexed)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 1.5,
-                    ),
-                    child: GroupedTile(
-                      index: i,
-                      count: candidates.length,
-                      color: myVote?.votedFor == u.uid
-                          ? Theme.of(context).colorScheme.secondaryContainer
-                          : null,
-                      onTap: closed || myVote?.votedFor == u.uid
-                          ? null
-                          : () => fireAndForget(
-                              ref.read(repoProvider).castVote(match.id, u.uid),
-                              success: 'Votaste a ${u.name}',
-                            ),
-                      padding: const EdgeInsets.fromLTRB(14, 6, 4, 6),
-                      child: Row(
-                        children: [
-                          PlayerAvatar(user: u, radius: 18),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              u.name,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          Radio<String>(value: u.uid),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+        if (picked != null) ...[
+          const SectionTitle('MVP'),
+          ListTile(
+            leading: PlayerAvatar(user: users[picked], radius: 18),
+            title: Text(users[picked]?.name ?? 'Jugador'),
+            trailing: Icon(Icons.emoji_events, color: scheme.mvpGold),
           ),
-          if (myVote != null && !closed)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(_pickNote(picked, match.mvpPickBy, users), style: note),
+          ),
+        ],
+        if (canPick) ...[
+          SectionTitle(picked == null ? 'Nadie votó' : 'Cambiar el MVP'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text('Como nadie votó, el MVP lo eliges tú.', style: note),
+          ),
+          if (players.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Nadie marcó que jugó en esta jornada.',
+                style: text.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            )
+          else
+            _PlayerList(
+              players: players,
+              selected: picked,
+              enabled: true,
+              onPick: (u) => fireAndForget(
+                ref.read(repoProvider).pickMvp(match.id, u.uid),
+                success: u.uid == myUid
+                    ? 'Listo, eres el MVP'
+                    : 'Listo, ${u.name} es el MVP',
+              ),
+            ),
+          if (picked != null)
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: TextButton(
                   onPressed: () => fireAndForget(
-                    ref.read(repoProvider).clearVote(match.id),
-                    success: 'Voto retirado',
+                    ref.read(repoProvider).pickMvp(match.id, null),
+                    success: 'MVP quitado',
                   ),
-                  child: const Text('Quitar mi voto'),
+                  child: const Text('Quitar'),
                 ),
+              ),
+            ),
+        ] else ...[
+          const SectionTitle('Tu voto'),
+          if (!iPlayed)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Para votar tienes que marcar "Jugué" en la pestaña Asistencia.',
+                style: text.bodyMedium?.copyWith(color: scheme.pending),
+              ),
+            )
+          else if (candidates.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Nadie más ha marcado que jugó.',
+                style: text.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            )
+          else ...[
+            _PlayerList(
+              players: candidates,
+              selected: myVote?.votedFor,
+              enabled: !closed,
+              onPick: (u) => fireAndForget(
+                ref.read(repoProvider).castVote(match.id, u.uid),
+                success: 'Votaste a ${u.name}',
+              ),
+            ),
+            if (myVote != null && !closed)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextButton(
+                    onPressed: () => fireAndForget(
+                      ref.read(repoProvider).clearVote(match.id),
+                      success: 'Voto retirado',
+                    ),
+                    child: const Text('Quitar mi voto'),
+                  ),
+                ),
+              ),
+          ],
+          // Al admin se le avisa de que, si nadie vota, le toca elegir.
+          if (isAdmin && votes.isEmpty && !over && !closed)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Text(
+                'Si cierra sin votos, el MVP lo eliges tú.',
+                style: note,
               ),
             ),
         ],
       ],
+    );
+  }
+
+  /// Quién eligió el MVP a dedo. Si se eligió a sí mismo, se dice claro.
+  static String _pickNote(
+    String picked,
+    String? by,
+    Map<String, AppUser> users,
+  ) {
+    if (by == null) return 'Nadie votó: lo eligió un admin.';
+    final name = users[by]?.name ?? 'un admin';
+    return by == picked
+        ? 'Nadie votó: $name se eligió a sí mismo.'
+        : 'Nadie votó: lo eligió $name.';
+  }
+}
+
+/// Lista de jugadores para elegir uno (votar o elegir el MVP a dedo).
+class _PlayerList extends StatelessWidget {
+  const _PlayerList({
+    required this.players,
+    required this.selected,
+    required this.enabled,
+    required this.onPick,
+  });
+
+  final List<AppUser> players;
+  final String? selected;
+  final bool enabled;
+  final void Function(AppUser u) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return RadioGroup<String>(
+      groupValue: selected,
+      onChanged: (uid) {
+        if (!enabled || uid == null) return;
+        final u = players.where((p) => p.uid == uid).firstOrNull;
+        if (u != null) onPick(u);
+      },
+      child: Column(
+        children: [
+          for (final (i, u) in players.indexed)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 1.5,
+              ),
+              child: GroupedTile(
+                index: i,
+                count: players.length,
+                color: selected == u.uid
+                    ? Theme.of(context).colorScheme.secondaryContainer
+                    : null,
+                onTap: !enabled || selected == u.uid ? null : () => onPick(u),
+                padding: const EdgeInsets.fromLTRB(14, 6, 4, 6),
+                child: Row(
+                  children: [
+                    PlayerAvatar(user: u, radius: 18),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        u.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    Radio<String>(value: u.uid),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

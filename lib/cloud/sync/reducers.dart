@@ -392,6 +392,12 @@ void _applyPachanga(ClubData d, Command c, String? me) {
       };
     case 'vote.clear':
       d.table('vote').remove(key(me));
+    case 'vote.pick':
+      final md = matchday();
+      if (md == null) return;
+      md
+        ..['mvpPick'] = p['memberId']
+        ..['mvpPickBy'] = p['memberId'] == null ? null : me;
   }
 }
 

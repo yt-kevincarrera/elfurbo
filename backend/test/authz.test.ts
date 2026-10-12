@@ -12,6 +12,7 @@ import {
   canManageInvites,
   canManageMatchday,
   canManageSeasons,
+  canPickMvp,
   canSetRole,
   type Role,
 } from "../src/authz";
@@ -25,6 +26,7 @@ describe("matriz de permisos (spec §4)", () => {
   it("ver y revocar invitaciones: owner y admin", () => expect(who(canManageInvites)).toEqual(["owner", "admin"]));
   it("temporadas: owner y admin", () => expect(who(canManageSeasons)).toEqual(["owner", "admin"]));
   it("decidir reportes: owner y admin", () => expect(who(canDecideReports)).toEqual(["owner", "admin"]));
+  it("MVP a dedo: owner y admin", () => expect(who(canPickMvp)).toEqual(["owner", "admin"]));
   it("pasar lista, cargar por otros, sin cuenta, equipos: staff", () =>
     expect(who(canActForOthers)).toEqual(["owner", "admin", "scorer"]));
   it("acciones propias: todos los que tienen cuenta", () =>
