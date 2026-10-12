@@ -71,11 +71,16 @@ class _ClubSessionState extends ConsumerState<ClubSession>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Al volver a la app (como mucho cada 12 h pregunta al servidor).
+    final update = ref.read(updateProvider.notifier);
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      update.appPaused();
+    }
+    // Al volver a la app: retoma una descarga cortada y (como mucho cada 12 h)
+    // pregunta al servidor.
     if (state == AppLifecycleState.resumed) {
-      unawaited(
-        ref.read(updateProvider.notifier).check().catchError((Object _) {}),
-      );
+      unawaited(update.appResumed().catchError((Object _) {}));
+      unawaited(update.check().catchError((Object _) {}));
     }
   }
 
